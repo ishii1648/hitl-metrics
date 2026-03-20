@@ -1,2 +1,4 @@
 .outputs/
 e2e/testdata/claudedog.db
+e2e/testdata/claudedog.db-shm
+e2e/testdata/claudedog.db-wal
