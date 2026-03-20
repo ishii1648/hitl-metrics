@@ -13,7 +13,7 @@
       "title": "サマリ",
       "type": "stat",
       "gridPos": { "h": 4, "w": 12, "x": 0, "y": 0 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "${DS_CLAUDEDOG}" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
           "rawQueryText": "SELECT COUNT(*) AS pr_count, COALESCE(SUM(perm_count), 0) AS total_perm FROM pr_metrics WHERE pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '$__from' AND '$__to')",
@@ -48,7 +48,7 @@
       "title": "PR 別テーブル",
       "type": "table",
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 4 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "${DS_CLAUDEDOG}" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
           "rawQueryText": "SELECT pm.pr_url, pm.session_count, pm.tool_use_total, pm.mid_session_msgs, pm.ask_user_question, pm.perm_count, pm.perm_rate FROM pr_metrics pm WHERE pm.pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '$__from' AND '$__to' OR pe.timestamp IS NULL) ORDER BY pm.perm_rate ASC",
@@ -84,7 +84,7 @@
       "title": "perm rate by PR",
       "type": "barchart",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "${DS_CLAUDEDOG}" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
           "rawQueryText": "SELECT pr_url, perm_rate FROM pr_metrics WHERE perm_rate IS NOT NULL ORDER BY perm_rate ASC",
@@ -109,7 +109,7 @@
       "title": "perm count by PR",
       "type": "barchart",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "${DS_CLAUDEDOG}" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
           "rawQueryText": "SELECT pr_url, perm_count FROM pr_metrics ORDER BY perm_count DESC",
@@ -133,7 +133,7 @@
       "title": "session count by PR",
       "type": "barchart",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "${DS_CLAUDEDOG}" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
           "rawQueryText": "SELECT pr_url, session_count FROM pr_metrics ORDER BY session_count DESC",
@@ -157,7 +157,7 @@
       "title": "mid-session msgs by PR",
       "type": "barchart",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "${DS_CLAUDEDOG}" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
           "rawQueryText": "SELECT pr_url, mid_session_msgs FROM pr_metrics ORDER BY mid_session_msgs DESC",
@@ -181,7 +181,7 @@
       "title": "AskUserQuestion by PR",
       "type": "barchart",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 30 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "${DS_CLAUDEDOG}" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
           "rawQueryText": "SELECT pr_url, ask_user_question FROM pr_metrics ORDER BY ask_user_question DESC",
@@ -205,7 +205,7 @@
       "title": "perm rate 日別トレンド",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "${DS_CLAUDEDOG}" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
           "rawQueryText": "SELECT date(pe.timestamp) AS time, COUNT(pe.id) AS perm_count, COALESCE(SUM(ts.tool_use_total), 0) AS tool_use_total, CASE WHEN COALESCE(SUM(ts.tool_use_total), 0) > 0 THEN ROUND(COUNT(pe.id) * 100.0 / SUM(ts.tool_use_total), 1) ELSE NULL END AS perm_rate FROM permission_events pe LEFT JOIN sessions s ON pe.session_id = s.session_id LEFT JOIN transcript_stats ts ON pe.session_id = ts.session_id WHERE pe.timestamp BETWEEN '$__from' AND '$__to' AND s.repo NOT IN ('ishii1648/dotfiles') GROUP BY date(pe.timestamp) ORDER BY time",
@@ -243,7 +243,7 @@
       "title": "perm rate 週別トレンド",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 38 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "${DS_CLAUDEDOG}" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
           "rawQueryText": "SELECT date(pe.timestamp, 'weekday 0', '-6 days') AS time, COUNT(pe.id) AS perm_count, COALESCE(SUM(ts.tool_use_total), 0) AS tool_use_total, CASE WHEN COALESCE(SUM(ts.tool_use_total), 0) > 0 THEN ROUND(COUNT(pe.id) * 100.0 / SUM(ts.tool_use_total), 1) ELSE NULL END AS perm_rate FROM permission_events pe LEFT JOIN sessions s ON pe.session_id = s.session_id LEFT JOIN transcript_stats ts ON pe.session_id = ts.session_id WHERE pe.timestamp BETWEEN '$__from' AND '$__to' AND s.repo NOT IN ('ishii1648/dotfiles') GROUP BY date(pe.timestamp, 'weekday 0', '-6 days') ORDER BY time",
@@ -281,7 +281,7 @@
       "title": "ツール別内訳テーブル",
       "type": "table",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 46 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "${DS_CLAUDEDOG}" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
           "rawQueryText": "SELECT pe.tool, COUNT(*) AS count, ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM permission_events WHERE timestamp BETWEEN '$__from' AND '$__to'), 1) AS percentage FROM permission_events pe WHERE pe.timestamp BETWEEN '$__from' AND '$__to' AND pe.tool != 'unknown' GROUP BY pe.tool ORDER BY count DESC",
@@ -307,7 +307,7 @@
       "title": "ツール別内訳バー",
       "type": "barchart",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 46 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "${DS_CLAUDEDOG}" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
           "rawQueryText": "SELECT pe.tool, COUNT(*) AS count FROM permission_events pe WHERE pe.timestamp BETWEEN '$__from' AND '$__to' AND pe.tool != 'unknown' GROUP BY pe.tool ORDER BY count DESC",
@@ -340,15 +340,5 @@
   "timezone": "Asia/Tokyo",
   "title": "Claude 自律度ダッシュボード",
   "uid": "claudedog",
-  "version": 1,
-  "__inputs": [
-    {
-      "name": "DS_CLAUDEDOG",
-      "label": "claudedog",
-      "description": "SQLite datasource for claudedog",
-      "type": "datasource",
-      "pluginId": "frser-sqlite-datasource",
-      "pluginName": "SQLite"
-    }
-  ]
+  "version": 1
 }

@@ -1,0 +1,15 @@
+2026-03-01T10:05:00Z session=sess-001 tool=Bash
+2026-03-01T10:12:00Z session=sess-001 tool=Edit
+2026-03-03T14:10:00Z session=sess-002 tool=Bash
+2026-03-03T14:20:00Z session=sess-002 tool=Write
+2026-03-03T14:35:00Z session=sess-002 tool=Edit
+2026-03-05T09:05:00Z session=sess-004 tool=Bash
+2026-03-05T09:15:00Z session=sess-004 tool=Edit
+2026-03-05T09:25:00Z session=sess-004 tool=Write
+2026-03-10T16:10:00Z session=sess-005 tool=Bash
+2026-03-10T16:20:00Z session=sess-005 tool=Read
+2026-03-10T16:30:00Z session=sess-005 tool=Grep
+2026-03-14T11:10:00Z session=sess-006 tool=Edit
+2026-03-14T11:20:00Z session=sess-006 tool=Write
+2026-03-14T11:30:00Z session=sess-006 tool=Bash
+2026-03-15T08:10:00Z session=sess-007 tool=Read

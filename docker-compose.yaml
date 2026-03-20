@@ -1,0 +1,27 @@
+services:
+  grafana:
+    image: grafana/grafana-oss:11.5.2
+    ports:
+      - "13000:3000"
+    environment:
+      - GF_INSTALL_PLUGINS=frser-sqlite-datasource
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_RENDERING_SERVER_URL=http://renderer:8081/render
+      - GF_RENDERING_CALLBACK_URL=http://grafana:3000/
+    volumes:
+      - ./grafana/provisioning/datasources/claudedog-docker.yaml:/etc/grafana/provisioning/datasources/claudedog.yaml
+      - ./grafana/provisioning/dashboards/claudedog-docker.yaml:/etc/grafana/provisioning/dashboards/claudedog.yaml
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - ./e2e/testdata/claudedog.db:/var/lib/grafana/claudedog.db
+    depends_on:
+      - renderer
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 5s
+      retries: 10
+
+  renderer:
+    image: grafana/grafana-image-renderer:3.11.6
+    ports:
+      - "8081:8081"

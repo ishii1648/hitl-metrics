@@ -7,5 +7,5 @@ datasources:
     access: proxy
     isDefault: false
     jsonData:
-      path: /Users/sho-lab/.claude/claudedog.db
+      path: /var/lib/grafana/claudedog.db
     editable: true

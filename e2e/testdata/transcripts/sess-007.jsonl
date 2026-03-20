@@ -1,0 +1,2 @@
+{"type":"user","timestamp":"2026-03-15T08:00:00Z","message":{"content":"dotfiles の設定を更新"}}
+{"type":"assistant","timestamp":"2026-03-15T08:01:00Z","message":{"content":[{"type":"tool_use","name":"Read"},{"type":"tool_use","name":"Edit"},{"type":"tool_use","name":"Write"}]}}

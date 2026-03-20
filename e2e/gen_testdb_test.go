@@ -1,0 +1,88 @@
+package e2e_test
+
+import (
+	"bufio"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/ishii1648/claudedog/internal/syncdb"
+)
+
+// TestGenTestDB generates e2e/testdata/claudedog.db from test fixtures.
+// Run: CGO_ENABLED=0 GOTOOLCHAIN=local go test -run TestGenTestDB -v ./e2e/
+func TestGenTestDB(t *testing.T) {
+	projectRoot, err := filepath.Abs(filepath.Join("..", "."))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	indexPath := filepath.Join(projectRoot, "e2e", "testdata", "session-index.jsonl")
+	permLogPath := filepath.Join(projectRoot, "e2e", "testdata", "permission.log")
+	dbPath := filepath.Join(projectRoot, "e2e", "testdata", "claudedog.db")
+
+	// Create a temporary session-index.jsonl with absolute transcript paths.
+	tmpIndex := filepath.Join(t.TempDir(), "session-index.jsonl")
+	if err := rewriteTranscriptPaths(indexPath, tmpIndex, projectRoot); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := syncdb.RunWithPaths(tmpIndex, permLogPath, dbPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify DB was created
+	info, err := os.Stat(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("Generated %s (%d bytes)", dbPath, info.Size())
+}
+
+// rewriteTranscriptPaths reads src JSONL, resolves relative transcript paths
+// against root, and writes the result to dst.
+func rewriteTranscriptPaths(src, dst, root string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	w := bufio.NewWriter(out)
+	scanner := bufio.NewScanner(in)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+
+	first := true
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		var m map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &m); err != nil {
+			continue
+		}
+		if t, ok := m["transcript"].(string); ok && t != "" && !filepath.IsAbs(t) {
+			m["transcript"] = filepath.Join(root, t)
+		}
+		rewritten, err := json.Marshal(m)
+		if err != nil {
+			continue
+		}
+		if !first {
+			w.WriteByte('\n')
+		}
+		w.Write(rewritten)
+		first = false
+	}
+	w.WriteByte('\n')
+	return w.Flush()
+}
