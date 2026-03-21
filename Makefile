@@ -1,4 +1,4 @@
-.PHONY: grafana-fixtures grafana-up grafana-down grafana-screenshot worktree-create worktree-list worktree-remove
+.PHONY: grafana-fixtures grafana-up grafana-down grafana-screenshot lint-dashboard worktree-create worktree-list worktree-remove
 
 grafana-fixtures:
 	CGO_ENABLED=0 GOTOOLCHAIN=local go test -run TestGenTestDB -v ./e2e/
@@ -20,6 +20,9 @@ grafana-down:
 
 grafana-screenshot: grafana-up
 	bash e2e/screenshot.sh .outputs/grafana-screenshots
+
+lint-dashboard:
+	go run github.com/grafana/dashboard-linter@latest lint --strict --config grafana/dashboards/.lint grafana/dashboards/claudedog.json
 
 # Worktree management (usage: make worktree-create ADR=017)
 # Path convention: <repo_root>@feat-adr-<NNN> (gw_add と同じ @ 区切り)

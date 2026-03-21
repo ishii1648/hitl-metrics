@@ -37,12 +37,13 @@ hitl-metrics sync-db                               # JSONL/log → SQLite 変換
 - コード変更禁止（Spike を除く）
 - ADR には必ず「変更が必要なファイル」を記載し、並列実装時の衝突リスクを事前把握する
 - 複数 ADR の対象ファイルが重複する場合、パッケージ分割・実装順序・許容判断を設計セッション内で行う
+- タスクが固まったら `/dispatch` で実装セッションを一括起動する
 
 ### 実装セッション（feature ブランチ / worktree）
 
-- 対象 ADR を 1 つ指定して実装する
-- worktree 作成: `gw_add feat/adr-017` または `make worktree-create ADR=017`
-- ADR の受け入れ条件を満たすまで実装 → 検証 → 修正
+- 対象タスクを 1 つ実装する（TODO.md の受け入れ条件に従う）
+- worktree 作成: `/dispatch` で自動、手動なら `gw_add feat/adr-017`
+- TODO.md の受け入れ条件を満たすまで実装 → 検証 → 修正
 - main の `docs/adr/` は変更しない（ステータス更新は merge 後に main で実施）
 
 ## 開発規約
