@@ -161,6 +161,57 @@ func UpdateByBranch(indexPath string, targetRepo, targetBranch, newURL string) (
 	return false, nil
 }
 
+// UpdatePRMeta updates is_merged and review_comments for all sessions that have the given pr_url.
+// Returns true if the file was modified.
+func UpdatePRMeta(indexPath string, prURL string, isMerged bool, reviewComments int) (bool, error) {
+	if prURL == "" {
+		return false, nil
+	}
+	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+		return false, nil
+	}
+
+	raws, sessions, err := ReadAll(indexPath)
+	if err != nil {
+		return false, err
+	}
+
+	updated := false
+	for i, s := range sessions {
+		// Match if any of the session's pr_urls matches
+		match := false
+		for _, u := range s.PRURLs {
+			if u == prURL {
+				match = true
+				break
+			}
+		}
+		if !match {
+			continue
+		}
+		if s.IsMerged == isMerged && s.ReviewComments == reviewComments {
+			continue
+		}
+
+		raw := raws[i]
+		raw, err = remarshalWithUpdate(raw, "is_merged", isMerged)
+		if err != nil {
+			return false, err
+		}
+		raw, err = remarshalWithUpdate(raw, "review_comments", reviewComments)
+		if err != nil {
+			return false, err
+		}
+		raws[i] = raw
+		updated = true
+	}
+
+	if updated {
+		return true, WriteAll(indexPath, raws)
+	}
+	return false, nil
+}
+
 // remarshalWithUpdate decodes raw JSON as a map, sets key=value, and re-encodes.
 // This preserves all original fields while updating the target field.
 func remarshalWithUpdate(raw json.RawMessage, key string, value any) (json.RawMessage, error) {
@@ -193,6 +244,8 @@ func remarshalWithUpdate(raw json.RawMessage, key string, value any) (json.RawMe
 		"transcript":        6,
 		"parent_session_id": 7,
 		"backfill_checked":  8,
+		"is_merged":         9,
+		"review_comments":   10,
 	}
 	sort.Slice(keys, func(i, j int) bool {
 		oi, oki := order[keys[i]]

@@ -28,12 +28,12 @@ func TestRunWithPaths(t *testing.T) {
 		`{"type":"user","message":{"content":"hello"}}`+"\n",
 	), 0644)
 
-	// Create session-index.jsonl
+	// Create session-index.jsonl (is_merged=true for merged PR sessions)
 	indexPath := filepath.Join(dir, "session-index.jsonl")
 	os.WriteFile(indexPath, []byte(
-		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+t1Path+`","parent_session_id":"","backfill_checked":false}`+"\n"+
-			`{"timestamp":"2026-03-01 11:00:00","session_id":"s2","cwd":"/tmp","repo":"user/repo","branch":"feat","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+t2Path+`","parent_session_id":"","backfill_checked":false}`+"\n"+
-			`{"timestamp":"2026-03-01 12:00:00","session_id":"s3","cwd":"/tmp","repo":"ishii1648/dotfiles","branch":"main","pr_urls":["https://github.com/ishii1648/dotfiles/pull/5"],"transcript":"`+t3Path+`","parent_session_id":"","backfill_checked":false}`+"\n",
+		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat/add-metrics","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+t1Path+`","parent_session_id":"","backfill_checked":false,"is_merged":true,"review_comments":3}`+"\n"+
+			`{"timestamp":"2026-03-01 11:00:00","session_id":"s2","cwd":"/tmp","repo":"user/repo","branch":"feat/add-metrics","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+t2Path+`","parent_session_id":"","backfill_checked":false,"is_merged":true,"review_comments":3}`+"\n"+
+			`{"timestamp":"2026-03-01 12:00:00","session_id":"s3","cwd":"/tmp","repo":"ishii1648/dotfiles","branch":"main","pr_urls":["https://github.com/ishii1648/dotfiles/pull/5"],"transcript":"`+t3Path+`","parent_session_id":"","backfill_checked":false,"is_merged":true}`+"\n",
 	), 0644)
 
 	// Create permission.log
@@ -64,6 +64,21 @@ func TestRunWithPaths(t *testing.T) {
 		t.Errorf("sessions count: got %d, want 3", sessionCount)
 	}
 
+	// Check new columns on sessions
+	var isMerged int
+	var taskType string
+	var reviewComments int
+	db.QueryRow("SELECT is_merged, task_type, review_comments FROM sessions WHERE session_id = 's1'").Scan(&isMerged, &taskType, &reviewComments)
+	if isMerged != 1 {
+		t.Errorf("is_merged: got %d, want 1", isMerged)
+	}
+	if taskType != "feat" {
+		t.Errorf("task_type: got %q, want %q", taskType, "feat")
+	}
+	if reviewComments != 3 {
+		t.Errorf("review_comments: got %d, want 3", reviewComments)
+	}
+
 	// Check permission_events count
 	var permCount int
 	db.QueryRow("SELECT COUNT(*) FROM permission_events").Scan(&permCount)
@@ -78,25 +93,123 @@ func TestRunWithPaths(t *testing.T) {
 		t.Errorf("transcript_stats count: got %d, want 3", statsCount)
 	}
 
-	// Check pr_metrics VIEW excludes dotfiles repo
+	// Check pr_metrics VIEW excludes dotfiles repo and only includes merged PRs
 	var prMetricsCount int
 	db.QueryRow("SELECT COUNT(*) FROM pr_metrics").Scan(&prMetricsCount)
 	if prMetricsCount != 1 {
 		t.Errorf("pr_metrics count: got %d, want 1 (dotfiles excluded)", prMetricsCount)
 	}
 
-	// Check pr_metrics aggregation
+	// Check pr_metrics aggregation (LEFT JOIN inflation bug fixed)
 	var prURL string
 	var sessCount, permTotal int
-	db.QueryRow("SELECT pr_url, session_count, perm_count FROM pr_metrics").Scan(&prURL, &sessCount, &permTotal)
+	var prTaskType string
+	var prReviewComments int
+	db.QueryRow("SELECT pr_url, task_type, session_count, perm_count, review_comments FROM pr_metrics").Scan(&prURL, &prTaskType, &sessCount, &permTotal, &prReviewComments)
 	if prURL != "https://github.com/user/repo/pull/1" {
 		t.Errorf("pr_url: got %s", prURL)
+	}
+	if prTaskType != "feat" {
+		t.Errorf("task_type: got %q, want %q", prTaskType, "feat")
 	}
 	if sessCount != 2 {
 		t.Errorf("session_count: got %d, want 2", sessCount)
 	}
 	if permTotal != 3 {
 		t.Errorf("perm_count: got %d, want 3", permTotal)
+	}
+	if prReviewComments != 3 {
+		t.Errorf("review_comments: got %d, want 3", prReviewComments)
+	}
+}
+
+func TestRunWithPaths_MergedFilter(t *testing.T) {
+	dir := t.TempDir()
+
+	tPath := filepath.Join(dir, "t.jsonl")
+	os.WriteFile(tPath, []byte(
+		`{"type":"user","message":{"content":"hello"}}`+"\n"+
+			`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read"}]}}`+"\n",
+	), 0644)
+
+	// Create sessions: one merged, one not merged
+	indexPath := filepath.Join(dir, "session-index.jsonl")
+	os.WriteFile(indexPath, []byte(
+		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat/a","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+tPath+`","parent_session_id":"","is_merged":true}`+"\n"+
+			`{"timestamp":"2026-03-01 11:00:00","session_id":"s2","cwd":"/tmp","repo":"user/repo","branch":"feat/b","pr_urls":["https://github.com/user/repo/pull/2"],"transcript":"`+tPath+`","parent_session_id":"","is_merged":false}`+"\n",
+	), 0644)
+
+	permPath := filepath.Join(dir, "permission.log")
+	os.WriteFile(permPath, []byte(""), 0644)
+
+	dbPath := filepath.Join(dir, "claudedog.db")
+	if err := RunWithPaths(indexPath, permPath, dbPath); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	// Only merged PR should appear in pr_metrics
+	var count int
+	db.QueryRow("SELECT COUNT(*) FROM pr_metrics").Scan(&count)
+	if count != 1 {
+		t.Errorf("pr_metrics count: got %d, want 1 (only merged PR)", count)
+	}
+
+	var prURL string
+	db.QueryRow("SELECT pr_url FROM pr_metrics").Scan(&prURL)
+	if prURL != "https://github.com/user/repo/pull/1" {
+		t.Errorf("expected merged PR only, got: %s", prURL)
+	}
+}
+
+func TestRunWithPaths_JoinInflationFix(t *testing.T) {
+	dir := t.TempDir()
+
+	tPath := filepath.Join(dir, "t.jsonl")
+	// Session with 5 tool_use entries
+	os.WriteFile(tPath, []byte(
+		`{"type":"user","message":{"content":"hello"}}`+"\n"+
+			`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read"},{"type":"tool_use","name":"Edit"},{"type":"tool_use","name":"Write"},{"type":"tool_use","name":"Grep"},{"type":"tool_use","name":"Glob"}]}}`+"\n",
+	), 0644)
+
+	indexPath := filepath.Join(dir, "session-index.jsonl")
+	os.WriteFile(indexPath, []byte(
+		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat/x","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+tPath+`","parent_session_id":"","is_merged":true}`+"\n",
+	), 0644)
+
+	// 3 permission events for the same session
+	permPath := filepath.Join(dir, "permission.log")
+	os.WriteFile(permPath, []byte(
+		"2026-03-01T10:05:00Z session=s1 tool=Bash\n"+
+			"2026-03-01T10:10:00Z session=s1 tool=Edit\n"+
+			"2026-03-01T10:15:00Z session=s1 tool=Write\n",
+	), 0644)
+
+	dbPath := filepath.Join(dir, "claudedog.db")
+	if err := RunWithPaths(indexPath, permPath, dbPath); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	// Before the fix: tool_use_total would be 15 (5 * 3 permission events)
+	// After the fix: tool_use_total should be 5
+	var toolUseTotal, permCount int
+	db.QueryRow("SELECT tool_use_total, perm_count FROM pr_metrics").Scan(&toolUseTotal, &permCount)
+	if toolUseTotal != 5 {
+		t.Errorf("tool_use_total: got %d, want 5 (LEFT JOIN inflation bug)", toolUseTotal)
+	}
+	if permCount != 3 {
+		t.Errorf("perm_count: got %d, want 3", permCount)
 	}
 }
 
@@ -128,6 +241,28 @@ func TestRunWithPaths_DummyPRURL(t *testing.T) {
 	db.QueryRow("SELECT pr_url FROM sessions WHERE session_id = 's1'").Scan(&prURL)
 	if prURL != "" {
 		t.Errorf("dummy PR URL should be empty, got: %s", prURL)
+	}
+}
+
+func TestExtractTaskType(t *testing.T) {
+	tests := []struct {
+		branch string
+		want   string
+	}{
+		{"feat/add-metrics", "feat"},
+		{"fix/bug-42", "fix"},
+		{"docs/update-readme", "docs"},
+		{"chore/cleanup", "chore"},
+		{"main", ""},
+		{"develop", ""},
+		{"release/v1.0", ""},
+		{"feat", ""},
+	}
+	for _, tt := range tests {
+		got := ExtractTaskType(tt.branch)
+		if got != tt.want {
+			t.Errorf("ExtractTaskType(%q) = %q, want %q", tt.branch, got, tt.want)
+		}
 	}
 }
 

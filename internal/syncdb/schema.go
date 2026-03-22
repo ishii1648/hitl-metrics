@@ -16,7 +16,10 @@ CREATE TABLE sessions (
     transcript        TEXT NOT NULL DEFAULT '',
     parent_session_id TEXT NOT NULL DEFAULT '',
     is_subagent       INTEGER NOT NULL DEFAULT 0,
-    backfill_checked  INTEGER NOT NULL DEFAULT 0
+    backfill_checked  INTEGER NOT NULL DEFAULT 0,
+    is_merged         INTEGER NOT NULL DEFAULT 0,
+    task_type         TEXT NOT NULL DEFAULT '',
+    review_comments   INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE permission_events (
@@ -42,19 +45,26 @@ CREATE INDEX idx_perm_ts ON permission_events(timestamp);
 CREATE VIEW pr_metrics AS
 SELECT
     s.pr_url,
+    MAX(s.task_type) AS task_type,
     COUNT(DISTINCT s.session_id) AS session_count,
     COALESCE(SUM(ts.tool_use_total), 0) AS tool_use_total,
     COALESCE(SUM(ts.mid_session_msgs), 0) AS mid_session_msgs,
     COALESCE(SUM(ts.ask_user_question), 0) AS ask_user_question,
-    COUNT(pe.id) AS perm_count,
+    COALESCE(SUM(pe_agg.perm_count), 0) AS perm_count,
+    MAX(s.review_comments) AS review_comments,
     CASE WHEN COALESCE(SUM(ts.tool_use_total), 0) > 0
-         THEN ROUND(COUNT(pe.id) * 100.0 / SUM(ts.tool_use_total), 1)
+         THEN ROUND(COALESCE(SUM(pe_agg.perm_count), 0) * 100.0 / SUM(ts.tool_use_total), 1)
          ELSE NULL END AS perm_rate
 FROM sessions s
 LEFT JOIN transcript_stats ts ON s.session_id = ts.session_id
-LEFT JOIN permission_events pe ON s.session_id = pe.session_id
+LEFT JOIN (
+    SELECT session_id, COUNT(*) AS perm_count
+    FROM permission_events
+    GROUP BY session_id
+) pe_agg ON s.session_id = pe_agg.session_id
 WHERE s.pr_url != ''
   AND s.is_subagent = 0
+  AND s.is_merged = 1
   AND COALESCE(ts.is_ghost, 0) = 0
   AND s.repo NOT IN ('ishii1648/dotfiles')
 GROUP BY s.pr_url;

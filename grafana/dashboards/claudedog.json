@@ -45,13 +45,13 @@
     },
     {
       "id": 2,
-      "title": "PR 別テーブル",
+      "title": "PR 別テーブル（merged のみ）",
       "type": "table",
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 4 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
-          "rawQueryText": "SELECT pm.pr_url, pm.session_count, pm.tool_use_total, pm.mid_session_msgs, pm.ask_user_question, pm.perm_count, pm.perm_rate FROM pr_metrics pm WHERE pm.pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '$__from' AND '$__to' OR pe.timestamp IS NULL) ORDER BY pm.perm_rate ASC",
+          "rawQueryText": "SELECT pm.pr_url, pm.task_type, pm.session_count, pm.tool_use_total, pm.mid_session_msgs, pm.ask_user_question, pm.perm_count, pm.perm_rate, pm.review_comments FROM pr_metrics pm WHERE pm.pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '$__from' AND '$__to' OR pe.timestamp IS NULL) ORDER BY pm.perm_rate ASC",
           "refId": "A"
         }
       ],
@@ -70,6 +70,12 @@
             "properties": [
               { "id": "unit", "value": "percent" },
               { "id": "custom.width", "value": 100 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "task_type" },
+            "properties": [
+              { "id": "custom.width", "value": 80 }
             ]
           }
         ]
@@ -201,10 +207,90 @@
       }
     },
     {
+      "id": 12,
+      "title": "タスク種別 perm rate",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
+      "targets": [
+        {
+          "rawQueryText": "SELECT CASE WHEN task_type = '' THEN 'other' ELSE task_type END AS task_type, ROUND(SUM(perm_count) * 100.0 / NULLIF(SUM(tool_use_total), 0), 1) AS perm_rate, COUNT(*) AS pr_count FROM pr_metrics GROUP BY task_type ORDER BY perm_rate DESC",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#a855f7", "mode": "fixed" },
+          "unit": "percent"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "pr_count" },
+            "properties": [{ "id": "custom.hideFrom", "value": { "legend": true, "tooltip": false, "viz": true } }]
+          }
+        ]
+      },
+      "options": {
+        "orientation": "vertical",
+        "showValue": "always",
+        "barWidth": 0.8
+      }
+    },
+    {
+      "id": 13,
+      "title": "タスク種別テーブル",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 38 },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
+      "targets": [
+        {
+          "rawQueryText": "SELECT CASE WHEN task_type = '' THEN 'other' ELSE task_type END AS task_type, COUNT(*) AS pr_count, SUM(session_count) AS session_count, SUM(perm_count) AS perm_count, ROUND(SUM(perm_count) * 100.0 / NULLIF(SUM(tool_use_total), 0), 1) AS perm_rate, ROUND(AVG(review_comments), 1) AS avg_review_comments FROM pr_metrics GROUP BY task_type ORDER BY pr_count DESC",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "perm_rate" },
+            "properties": [{ "id": "unit", "value": "percent" }]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "pr_count", "desc": true }]
+      }
+    },
+    {
+      "id": 14,
+      "title": "review comments by PR",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 46 },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
+      "targets": [
+        {
+          "rawQueryText": "SELECT pr_url, review_comments FROM pr_metrics WHERE review_comments > 0 ORDER BY review_comments DESC",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#f43f5e", "mode": "fixed" }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "vertical",
+        "showValue": "always",
+        "barWidth": 0.8
+      }
+    },
+    {
       "id": 8,
       "title": "perm rate 日別トレンド",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 54 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
@@ -242,7 +328,7 @@
       "id": 9,
       "title": "perm rate 週別トレンド",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 38 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 54 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
@@ -280,7 +366,7 @@
       "id": 10,
       "title": "ツール別内訳テーブル",
       "type": "table",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 46 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 62 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
@@ -306,7 +392,7 @@
       "id": 11,
       "title": "ツール別内訳バー",
       "type": "barchart",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 46 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 62 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {

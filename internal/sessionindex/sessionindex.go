@@ -19,6 +19,8 @@ type Session struct {
 	Transcript      string   `json:"transcript"`
 	ParentSessionID string   `json:"parent_session_id"`
 	BackfillChecked bool     `json:"backfill_checked"`
+	IsMerged        bool     `json:"is_merged"`
+	ReviewComments  int      `json:"review_comments"`
 }
 
 // IndexFile returns the default path to session-index.jsonl.
