@@ -2,6 +2,16 @@
 
 hitl-metrics の変更履歴。新しいものが上。
 
+## 2026-03-23
+
+- メトリクス体系を再設計 — merged PR スコープ・タスク種別分類・review_comments 追加（ADR-018）
+- ダッシュボードをナラティブ構造に再構成（14 パネル → 6 パネル + 4 セクション）
+- ダッシュボードの時間フィルタ・ラベル表示を修正
+- プロジェクト名を claudedog → hitl-metrics にリネーム
+- セットアップガイドを追加（docs/setup.md）
+- macOS launchd による定期同期用 plist テンプレートを追加（configs/launchd/）
+- `git-ship` skill を追加（CHANGELOG 更新チェック付き ship フロー）
+
 ## 2026-03-21
 
 - Python バッチ2本（session-index-update.py, session-index-backfill-batch.py）を Go に移植
