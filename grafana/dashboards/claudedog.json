@@ -22,19 +22,19 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
-          "rawQueryText": "SELECT COUNT(*) AS 'merged PR 数' FROM pr_metrics WHERE pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' OR pe.timestamp IS NULL)",
+          "rawQueryText": "SELECT COUNT(*) AS 'merged PR 数' FROM pr_metrics",
           "refId": "A"
         },
         {
-          "rawQueryText": "SELECT ROUND(AVG(perm_rate), 1) AS 'avg perm rate (%)' FROM pr_metrics WHERE perm_rate IS NOT NULL AND pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' OR pe.timestamp IS NULL)",
+          "rawQueryText": "SELECT ROUND(AVG(perm_rate), 1) AS 'avg perm rate (%)' FROM pr_metrics WHERE perm_rate IS NOT NULL",
           "refId": "B"
         },
         {
-          "rawQueryText": "SELECT COALESCE(SUM(mid_session_msgs), 0) AS 'mid-session msgs' FROM pr_metrics WHERE pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' OR pe.timestamp IS NULL)",
+          "rawQueryText": "SELECT COALESCE(SUM(mid_session_msgs), 0) AS 'mid-session msgs' FROM pr_metrics",
           "refId": "C"
         },
         {
-          "rawQueryText": "SELECT COALESCE(SUM(review_comments), 0) AS 'review comments' FROM pr_metrics WHERE pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' OR pe.timestamp IS NULL)",
+          "rawQueryText": "SELECT COALESCE(SUM(review_comments), 0) AS 'review comments' FROM pr_metrics",
           "refId": "D"
         }
       ],
@@ -172,7 +172,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
-          "rawQueryText": "SELECT pm.pr_url, pm.task_type, pm.perm_rate, pm.perm_count, pm.session_count, pm.mid_session_msgs, pm.ask_user_question, pm.review_comments, pm.tool_use_total FROM pr_metrics pm WHERE pm.pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' OR pe.timestamp IS NULL) ORDER BY pm.perm_rate DESC",
+          "rawQueryText": "SELECT pm.pr_url, pm.task_type, pm.perm_rate, pm.perm_count, pm.session_count, pm.mid_session_msgs, pm.ask_user_question, pm.review_comments, pm.tool_use_total FROM pr_metrics pm ORDER BY pm.perm_rate DESC",
           "refId": "A"
         }
       ],
