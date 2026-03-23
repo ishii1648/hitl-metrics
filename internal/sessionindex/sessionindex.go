@@ -72,11 +72,17 @@ func WriteAll(path string, raws []json.RawMessage) error {
 	w := bufio.NewWriter(f)
 	for i, raw := range raws {
 		if i > 0 {
-			w.WriteByte('\n')
+			if err := w.WriteByte('\n'); err != nil {
+				return err
+			}
 		}
-		w.Write(raw)
+		if _, err := w.Write(raw); err != nil {
+			return err
+		}
 	}
-	w.WriteByte('\n')
+	if err := w.WriteByte('\n'); err != nil {
+		return err
+	}
 	return w.Flush()
 }
 

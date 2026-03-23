@@ -93,10 +93,7 @@ func isHumanTextMessage(entry *transcriptEntry) bool {
 
 	// Check string content for local-command prefix
 	if entry.Message.ContentStr != "" {
-		if strings.Contains(entry.Message.ContentStr, "<local-command-") {
-			return false
-		}
-		return true
+		return !strings.Contains(entry.Message.ContentStr, "<local-command-")
 	}
 
 	// Check array content

@@ -1,0 +1,10 @@
+linters-settings:
+  errcheck:
+    exclude-functions:
+      - (*database/sql.Tx).Rollback
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck

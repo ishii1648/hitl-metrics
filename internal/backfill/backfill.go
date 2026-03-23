@@ -120,11 +120,15 @@ func runURLBackfill(indexPath string, sessions []sessionindex.Session, recheck b
 			found++
 			for _, e := range r.group.entries {
 				if e.SessionID != "" {
-					sessionindex.Update(indexPath, e.SessionID, []string{r.url})
+					if _, err := sessionindex.Update(indexPath, e.SessionID, []string{r.url}); err != nil {
+						fmt.Fprintf(os.Stderr, "backfill: update %s: %v\n", e.SessionID, err)
+					}
 				}
 			}
 			// Also set merge info right away
-			sessionindex.UpdatePRMeta(indexPath, r.url, r.isMerged, r.comments)
+			if _, err := sessionindex.UpdatePRMeta(indexPath, r.url, r.isMerged, r.comments); err != nil {
+				fmt.Fprintf(os.Stderr, "backfill: update-meta %s: %v\n", r.url, err)
+			}
 		} else if r.markChecked {
 			skipped++
 			var ids []string
@@ -134,7 +138,9 @@ func runURLBackfill(indexPath string, sessions []sessionindex.Session, recheck b
 				}
 			}
 			if len(ids) > 0 {
-				sessionindex.MarkChecked(indexPath, ids)
+				if _, err := sessionindex.MarkChecked(indexPath, ids); err != nil {
+					fmt.Fprintf(os.Stderr, "backfill: mark-checked: %v\n", err)
+				}
 			}
 		} else {
 			retried++
@@ -220,7 +226,9 @@ func runMetaBackfill(indexPath string, sessions []sessionindex.Session) error {
 	updated := 0
 	for r := range results {
 		if r.ok {
-			sessionindex.UpdatePRMeta(indexPath, r.url, r.isMerged, r.comments)
+			if _, err := sessionindex.UpdatePRMeta(indexPath, r.url, r.isMerged, r.comments); err != nil {
+				fmt.Fprintf(os.Stderr, "backfill-meta: update %s: %v\n", r.url, err)
+			}
 			updated++
 		}
 	}
@@ -270,7 +278,7 @@ func fetchPR(g group) result {
 			comments: len(pr.Comments),
 		}
 	case <-time.After(8 * time.Second):
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		return result{group: g}
 	}
 }
@@ -300,14 +308,16 @@ func fetchPRByURL(prURL, cwd string) (*prJSON, error) {
 		}
 		return &pr, nil
 	case <-time.After(8 * time.Second):
-		cmd.Process.Kill()
+		_ = cmd.Process.Kill()
 		return nil, fmt.Errorf("timeout")
 	}
 }
 
 func parsePRList(data []byte) []prJSON {
 	var prs []prJSON
-	json.Unmarshal(data, &prs)
+	if err := json.Unmarshal(data, &prs); err != nil {
+		return nil
+	}
 	return prs
 }
 
