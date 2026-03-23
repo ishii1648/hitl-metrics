@@ -32,4 +32,15 @@ for entry in "${PANELS[@]}"; do
   echo "  → ${OUTFILE}"
 done
 
+# Also export key panels for README docs
+DOCDIR="docs/images"
+mkdir -p "$DOCDIR"
+for pair in "1:headline-kpi:dashboard-headline" "9:weekly-trend:dashboard-weekly-trend" "2:pr-scorecard:dashboard-pr-scorecard"; do
+  ID="${pair%%:*}"
+  rest="${pair#*:}"
+  PANEL_NAME="${rest%%:*}"
+  DOC_NAME="${rest#*:}"
+  cp "${OUTDIR}/panel-${ID}-${PANEL_NAME}.png" "${DOCDIR}/${DOC_NAME}.png"
+done
+
 echo "Done: ${#PANELS[@]} panels captured in ${OUTDIR}"
