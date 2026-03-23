@@ -16,7 +16,8 @@
     },
     {
       "id": 1,
-      "title": "",
+      "title": "サマリー",
+      "description": "merged PR の主要指標サマリー",
       "type": "stat",
       "gridPos": { "h": 4, "w": 24, "x": 0, "y": 1 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
@@ -90,6 +91,7 @@
     {
       "id": 9,
       "title": "perm rate 週別トレンド",
+      "description": "週単位の permission 発生率推移",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 16, "x": 0, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
@@ -167,6 +169,7 @@
     {
       "id": 2,
       "title": "PR 別スコアカード（merged のみ）",
+      "description": "merged PR ごとの介入指標・品質指標一覧",
       "type": "table",
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 15 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
@@ -232,6 +235,7 @@
     {
       "id": 10,
       "title": "ツール別 permission 内訳",
+      "description": "ツールごとの permission 発生回数と割合",
       "type": "table",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
