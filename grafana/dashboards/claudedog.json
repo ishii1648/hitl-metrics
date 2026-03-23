@@ -1,7 +1,5 @@
 {
-  "annotations": {
-    "list": []
-  },
+  "annotations": { "list": [] },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -9,15 +7,35 @@
   "links": [],
   "panels": [
     {
+      "id": 100,
+      "title": "ヘッドライン",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
       "id": 1,
-      "title": "サマリ",
+      "title": "",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 12, "x": 0, "y": 0 },
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 1 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
-          "rawQueryText": "SELECT COUNT(*) AS pr_count, COALESCE(SUM(perm_count), 0) AS total_perm FROM pr_metrics WHERE pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}')",
+          "rawQueryText": "SELECT COUNT(*) AS 'merged PR 数' FROM pr_metrics WHERE pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' OR pe.timestamp IS NULL)",
           "refId": "A"
+        },
+        {
+          "rawQueryText": "SELECT ROUND(AVG(perm_rate), 1) AS 'avg perm rate (%)' FROM pr_metrics WHERE perm_rate IS NOT NULL AND pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' OR pe.timestamp IS NULL)",
+          "refId": "B"
+        },
+        {
+          "rawQueryText": "SELECT COALESCE(SUM(mid_session_msgs), 0) AS 'mid-session msgs' FROM pr_metrics WHERE pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' OR pe.timestamp IS NULL)",
+          "refId": "C"
+        },
+        {
+          "rawQueryText": "SELECT COALESCE(SUM(review_comments), 0) AS 'review comments' FROM pr_metrics WHERE pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' OR pe.timestamp IS NULL)",
+          "refId": "D"
         }
       ],
       "fieldConfig": {
@@ -29,7 +47,25 @@
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "avg perm rate (%)" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 5 },
+                    { "color": "red", "value": 15 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
       },
       "options": {
         "reduceOptions": {
@@ -44,173 +80,57 @@
       }
     },
     {
-      "id": 2,
-      "title": "PR 別テーブル（merged のみ）",
-      "type": "table",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 4 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
-      "targets": [
-        {
-          "rawQueryText": "SELECT pm.pr_url, pm.task_type, pm.session_count, pm.tool_use_total, pm.mid_session_msgs, pm.ask_user_question, pm.perm_count, pm.perm_rate, pm.review_comments FROM pr_metrics pm WHERE pm.pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' OR pe.timestamp IS NULL) ORDER BY pm.perm_rate ASC",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "pr_url" },
-            "properties": [
-              { "id": "links", "value": [{ "title": "Open PR", "url": "${__data.fields.pr_url}" }] },
-              { "id": "custom.width", "value": 300 }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "perm_rate" },
-            "properties": [
-              { "id": "unit", "value": "percent" },
-              { "id": "custom.width", "value": 100 }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "task_type" },
-            "properties": [
-              { "id": "custom.width", "value": 80 }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "showHeader": true,
-        "sortBy": [{ "displayName": "perm_rate", "desc": false }]
-      }
+      "id": 101,
+      "title": "トレンド",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "collapsed": false,
+      "panels": []
     },
     {
-      "id": 3,
-      "title": "perm rate by PR",
-      "type": "barchart",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 9,
+      "title": "perm rate 週別トレンド",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
-          "rawQueryText": "SELECT REPLACE(REPLACE(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, perm_rate FROM pr_metrics WHERE perm_rate IS NOT NULL ORDER BY perm_rate ASC",
-          "refId": "A"
+          "rawQueryText": "SELECT strftime('%s', date(pe.timestamp, 'weekday 0', '-6 days')) AS time, COUNT(pe.id) AS perm_count, COALESCE(SUM(ts.tool_use_total), 0) AS tool_use_total, CASE WHEN COALESCE(SUM(ts.tool_use_total), 0) > 0 THEN ROUND(COUNT(pe.id) * 100.0 / SUM(ts.tool_use_total), 1) ELSE NULL END AS perm_rate FROM permission_events pe LEFT JOIN sessions s ON pe.session_id = s.session_id LEFT JOIN transcript_stats ts ON pe.session_id = ts.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' AND s.repo NOT IN ('ishii1648/dotfiles') GROUP BY date(pe.timestamp, 'weekday 0', '-6 days') ORDER BY time",
+          "refId": "A",
+          "timeColumns": ["time"]
         }
       ],
       "fieldConfig": {
         "defaults": {
           "color": { "fixedColor": "#ef4444", "mode": "fixed" },
-          "unit": "percent"
+          "unit": "percent",
+          "custom": {
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "always"
+          }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "perm_count" },
+            "properties": [{ "id": "custom.hideFrom", "value": { "legend": true, "tooltip": false, "viz": true } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "tool_use_total" },
+            "properties": [{ "id": "custom.hideFrom", "value": { "legend": true, "tooltip": false, "viz": true } }]
+          }
+        ]
       },
       "options": {
-        "orientation": "vertical",
-        "showValue": "always",
-        "barWidth": 0.8
-      }
-    },
-    {
-      "id": 4,
-      "title": "perm count by PR",
-      "type": "barchart",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
-      "targets": [
-        {
-          "rawQueryText": "SELECT REPLACE(REPLACE(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, perm_count FROM pr_metrics ORDER BY perm_count DESC",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "fixedColor": "#f97316", "mode": "fixed" }
-        },
-        "overrides": []
-      },
-      "options": {
-        "orientation": "vertical",
-        "showValue": "always",
-        "barWidth": 0.8
-      }
-    },
-    {
-      "id": 5,
-      "title": "session count by PR",
-      "type": "barchart",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
-      "targets": [
-        {
-          "rawQueryText": "SELECT REPLACE(REPLACE(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, session_count FROM pr_metrics ORDER BY session_count DESC",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "fixedColor": "#8b5cf6", "mode": "fixed" }
-        },
-        "overrides": []
-      },
-      "options": {
-        "orientation": "vertical",
-        "showValue": "always",
-        "barWidth": 0.8
-      }
-    },
-    {
-      "id": 6,
-      "title": "mid-session msgs by PR",
-      "type": "barchart",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
-      "targets": [
-        {
-          "rawQueryText": "SELECT REPLACE(REPLACE(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, mid_session_msgs FROM pr_metrics ORDER BY mid_session_msgs DESC",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "fixedColor": "#eab308", "mode": "fixed" }
-        },
-        "overrides": []
-      },
-      "options": {
-        "orientation": "vertical",
-        "showValue": "always",
-        "barWidth": 0.8
-      }
-    },
-    {
-      "id": 7,
-      "title": "AskUserQuestion by PR",
-      "type": "barchart",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 30 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
-      "targets": [
-        {
-          "rawQueryText": "SELECT REPLACE(REPLACE(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, ask_user_question FROM pr_metrics ORDER BY ask_user_question DESC",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "fixedColor": "#22c55e", "mode": "fixed" }
-        },
-        "overrides": []
-      },
-      "options": {
-        "orientation": "vertical",
-        "showValue": "always",
-        "barWidth": 0.8
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
       }
     },
     {
       "id": 12,
       "title": "タスク種別 perm rate",
       "type": "barchart",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 38 },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
@@ -237,14 +157,22 @@
       }
     },
     {
-      "id": 13,
-      "title": "タスク種別テーブル",
+      "id": 102,
+      "title": "PR 詳細",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 2,
+      "title": "PR 別スコアカード（merged のみ）",
       "type": "table",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 38 },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 15 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
-          "rawQueryText": "SELECT CASE WHEN task_type = '' THEN 'other' ELSE task_type END AS task_type, COUNT(*) AS pr_count, SUM(session_count) AS session_count, SUM(perm_count) AS perm_count, ROUND(SUM(perm_count) * 100.0 / NULLIF(SUM(tool_use_total), 0), 1) AS perm_rate, ROUND(AVG(review_comments), 1) AS avg_review_comments FROM pr_metrics GROUP BY task_type ORDER BY pr_count DESC",
+          "rawQueryText": "SELECT pm.pr_url, pm.task_type, pm.perm_rate, pm.perm_count, pm.session_count, pm.mid_session_msgs, pm.ask_user_question, pm.review_comments, pm.tool_use_total FROM pr_metrics pm WHERE pm.pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' OR pe.timestamp IS NULL) ORDER BY pm.perm_rate DESC",
           "refId": "A"
         }
       ],
@@ -252,123 +180,60 @@
         "defaults": {},
         "overrides": [
           {
+            "matcher": { "id": "byName", "options": "pr_url" },
+            "properties": [
+              { "id": "links", "value": [{ "title": "Open PR", "url": "${__data.fields.pr_url}" }] },
+              { "id": "custom.width", "value": 320 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "task_type" },
+            "properties": [
+              { "id": "custom.width", "value": 80 }
+            ]
+          },
+          {
             "matcher": { "id": "byName", "options": "perm_rate" },
-            "properties": [{ "id": "unit", "value": "percent" }]
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              { "id": "custom.width", "value": 120 },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 5 },
+                    { "color": "red", "value": 15 }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background", "mode": "basic" }
+              }
+            ]
           }
         ]
       },
       "options": {
         "showHeader": true,
-        "sortBy": [{ "displayName": "pr_count", "desc": true }]
+        "sortBy": [{ "displayName": "perm_rate", "desc": true }]
       }
     },
     {
-      "id": 14,
-      "title": "review comments by PR",
-      "type": "barchart",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 46 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
-      "targets": [
-        {
-          "rawQueryText": "SELECT REPLACE(REPLACE(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, review_comments FROM pr_metrics WHERE review_comments > 0 ORDER BY review_comments DESC",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "fixedColor": "#f43f5e", "mode": "fixed" }
-        },
-        "overrides": []
-      },
-      "options": {
-        "orientation": "vertical",
-        "showValue": "always",
-        "barWidth": 0.8
-      }
-    },
-    {
-      "id": 8,
-      "title": "perm rate 日別トレンド",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 54 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
-      "targets": [
-        {
-          "rawQueryText": "SELECT strftime('%s', date(pe.timestamp)) AS time, COUNT(pe.id) AS perm_count, COALESCE(SUM(ts.tool_use_total), 0) AS tool_use_total, CASE WHEN COALESCE(SUM(ts.tool_use_total), 0) > 0 THEN ROUND(COUNT(pe.id) * 100.0 / SUM(ts.tool_use_total), 1) ELSE NULL END AS perm_rate FROM permission_events pe LEFT JOIN sessions s ON pe.session_id = s.session_id LEFT JOIN transcript_stats ts ON pe.session_id = ts.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' AND s.repo NOT IN ('ishii1648/dotfiles') GROUP BY date(pe.timestamp) ORDER BY time",
-          "timeColumns": ["time"],
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "fixedColor": "#ef4444", "mode": "fixed" },
-          "unit": "percent",
-          "custom": {
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "always"
-          }
-        },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "perm_count" },
-            "properties": [{ "id": "custom.hideFrom", "value": { "legend": true, "tooltip": false, "viz": true } }]
-          },
-          {
-            "matcher": { "id": "byName", "options": "tool_use_total" },
-            "properties": [{ "id": "custom.hideFrom", "value": { "legend": true, "tooltip": false, "viz": true } }]
-          }
-        ]
-      },
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
-      }
-    },
-    {
-      "id": 9,
-      "title": "perm rate 週別トレンド",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 54 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
-      "targets": [
-        {
-          "rawQueryText": "SELECT strftime('%s', date(pe.timestamp, 'weekday 0', '-6 days')) AS time, COUNT(pe.id) AS perm_count, COALESCE(SUM(ts.tool_use_total), 0) AS tool_use_total, CASE WHEN COALESCE(SUM(ts.tool_use_total), 0) > 0 THEN ROUND(COUNT(pe.id) * 100.0 / SUM(ts.tool_use_total), 1) ELSE NULL END AS perm_rate FROM permission_events pe LEFT JOIN sessions s ON pe.session_id = s.session_id LEFT JOIN transcript_stats ts ON pe.session_id = ts.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' AND s.repo NOT IN ('ishii1648/dotfiles') GROUP BY date(pe.timestamp, 'weekday 0', '-6 days') ORDER BY time",
-          "timeColumns": ["time"],
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "fixedColor": "#ef4444", "mode": "fixed" },
-          "unit": "percent",
-          "custom": {
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "always"
-          }
-        },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "perm_count" },
-            "properties": [{ "id": "custom.hideFrom", "value": { "legend": true, "tooltip": false, "viz": true } }]
-          },
-          {
-            "matcher": { "id": "byName", "options": "tool_use_total" },
-            "properties": [{ "id": "custom.hideFrom", "value": { "legend": true, "tooltip": false, "viz": true } }]
-          }
-        ]
-      },
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
-      }
+      "id": 103,
+      "title": "アクション: allowlist 改善",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
+      "collapsed": false,
+      "panels": []
     },
     {
       "id": 10,
-      "title": "ツール別内訳テーブル",
+      "title": "ツール別 permission 内訳",
       "type": "table",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 62 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
@@ -392,9 +257,9 @@
     },
     {
       "id": 11,
-      "title": "ツール別内訳バー",
+      "title": "ツール別 permission 分布",
       "type": "barchart",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 62 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
@@ -417,13 +282,8 @@
   ],
   "schemaVersion": 39,
   "tags": ["claudedog"],
-  "templating": {
-    "list": []
-  },
-  "time": {
-    "from": "now-30d",
-    "to": "now"
-  },
+  "templating": { "list": [] },
+  "time": { "from": "now-30d", "to": "now" },
   "timepicker": {},
   "timezone": "Asia/Tokyo",
   "title": "Claude 自律度ダッシュボード",

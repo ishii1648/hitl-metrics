@@ -14,20 +14,12 @@ HEIGHT=500
 TZ="Asia/Tokyo"
 
 declare -a PANELS=(
-  "1:summary"
-  "2:pr-table"
-  "3:perm-rate-by-pr"
-  "4:perm-count-by-pr"
-  "5:session-count-by-pr"
-  "6:mid-session-msgs-by-pr"
-  "7:ask-user-question-by-pr"
-  "8:perm-rate-daily-trend"
-  "9:perm-rate-weekly-trend"
+  "1:headline-kpi"
+  "9:weekly-trend"
+  "12:task-type-perm-rate"
+  "2:pr-scorecard"
   "10:tool-breakdown-table"
   "11:tool-breakdown-bar"
-  "12:task-type-perm-rate"
-  "13:task-type-table"
-  "14:review-comments-by-pr"
 )
 
 for entry in "${PANELS[@]}"; do
