@@ -16,7 +16,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
-          "rawQueryText": "SELECT COUNT(*) AS pr_count, COALESCE(SUM(perm_count), 0) AS total_perm FROM pr_metrics WHERE pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '$__from' AND '$__to')",
+          "rawQueryText": "SELECT COUNT(*) AS pr_count, COALESCE(SUM(perm_count), 0) AS total_perm FROM pr_metrics WHERE pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}')",
           "refId": "A"
         }
       ],
@@ -51,7 +51,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
-          "rawQueryText": "SELECT pm.pr_url, pm.task_type, pm.session_count, pm.tool_use_total, pm.mid_session_msgs, pm.ask_user_question, pm.perm_count, pm.perm_rate, pm.review_comments FROM pr_metrics pm WHERE pm.pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '$__from' AND '$__to' OR pe.timestamp IS NULL) ORDER BY pm.perm_rate ASC",
+          "rawQueryText": "SELECT pm.pr_url, pm.task_type, pm.session_count, pm.tool_use_total, pm.mid_session_msgs, pm.ask_user_question, pm.perm_count, pm.perm_rate, pm.review_comments FROM pr_metrics pm WHERE pm.pr_url IN (SELECT DISTINCT s.pr_url FROM sessions s LEFT JOIN permission_events pe ON s.session_id = pe.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' OR pe.timestamp IS NULL) ORDER BY pm.perm_rate ASC",
           "refId": "A"
         }
       ],
@@ -294,7 +294,8 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
-          "rawQueryText": "SELECT date(pe.timestamp) AS time, COUNT(pe.id) AS perm_count, COALESCE(SUM(ts.tool_use_total), 0) AS tool_use_total, CASE WHEN COALESCE(SUM(ts.tool_use_total), 0) > 0 THEN ROUND(COUNT(pe.id) * 100.0 / SUM(ts.tool_use_total), 1) ELSE NULL END AS perm_rate FROM permission_events pe LEFT JOIN sessions s ON pe.session_id = s.session_id LEFT JOIN transcript_stats ts ON pe.session_id = ts.session_id WHERE pe.timestamp BETWEEN '$__from' AND '$__to' AND s.repo NOT IN ('ishii1648/dotfiles') GROUP BY date(pe.timestamp) ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', date(pe.timestamp)) AS time, COUNT(pe.id) AS perm_count, COALESCE(SUM(ts.tool_use_total), 0) AS tool_use_total, CASE WHEN COALESCE(SUM(ts.tool_use_total), 0) > 0 THEN ROUND(COUNT(pe.id) * 100.0 / SUM(ts.tool_use_total), 1) ELSE NULL END AS perm_rate FROM permission_events pe LEFT JOIN sessions s ON pe.session_id = s.session_id LEFT JOIN transcript_stats ts ON pe.session_id = ts.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' AND s.repo NOT IN ('ishii1648/dotfiles') GROUP BY date(pe.timestamp) ORDER BY time",
+          "timeColumns": ["time"],
           "refId": "A"
         }
       ],
@@ -332,7 +333,8 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
-          "rawQueryText": "SELECT date(pe.timestamp, 'weekday 0', '-6 days') AS time, COUNT(pe.id) AS perm_count, COALESCE(SUM(ts.tool_use_total), 0) AS tool_use_total, CASE WHEN COALESCE(SUM(ts.tool_use_total), 0) > 0 THEN ROUND(COUNT(pe.id) * 100.0 / SUM(ts.tool_use_total), 1) ELSE NULL END AS perm_rate FROM permission_events pe LEFT JOIN sessions s ON pe.session_id = s.session_id LEFT JOIN transcript_stats ts ON pe.session_id = ts.session_id WHERE pe.timestamp BETWEEN '$__from' AND '$__to' AND s.repo NOT IN ('ishii1648/dotfiles') GROUP BY date(pe.timestamp, 'weekday 0', '-6 days') ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', date(pe.timestamp, 'weekday 0', '-6 days')) AS time, COUNT(pe.id) AS perm_count, COALESCE(SUM(ts.tool_use_total), 0) AS tool_use_total, CASE WHEN COALESCE(SUM(ts.tool_use_total), 0) > 0 THEN ROUND(COUNT(pe.id) * 100.0 / SUM(ts.tool_use_total), 1) ELSE NULL END AS perm_rate FROM permission_events pe LEFT JOIN sessions s ON pe.session_id = s.session_id LEFT JOIN transcript_stats ts ON pe.session_id = ts.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' AND s.repo NOT IN ('ishii1648/dotfiles') GROUP BY date(pe.timestamp, 'weekday 0', '-6 days') ORDER BY time",
+          "timeColumns": ["time"],
           "refId": "A"
         }
       ],
@@ -370,7 +372,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
-          "rawQueryText": "SELECT pe.tool, COUNT(*) AS count, ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM permission_events WHERE timestamp BETWEEN '$__from' AND '$__to'), 1) AS percentage FROM permission_events pe WHERE pe.timestamp BETWEEN '$__from' AND '$__to' AND pe.tool != 'unknown' GROUP BY pe.tool ORDER BY count DESC",
+          "rawQueryText": "SELECT pe.tool, COUNT(*) AS count, ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM permission_events WHERE timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}'), 1) AS percentage FROM permission_events pe WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' AND pe.tool != 'unknown' GROUP BY pe.tool ORDER BY count DESC",
           "refId": "A"
         }
       ],
@@ -396,7 +398,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "claudedog" },
       "targets": [
         {
-          "rawQueryText": "SELECT pe.tool, COUNT(*) AS count FROM permission_events pe WHERE pe.timestamp BETWEEN '$__from' AND '$__to' AND pe.tool != 'unknown' GROUP BY pe.tool ORDER BY count DESC",
+          "rawQueryText": "SELECT pe.tool, COUNT(*) AS count FROM permission_events pe WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' AND pe.tool != 'unknown' GROUP BY pe.tool ORDER BY count DESC",
           "refId": "A"
         }
       ],

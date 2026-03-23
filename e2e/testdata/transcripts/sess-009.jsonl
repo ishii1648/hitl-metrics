@@ -1,0 +1,2 @@
+{"type":"user","timestamp":"2026-03-02T09:00:00Z","message":{"content":"README を Go + Grafana 構成に更新して"}}
+{"type":"assistant","timestamp":"2026-03-02T09:01:00Z","message":{"content":[{"type":"tool_use","name":"Read"},{"type":"tool_use","name":"Edit"},{"type":"tool_use","name":"Write"}]}}

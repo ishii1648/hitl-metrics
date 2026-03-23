@@ -1,0 +1,4 @@
+{"type":"user","timestamp":"2026-03-09T11:00:00Z","message":{"content":"permission.log のパースが壊れてる、直して"}}
+{"type":"assistant","timestamp":"2026-03-09T11:01:00Z","message":{"content":[{"type":"tool_use","name":"Read"},{"type":"tool_use","name":"Grep"},{"type":"tool_use","name":"Edit"}]}}
+{"type":"user","timestamp":"2026-03-09T11:20:00Z","message":{"content":"tool=unknown のフォールバックも入れて"}}
+{"type":"assistant","timestamp":"2026-03-09T11:21:00Z","message":{"content":[{"type":"tool_use","name":"Read"},{"type":"tool_use","name":"Edit"},{"type":"tool_use","name":"Bash"}]}}
