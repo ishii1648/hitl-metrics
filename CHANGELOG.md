@@ -2,6 +2,10 @@
 
 hitl-metrics の変更履歴。新しいものが上。
 
+## 2026-03-29
+
+- Go 静的テスト CI を導入（golangci-lint + go test -race）
+
 ## 2026-03-23
 
 - メトリクス体系を再設計 — merged PR スコープ・タスク種別分類・review_comments 追加（ADR-018）
