@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/ishii1648/hitl-metrics/internal/backfill"
+	"github.com/ishii1648/hitl-metrics/internal/install"
 	"github.com/ishii1648/hitl-metrics/internal/sessionindex"
 	"github.com/ishii1648/hitl-metrics/internal/syncdb"
 )
@@ -22,6 +24,8 @@ func main() {
 		runBackfill(os.Args[2:])
 	case "sync-db":
 		runSyncDB()
+	case "install":
+		runInstall(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		printUsage()
@@ -37,7 +41,8 @@ Commands:
   update --mark-checked <session_id>...  backfill_checked をセット
   update --by-branch <repo> <branch> <url>  ブランチ全セッションに URL 追加
   backfill [--recheck]                   PR URL の一括補完
-  sync-db                                JSONL/log → SQLite 変換`)
+  sync-db                                JSONL/log → SQLite 変換
+  install [--hooks-dir <path>]           hooks を ~/.claude/settings.json に登録`)
 }
 
 func runUpdate(args []string) {
@@ -101,6 +106,36 @@ func runBackfill(args []string) {
 func runSyncDB() {
 	if err := syncdb.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "sync-db error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func runInstall(args []string) {
+	hooksDir := ""
+	for i, a := range args {
+		if a == "--hooks-dir" && i+1 < len(args) {
+			hooksDir = args[i+1]
+		}
+	}
+
+	// Default: ./hooks/ relative to CWD
+	if hooksDir == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "install error: %v\n", err)
+			os.Exit(1)
+		}
+		hooksDir = filepath.Join(cwd, "hooks")
+	}
+
+	absDir, err := filepath.Abs(hooksDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "install error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := install.Run(absDir); err != nil {
+		fmt.Fprintf(os.Stderr, "install error: %v\n", err)
 		os.Exit(1)
 	}
 }

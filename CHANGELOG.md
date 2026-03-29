@@ -4,6 +4,11 @@ hitl-metrics の変更履歴。新しいものが上。
 
 ## 2026-03-29
 
+- backfill を launchd 定期バッチから Stop hook に移行（ADR-019）
+  - セッション終了時に自動で backfill + sync-db を実行
+  - cursor（hitl-metrics-state.json）による増分処理で実行コストを最小化
+  - launchd plist テンプレートを削除
+  - `hitl-metrics install` コマンドで hooks を自動登録（冪等）
 - Go 静的テスト CI を導入（golangci-lint + go test -race）
 
 ## 2026-03-23

@@ -34,10 +34,22 @@ type prJSON struct {
 	Comments []interface{} `json:"comments"`
 }
 
+// MetaCheckInterval is the minimum duration between Phase 2 (merge status) checks.
+const MetaCheckInterval = 1 * time.Hour
+
 // Run executes the backfill batch. It finds sessions without pr_urls,
 // groups them by (repo, branch), and fetches PR URLs via gh pr list in parallel.
 // It also updates is_merged and review_comments for sessions with existing pr_urls.
+//
+// When statePath is non-empty, cursor-based incremental processing is used:
+// - Phase 1 only scans entries after last_backfill_offset
+// - Phase 2 only runs if MetaCheckInterval has elapsed since last_meta_check
 func Run(indexPath string, recheck bool) error {
+	return RunWithState(indexPath, StatePath(), recheck)
+}
+
+// RunWithState is like Run but accepts an explicit state file path (for testing).
+func RunWithState(indexPath, statePath string, recheck bool) error {
 	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
 		return nil
 	}
@@ -47,18 +59,53 @@ func Run(indexPath string, recheck bool) error {
 		return err
 	}
 
+	// Load cursor state
+	state, err := LoadState(statePath)
+	if err != nil {
+		return fmt.Errorf("load state: %w", err)
+	}
+
 	// Phase 1: Fetch PR URLs for sessions without them
-	if err := runURLBackfill(indexPath, sessions, recheck); err != nil {
+	// Use cursor to skip already-processed entries
+	offset := state.LastBackfillOffset
+	if offset > len(sessions) || recheck {
+		offset = 0
+	}
+	target := sessions[offset:]
+
+	if err := runURLBackfill(indexPath, target, recheck); err != nil {
 		return err
 	}
 
+	// Update cursor: advance to total session count
+	state.LastBackfillOffset = len(sessions)
+
 	// Phase 2: Update merge status and review comments for sessions with pr_urls
-	// Re-read sessions since Phase 1 may have updated them
-	_, sessions, err = sessionindex.ReadAll(indexPath)
-	if err != nil {
-		return err
+	// Only run if enough time has elapsed since last check
+	now := time.Now()
+	if now.Sub(state.LastMetaCheck) >= MetaCheckInterval || recheck {
+		// Re-read sessions since Phase 1 may have updated them
+		_, sessions, err = sessionindex.ReadAll(indexPath)
+		if err != nil {
+			return err
+		}
+		if err := runMetaBackfill(indexPath, sessions); err != nil {
+			return err
+		}
+		state.LastMetaCheck = now
+	} else {
+		fmt.Printf("backfill-meta: スキップ（前回チェックから %s 未経過）\n",
+			MetaCheckInterval)
 	}
-	return runMetaBackfill(indexPath, sessions)
+
+	// Save cursor state
+	if statePath != "" {
+		if err := SaveState(statePath, state); err != nil {
+			return fmt.Errorf("save state: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func runURLBackfill(indexPath string, sessions []sessionindex.Session, recheck bool) error {
