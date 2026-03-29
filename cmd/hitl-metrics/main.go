@@ -118,14 +118,14 @@ func runInstall(args []string) {
 		}
 	}
 
-	// Default: ./hooks/ relative to CWD
 	if hooksDir == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
+		// Extract embedded hooks to ~/.local/share/hitl-metrics/hooks/
+		destDir := install.DefaultHooksDir()
+		if err := install.ExtractHooks(destDir); err != nil {
 			fmt.Fprintf(os.Stderr, "install error: %v\n", err)
 			os.Exit(1)
 		}
-		hooksDir = filepath.Join(cwd, "hooks")
+		hooksDir = destDir
 	}
 
 	absDir, err := filepath.Abs(hooksDir)
