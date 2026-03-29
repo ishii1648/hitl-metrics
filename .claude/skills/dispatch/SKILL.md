@@ -70,6 +70,14 @@ args に `--dry-run` が含まれる場合はここで終了する。
 
 args に `--dry-run` が含まれない場合は AskUserQuestion で「これらのタスクを dispatch しますか？ 番号で選択するか、all で全件実行」と確認する。
 
+### Step 4.5: 設計セッション変更のコミット
+
+worktree 作成前に、設計セッションの未コミット変更をコミットする。ADR・TODO・architecture.md 等が worktree に含まれるようにするため。
+
+1. `git status` で未コミット変更を確認する
+2. 設計セッション対象ファイル（`docs/`, `TODO.md`, `CHANGELOG.md`, `CLAUDE.md`）に変更がある場合、`contextual-commit` skill でコミットする
+3. 変更がない場合はスキップする
+
 ### Step 5: worktree + tmux session 作成
 
 選択されたタスクごとに以下を順次実行する:
@@ -77,8 +85,7 @@ args に `--dry-run` が含まれない場合は AskUserQuestion で「これら
 #### 5-1: worktree 作成
 
 ```bash
-git fetch origin
-git worktree add "<main_worktree_path>@<branch_dir_name>" -b "<branch_name>" origin/HEAD
+git worktree add "<main_worktree_path>@<branch_dir_name>" -b "<branch_name>" main
 ```
 
 - `<main_worktree_path>`: `git worktree list --porcelain | head -1` から取得
