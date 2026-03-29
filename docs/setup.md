@@ -1,6 +1,6 @@
 # セットアップガイド
 
-hitl-metrics を導入して Claude Code の人の介入率を計測・可視化する手順です。
+hitl-metrics を導入する手順です。動作の仕組みや日常の運用については [usage.md](usage.md) を参照してください。
 
 ## 前提条件
 
@@ -24,14 +24,11 @@ go build -o ~/.local/bin/hitl-metrics ./cmd/hitl-metrics/
 
 ## 2. Claude Code hook の登録
 
-リポジトリルートで `install` コマンドを実行すると、`~/.claude/settings.json` に hook が自動登録されます。
-
 ```fish
-cd hitl-metrics
 hitl-metrics install
 ```
 
-既に登録済みの hook はスキップされるため、何度実行しても安全です。
+`~/.claude/settings.json` に hook が自動登録されます。既に登録済みの hook はスキップされます。
 
 <details>
 <summary>手動で設定する場合</summary>
@@ -79,31 +76,14 @@ hitl-metrics install
 ```
 </details>
 
-### hook の役割
-
-| hook | トリガー | 出力先 |
-|------|----------|--------|
-| `session-index.sh` | セッション開始時 | `~/.claude/session-index.jsonl` |
-| `permission-log.sh` | Permission UI 表示時 | `~/.claude/logs/permission.log` |
-| `stop.sh` | セッション終了時 | `~/.claude/hitl-metrics.db`（backfill + sync-db） |
-
-登録後、Claude Code で新しいセッションを開始するとデータが記録されます。セッション終了時に PR URL 補完と SQLite DB 同期が自動実行されます。
-
-## 3. データの同期
-
-セッション終了時に Stop hook が `hitl-metrics backfill` → `hitl-metrics sync-db` を自動実行します。
-
-- **backfill**: PR URL 補完・マージ判定・レビューコメント数を `gh` CLI 経由で取得
-- **sync-db**: JSONL/log → SQLite 変換（`~/.claude/hitl-metrics.db` を生成）
-
-cursor（`~/.claude/hitl-metrics-state.json`）により前回処理済み以降のエントリのみが走査されるため、高速に完了します。
-
-初回セットアップ時や手動で即時実行する場合:
+## 3. 初回データ生成
 
 ```fish
 hitl-metrics backfill
 hitl-metrics sync-db
 ```
+
+`~/.claude/hitl-metrics.db` が生成されます。以降はセッション終了時に Stop hook が自動実行します。
 
 ## 4. Grafana ダッシュボードの設定
 
@@ -141,43 +121,3 @@ cp -r grafana/dashboards /var/lib/grafana/dashboards/hitl-metrics
 jsonData:
   path: /Users/<your-username>/.claude/hitl-metrics.db
 ```
-
-## 5. 日常の運用
-
-Stop hook が登録済みであれば、セッション終了時に `backfill` と `sync-db` が自動実行されます。手動で即時更新する場合:
-
-```fish
-hitl-metrics backfill
-hitl-metrics sync-db
-```
-
-ダッシュボードは `http://localhost:3000`（デフォルト）でアクセスできます。
-
-## E2E テスト環境（開発者向け）
-
-テストデータを使った Grafana 環境を Docker で起動できます。
-
-```fish
-make grafana-up          # Grafana + Image Renderer 起動 → http://localhost:13000
-make grafana-screenshot  # 全パネルの PNG を取得
-make grafana-down        # コンテナ停止
-```
-
-## トラブルシューティング
-
-### hook が動作しない
-
-- `~/.claude/settings.json` の hook パスが正しいか確認
-- hook スクリプトに実行権限があるか確認: `chmod +x hooks/*.sh`
-- デバッグログを確認: `~/.claude/logs/session-index-debug.log`
-
-### sync-db でデータが空になる
-
-- `~/.claude/session-index.jsonl` が存在し、データが記録されているか確認
-- `~/.claude/logs/permission.log` が存在するか確認
-
-### Grafana でデータが表示されない
-
-- データソースの Path が `hitl-metrics.db` のフルパスを指しているか確認
-- `hitl-metrics sync-db` を再実行して DB を最新化
-- Grafana のデータソース設定で「Test」ボタンを押して接続を確認
