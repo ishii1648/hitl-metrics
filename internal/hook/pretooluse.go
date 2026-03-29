@@ -23,7 +23,9 @@ func RunPreToolUse(input *HookInput) error {
 
 	home, _ := os.UserHomeDir()
 	logDir := filepath.Join(home, ".claude", "logs")
-	os.MkdirAll(logDir, 0755)
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return err
+	}
 
 	return os.WriteFile(
 		filepath.Join(logDir, "last-tool-"+sessionID),

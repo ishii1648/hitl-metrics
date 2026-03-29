@@ -28,7 +28,9 @@ func RunPermissionRequest(input *HookInput) error {
 
 	home, _ := os.UserHomeDir()
 	logDir := filepath.Join(home, ".claude", "logs")
-	os.MkdirAll(logDir, 0755)
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return err
+	}
 
 	timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 	line := fmt.Sprintf("%s session=%s tool=%s\n", timestamp, sessionID, annotated)

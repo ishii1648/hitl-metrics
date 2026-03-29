@@ -18,7 +18,9 @@ func RunSessionStart(input *HookInput) error {
 
 	// Debug log
 	logDir := filepath.Join(home, ".claude", "logs")
-	os.MkdirAll(logDir, 0755)
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return err
+	}
 	raw, _ := json.Marshal(input)
 	_ = appendFile(filepath.Join(logDir, "session-index-debug.log"), string(raw)+"\n")
 
