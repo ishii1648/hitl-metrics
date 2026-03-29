@@ -36,12 +36,12 @@ mv hitl-metrics ~/.local/bin/
 hitl-metrics install
 ```
 
-hook スクリプトを `~/.local/share/hitl-metrics/hooks/` に展開し、`~/.claude/settings.json` に自動登録します。既に登録済みの hook はスキップされます（冪等）。
+`hitl-metrics hook <event>` サブコマンドを `~/.claude/settings.json` に自動登録します。既に登録済みの hook はスキップされます（冪等）。
 
 <details>
 <summary>手動で設定する場合</summary>
 
-`~/.claude/settings.json` に以下を追加します。パスは `hitl-metrics install` が展開する場所です。
+`~/.claude/settings.json` に以下を追加します。`hitl-metrics` が PATH に存在する必要があります。
 
 ```json
 {
@@ -49,34 +49,29 @@ hook スクリプトを `~/.local/share/hitl-metrics/hooks/` に展開し、`~/.
     "SessionStart": [
       {
         "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/hitl-metrics/hooks/session-index.sh"
-          }
-        ]
+        "hooks": [{"type": "command", "command": "hitl-metrics hook session-start"}]
+      },
+      {
+        "matcher": "",
+        "hooks": [{"type": "command", "command": "hitl-metrics hook todo-cleanup"}]
       }
     ],
     "PermissionRequest": [
       {
         "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/hitl-metrics/hooks/permission-log.sh"
-          }
-        ]
+        "hooks": [{"type": "command", "command": "hitl-metrics hook permission-request"}]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [{"type": "command", "command": "hitl-metrics hook pre-tool-use"}]
       }
     ],
     "Stop": [
       {
         "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.local/share/hitl-metrics/hooks/stop.sh"
-          }
-        ]
+        "hooks": [{"type": "command", "command": "hitl-metrics hook stop"}]
       }
     ]
   }
