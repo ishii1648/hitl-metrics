@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/ishii1648/hitl-metrics/internal/backfill"
+	"github.com/ishii1648/hitl-metrics/internal/hook"
 	"github.com/ishii1648/hitl-metrics/internal/install"
 	"github.com/ishii1648/hitl-metrics/internal/sessionindex"
 	"github.com/ishii1648/hitl-metrics/internal/syncdb"
@@ -25,7 +25,9 @@ func main() {
 	case "sync-db":
 		runSyncDB()
 	case "install":
-		runInstall(os.Args[2:])
+		runInstall()
+	case "hook":
+		runHook(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		printUsage()
@@ -42,7 +44,13 @@ Commands:
   update --by-branch <repo> <branch> <url>  ブランチ全セッションに URL 追加
   backfill [--recheck]                   PR URL の一括補完
   sync-db                                JSONL/log → SQLite 変換
-  install [--hooks-dir <path>]           hooks を ~/.claude/settings.json に登録`)
+  install                                hooks を ~/.claude/settings.json に登録
+  hook <event>                           Claude Code hook を実行
+    session-start                        セッションインデックスを記録
+    permission-request                   permission UI をログ記録
+    pre-tool-use                         ツール名を一時ファイルに記録
+    stop                                 backfill + sync-db を実行
+    todo-cleanup                         完了タスクを CHANGELOG に移動`)
 }
 
 func runUpdate(args []string) {
@@ -110,32 +118,58 @@ func runSyncDB() {
 	}
 }
 
-func runInstall(args []string) {
-	hooksDir := ""
-	for i, a := range args {
-		if a == "--hooks-dir" && i+1 < len(args) {
-			hooksDir = args[i+1]
-		}
-	}
-
-	if hooksDir == "" {
-		// Extract embedded hooks to ~/.local/share/hitl-metrics/hooks/
-		destDir := install.DefaultHooksDir()
-		if err := install.ExtractHooks(destDir); err != nil {
-			fmt.Fprintf(os.Stderr, "install error: %v\n", err)
-			os.Exit(1)
-		}
-		hooksDir = destDir
-	}
-
-	absDir, err := filepath.Abs(hooksDir)
-	if err != nil {
+func runInstall() {
+	if err := install.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "install error: %v\n", err)
 		os.Exit(1)
 	}
+}
 
-	if err := install.Run(absDir); err != nil {
-		fmt.Fprintf(os.Stderr, "install error: %v\n", err)
+func runHook(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: hitl-metrics hook <event-name>")
+		os.Exit(1)
+	}
+
+	var err error
+	switch args[0] {
+	case "session-start":
+		input, e := hook.ReadInput()
+		if e != nil {
+			fmt.Fprintf(os.Stderr, "hook input error: %v\n", e)
+			os.Exit(1)
+		}
+		err = hook.RunSessionStart(input)
+	case "permission-request":
+		input, e := hook.ReadInput()
+		if e != nil {
+			fmt.Fprintf(os.Stderr, "hook input error: %v\n", e)
+			os.Exit(1)
+		}
+		err = hook.RunPermissionRequest(input)
+	case "pre-tool-use":
+		input, e := hook.ReadInput()
+		if e != nil {
+			fmt.Fprintf(os.Stderr, "hook input error: %v\n", e)
+			os.Exit(1)
+		}
+		err = hook.RunPreToolUse(input)
+	case "stop":
+		err = hook.RunStop()
+	case "todo-cleanup":
+		input, e := hook.ReadInput()
+		if e != nil {
+			fmt.Fprintf(os.Stderr, "hook input error: %v\n", e)
+			os.Exit(1)
+		}
+		err = hook.RunTodoCleanup(input)
+	default:
+		fmt.Fprintf(os.Stderr, "unknown hook event: %s\n", args[0])
+		os.Exit(1)
+	}
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "hook error: %v\n", err)
 		os.Exit(1)
 	}
 }

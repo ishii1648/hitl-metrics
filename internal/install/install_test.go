@@ -7,16 +7,6 @@ import (
 	"testing"
 )
 
-func setupTestHooksDir(t *testing.T) string {
-	t.Helper()
-	dir := filepath.Join(t.TempDir(), "hooks")
-	os.MkdirAll(dir, 0755)
-	for _, name := range []string{"session-index.sh", "permission-log.sh", "stop.sh"} {
-		os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/bash\n"), 0755)
-	}
-	return dir
-}
-
 func readJSON(t *testing.T, path string) map[string]json.RawMessage {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -31,16 +21,14 @@ func readJSON(t *testing.T, path string) map[string]json.RawMessage {
 }
 
 func TestRun_NewSettings(t *testing.T) {
-	hooksDir := setupTestHooksDir(t)
 	settingsDir := t.TempDir()
 	settingsFile := filepath.Join(settingsDir, ".claude", "settings.json")
 
-	// Override settingsPath for test
 	origFn := settingsPathFn
 	settingsPathFn = func() string { return settingsFile }
 	defer func() { settingsPathFn = origFn }()
 
-	if err := Run(hooksDir); err != nil {
+	if err := Run(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -48,15 +36,21 @@ func TestRun_NewSettings(t *testing.T) {
 	var hooks map[string]json.RawMessage
 	json.Unmarshal(m["hooks"], &hooks)
 
-	for _, event := range []string{"SessionStart", "PermissionRequest", "Stop"} {
+	for _, event := range []string{"SessionStart", "PermissionRequest", "PreToolUse", "Stop"} {
 		if _, ok := hooks[event]; !ok {
 			t.Fatalf("missing hook event: %s", event)
 		}
 	}
+
+	// SessionStart should have 2 entries (session-start + todo-cleanup)
+	var entries []hookEntry
+	json.Unmarshal(hooks["SessionStart"], &entries)
+	if len(entries) != 2 {
+		t.Fatalf("SessionStart: expected 2 entries, got %d", len(entries))
+	}
 }
 
 func TestRun_Idempotent(t *testing.T) {
-	hooksDir := setupTestHooksDir(t)
 	settingsDir := t.TempDir()
 	settingsFile := filepath.Join(settingsDir, ".claude", "settings.json")
 
@@ -65,19 +59,26 @@ func TestRun_Idempotent(t *testing.T) {
 	defer func() { settingsPathFn = origFn }()
 
 	// Run twice
-	if err := Run(hooksDir); err != nil {
+	if err := Run(); err != nil {
 		t.Fatal(err)
 	}
-	if err := Run(hooksDir); err != nil {
+	if err := Run(); err != nil {
 		t.Fatal(err)
 	}
 
-	// Each event should have exactly 1 entry
 	m := readJSON(t, settingsFile)
 	var hooks map[string]json.RawMessage
 	json.Unmarshal(m["hooks"], &hooks)
 
-	for _, event := range []string{"SessionStart", "PermissionRequest", "Stop"} {
+	// SessionStart: 2 entries (session-start + todo-cleanup), not duplicated
+	var sessionEntries []hookEntry
+	json.Unmarshal(hooks["SessionStart"], &sessionEntries)
+	if len(sessionEntries) != 2 {
+		t.Fatalf("SessionStart: expected 2 entries, got %d", len(sessionEntries))
+	}
+
+	// Other events: 1 entry each
+	for _, event := range []string{"PermissionRequest", "PreToolUse", "Stop"} {
 		var entries []hookEntry
 		json.Unmarshal(hooks[event], &entries)
 		if len(entries) != 1 {
@@ -87,7 +88,6 @@ func TestRun_Idempotent(t *testing.T) {
 }
 
 func TestRun_PreservesExistingSettings(t *testing.T) {
-	hooksDir := setupTestHooksDir(t)
 	settingsDir := t.TempDir()
 	settingsFile := filepath.Join(settingsDir, ".claude", "settings.json")
 
@@ -95,11 +95,10 @@ func TestRun_PreservesExistingSettings(t *testing.T) {
 	settingsPathFn = func() string { return settingsFile }
 	defer func() { settingsPathFn = origFn }()
 
-	// Write existing settings with a custom key
 	os.MkdirAll(filepath.Dir(settingsFile), 0755)
 	os.WriteFile(settingsFile, []byte(`{"model":"sonnet","hooks":{}}`), 0644)
 
-	if err := Run(hooksDir); err != nil {
+	if err := Run(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -112,7 +111,6 @@ func TestRun_PreservesExistingSettings(t *testing.T) {
 }
 
 func TestRun_PreservesExistingHooks(t *testing.T) {
-	hooksDir := setupTestHooksDir(t)
 	settingsDir := t.TempDir()
 	settingsFile := filepath.Join(settingsDir, ".claude", "settings.json")
 
@@ -120,7 +118,6 @@ func TestRun_PreservesExistingHooks(t *testing.T) {
 	settingsPathFn = func() string { return settingsFile }
 	defer func() { settingsPathFn = origFn }()
 
-	// Write existing settings with a custom hook
 	os.MkdirAll(filepath.Dir(settingsFile), 0755)
 	os.WriteFile(settingsFile, []byte(`{
 		"hooks": {
@@ -130,7 +127,7 @@ func TestRun_PreservesExistingHooks(t *testing.T) {
 		}
 	}`), 0644)
 
-	if err := Run(hooksDir); err != nil {
+	if err := Run(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -140,8 +137,36 @@ func TestRun_PreservesExistingHooks(t *testing.T) {
 
 	var entries []hookEntry
 	json.Unmarshal(hooks["SessionStart"], &entries)
-	// Should have both: existing + newly added
-	if len(entries) != 2 {
-		t.Fatalf("SessionStart: expected 2 entries, got %d", len(entries))
+	// Should have: existing + session-start + todo-cleanup = 3
+	if len(entries) != 3 {
+		t.Fatalf("SessionStart: expected 3 entries, got %d", len(entries))
+	}
+}
+
+func TestRun_CommandFormat(t *testing.T) {
+	settingsDir := t.TempDir()
+	settingsFile := filepath.Join(settingsDir, ".claude", "settings.json")
+
+	origFn := settingsPathFn
+	settingsPathFn = func() string { return settingsFile }
+	defer func() { settingsPathFn = origFn }()
+
+	if err := Run(); err != nil {
+		t.Fatal(err)
+	}
+
+	m := readJSON(t, settingsFile)
+	var hooks map[string]json.RawMessage
+	json.Unmarshal(m["hooks"], &hooks)
+
+	// Verify commands use "hitl-metrics hook <event>" format
+	var stopEntries []hookEntry
+	json.Unmarshal(hooks["Stop"], &stopEntries)
+	if len(stopEntries) != 1 {
+		t.Fatal("expected 1 Stop entry")
+	}
+	cmd := stopEntries[0].Hooks[0].Command
+	if cmd != "hitl-metrics hook stop" {
+		t.Fatalf("Stop command = %q, want %q", cmd, "hitl-metrics hook stop")
 	}
 }
