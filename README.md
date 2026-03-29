@@ -55,31 +55,6 @@ Claude Code hooks → ~/.claude/*.jsonl|log → hitl-metrics sync-db → SQLite 
 2. **データ変換層** (`cmd/hitl-metrics/`, `internal/`) — Go CLI で JSONL/log → SQLite 変換・PR URL 補完
 3. **可視化層** (`grafana/`) — Grafana ダッシュボードで介入率・ツール分布を表示
 
-## CLI コマンド
-
-```
-hitl-metrics update <session_id> <url>...          # PR URL を追加
-hitl-metrics update --mark-checked <session_id>... # backfill_checked をセット
-hitl-metrics update --by-branch <repo> <branch> <url>  # ブランチ全セッションに URL 追加
-hitl-metrics backfill [--recheck]                  # PR URL・merged 判定・レビューコメント数の一括補完
-hitl-metrics sync-db                               # JSONL/log → SQLite 変換
-```
-
 ## セットアップ
 
-```fish
-# ビルド＆配置
-go build -o ~/.local/bin/hitl-metrics ./cmd/hitl-metrics/
-
-# DB 生成 & ダッシュボード確認
-hitl-metrics sync-db
-# Grafana で ~/.claude/hitl-metrics.db を SQLite datasource として設定
-```
-
-## E2E テスト（Grafana スクリーンショット検証）
-
-```fish
-make grafana-up          # Docker で Grafana + Image Renderer 起動 → http://localhost:13000
-make grafana-screenshot  # 全パネルの PNG を .outputs/grafana-screenshots/ に取得
-make grafana-down        # コンテナ停止
-```
+→ [docs/setup.md](docs/setup.md)
