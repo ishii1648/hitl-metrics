@@ -197,7 +197,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT pr_url, task_type, total_tokens, tokens_per_tool_use, pr_per_million_tokens, session_count, mid_session_msgs, ask_user_question, changes_requested FROM pr_metrics WHERE total_tokens > 0 ORDER BY total_tokens DESC",
+          "rawQueryText": "SELECT pr_url, task_type, total_tokens, tokens_per_tool_use, pr_per_million_tokens, session_count, peak_parallel_sessions, mid_session_msgs, ask_user_question, changes_requested FROM pr_metrics WHERE total_tokens > 0 ORDER BY total_tokens DESC",
           "refId": "A"
         }
       ],
