@@ -31,17 +31,17 @@ func TestRunWithPaths(t *testing.T) {
 	// Create session-index.jsonl (is_merged=true for merged PR sessions)
 	indexPath := filepath.Join(dir, "session-index.jsonl")
 	os.WriteFile(indexPath, []byte(
-		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat/add-metrics","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+t1Path+`","parent_session_id":"","backfill_checked":false,"is_merged":true,"review_comments":3}`+"\n"+
-			`{"timestamp":"2026-03-01 11:00:00","session_id":"s2","cwd":"/tmp","repo":"user/repo","branch":"feat/add-metrics","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+t2Path+`","parent_session_id":"","backfill_checked":false,"is_merged":true,"review_comments":3}`+"\n"+
+		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat/add-metrics","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+t1Path+`","parent_session_id":"","backfill_checked":false,"is_merged":true,"review_comments":3,"changes_requested":1}`+"\n"+
+			`{"timestamp":"2026-03-01 11:00:00","session_id":"s2","cwd":"/tmp","repo":"user/repo","branch":"feat/add-metrics","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+t2Path+`","parent_session_id":"","backfill_checked":false,"is_merged":true,"review_comments":3,"changes_requested":1}`+"\n"+
 			`{"timestamp":"2026-03-01 12:00:00","session_id":"s3","cwd":"/tmp","repo":"ishii1648/dotfiles","branch":"main","pr_urls":["https://github.com/ishii1648/dotfiles/pull/5"],"transcript":"`+t3Path+`","parent_session_id":"","backfill_checked":false,"is_merged":true}`+"\n",
 	), 0644)
 
 	// Create permission.log
 	permPath := filepath.Join(dir, "permission.log")
 	os.WriteFile(permPath, []byte(
-		"2026-03-01T10:05:00Z session=s1 tool=Bash(git:internal)\n"+
-			"2026-03-01T10:10:00Z session=s1 tool=Edit\n"+
-			"2026-03-01T11:05:00Z session=s2 tool=Write\n",
+		"2026-03-01T10:05:00Z session=s1 tool=Bash(git)\n"+
+			"2026-03-01T10:10:00Z session=s1 tool=Edit(internal/syncdb)\n"+
+			"2026-03-01T11:05:00Z session=s2 tool=Write(grafana/dashboards)\n",
 	), 0644)
 
 	dbPath := filepath.Join(dir, "hitl-metrics.db")
@@ -68,7 +68,8 @@ func TestRunWithPaths(t *testing.T) {
 	var isMerged int
 	var taskType string
 	var reviewComments int
-	db.QueryRow("SELECT is_merged, task_type, review_comments FROM sessions WHERE session_id = 's1'").Scan(&isMerged, &taskType, &reviewComments)
+	var changesRequested int
+	db.QueryRow("SELECT is_merged, task_type, review_comments, changes_requested FROM sessions WHERE session_id = 's1'").Scan(&isMerged, &taskType, &reviewComments, &changesRequested)
 	if isMerged != 1 {
 		t.Errorf("is_merged: got %d, want 1", isMerged)
 	}
@@ -77,6 +78,9 @@ func TestRunWithPaths(t *testing.T) {
 	}
 	if reviewComments != 3 {
 		t.Errorf("review_comments: got %d, want 3", reviewComments)
+	}
+	if changesRequested != 1 {
+		t.Errorf("changes_requested: got %d, want 1", changesRequested)
 	}
 
 	// Check permission_events count
@@ -105,7 +109,8 @@ func TestRunWithPaths(t *testing.T) {
 	var sessCount, permTotal int
 	var prTaskType string
 	var prReviewComments int
-	db.QueryRow("SELECT pr_url, task_type, session_count, perm_count, review_comments FROM pr_metrics").Scan(&prURL, &prTaskType, &sessCount, &permTotal, &prReviewComments)
+	var prChangesRequested int
+	db.QueryRow("SELECT pr_url, task_type, session_count, perm_count, review_comments, changes_requested FROM pr_metrics").Scan(&prURL, &prTaskType, &sessCount, &permTotal, &prReviewComments, &prChangesRequested)
 	if prURL != "https://github.com/user/repo/pull/1" {
 		t.Errorf("pr_url: got %s", prURL)
 	}
@@ -120,6 +125,9 @@ func TestRunWithPaths(t *testing.T) {
 	}
 	if prReviewComments != 3 {
 		t.Errorf("review_comments: got %d, want 3", prReviewComments)
+	}
+	if prChangesRequested != 1 {
+		t.Errorf("changes_requested: got %d, want 1", prChangesRequested)
 	}
 }
 

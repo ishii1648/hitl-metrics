@@ -20,11 +20,12 @@ type group struct {
 }
 
 type result struct {
-	group       group
-	url         string
-	markChecked bool
-	isMerged    bool
-	comments    int
+	group            group
+	url              string
+	markChecked      bool
+	isMerged         bool
+	comments         int
+	changesRequested int
 }
 
 // prJSON represents a PR entry from gh pr list --json output.
@@ -32,6 +33,11 @@ type prJSON struct {
 	URL      string        `json:"url"`
 	State    string        `json:"state"`
 	Comments []interface{} `json:"comments"`
+	Reviews  []reviewJSON  `json:"reviews"`
+}
+
+type reviewJSON struct {
+	State string `json:"state"`
 }
 
 // MetaCheckInterval is the minimum duration between Phase 2 (merge status) checks.
@@ -173,7 +179,7 @@ func runURLBackfill(indexPath string, sessions []sessionindex.Session, recheck b
 				}
 			}
 			// Also set merge info right away
-			if _, err := sessionindex.UpdatePRMeta(indexPath, r.url, r.isMerged, r.comments); err != nil {
+			if _, err := sessionindex.UpdatePRMeta(indexPath, r.url, r.isMerged, r.comments, r.changesRequested); err != nil {
 				fmt.Fprintf(os.Stderr, "backfill: update-meta %s: %v\n", r.url, err)
 			}
 		} else if r.markChecked {
@@ -199,10 +205,9 @@ func runURLBackfill(indexPath string, sessions []sessionindex.Session, recheck b
 	return nil
 }
 
-// runMetaBackfill updates is_merged and review_comments for sessions that have
-// pr_urls but haven't been marked as merged yet. Already-merged PRs are skipped.
+// runMetaBackfill updates PR metadata for sessions that have pr_urls.
 func runMetaBackfill(indexPath string, sessions []sessionindex.Session) error {
-	// Collect unique pr_urls that need meta update (not yet marked merged)
+	// Collect unique pr_urls that need meta update.
 	type prInfo struct {
 		url string
 		cwd string // any cwd from sessions with this URL, for running gh commands
@@ -210,7 +215,7 @@ func runMetaBackfill(indexPath string, sessions []sessionindex.Session) error {
 	seen := make(map[string]bool)
 	var targets []prInfo
 	for _, s := range sessions {
-		if s.IsMerged || len(s.PRURLs) == 0 {
+		if len(s.PRURLs) == 0 {
 			continue
 		}
 		url := s.PRURLs[len(s.PRURLs)-1]
@@ -228,10 +233,11 @@ func runMetaBackfill(indexPath string, sessions []sessionindex.Session) error {
 	fmt.Printf("backfill-meta: %d PR のメタデータを更新中...\n", len(targets))
 
 	type metaResult struct {
-		url      string
-		isMerged bool
-		comments int
-		ok       bool
+		url              string
+		isMerged         bool
+		comments         int
+		changesRequested int
+		ok               bool
 	}
 
 	results := make(chan metaResult, len(targets))
@@ -257,10 +263,11 @@ func runMetaBackfill(indexPath string, sessions []sessionindex.Session) error {
 				return
 			}
 			results <- metaResult{
-				url:      t.url,
-				isMerged: pr.State == "MERGED",
-				comments: len(pr.Comments),
-				ok:       true,
+				url:              t.url,
+				isMerged:         pr.State == "MERGED",
+				comments:         len(pr.Comments),
+				changesRequested: countChangesRequested(pr.Reviews),
+				ok:               true,
 			}
 		}(t)
 	}
@@ -273,7 +280,7 @@ func runMetaBackfill(indexPath string, sessions []sessionindex.Session) error {
 	updated := 0
 	for r := range results {
 		if r.ok {
-			if _, err := sessionindex.UpdatePRMeta(indexPath, r.url, r.isMerged, r.comments); err != nil {
+			if _, err := sessionindex.UpdatePRMeta(indexPath, r.url, r.isMerged, r.comments, r.changesRequested); err != nil {
 				fmt.Fprintf(os.Stderr, "backfill-meta: update %s: %v\n", r.url, err)
 			}
 			updated++
@@ -296,7 +303,7 @@ func fetchPR(g group) result {
 		"--head", g.branch,
 		"--author", "@me",
 		"--state", "all",
-		"--json", "url,state,comments",
+		"--json", "url,state,comments,reviews",
 		"--limit", "1",
 	)
 	cmd.Dir = cwd
@@ -319,10 +326,11 @@ func fetchPR(g group) result {
 		}
 		pr := prs[0]
 		return result{
-			group:    g,
-			url:      pr.URL,
-			isMerged: pr.State == "MERGED",
-			comments: len(pr.Comments),
+			group:            g,
+			url:              pr.URL,
+			isMerged:         pr.State == "MERGED",
+			comments:         len(pr.Comments),
+			changesRequested: countChangesRequested(pr.Reviews),
 		}
 	case <-time.After(8 * time.Second):
 		_ = cmd.Process.Kill()
@@ -333,7 +341,7 @@ func fetchPR(g group) result {
 // fetchPRByURL fetches PR metadata for an existing PR URL using gh pr view.
 func fetchPRByURL(prURL, cwd string) (*prJSON, error) {
 	cmd := exec.Command("gh", "pr", "view", prURL,
-		"--json", "url,state,comments",
+		"--json", "url,state,comments,reviews",
 	)
 	cmd.Dir = cwd
 
@@ -366,6 +374,16 @@ func parsePRList(data []byte) []prJSON {
 		return nil
 	}
 	return prs
+}
+
+func countChangesRequested(reviews []reviewJSON) int {
+	count := 0
+	for _, r := range reviews {
+		if r.State == "CHANGES_REQUESTED" {
+			count++
+		}
+	}
+	return count
 }
 
 func isDir(path string) bool {

@@ -4,6 +4,11 @@ hitl-metrics の変更履歴。新しいものが上。
 
 ## 2026-03-29
 
+- ダッシュボードのアクショナビリティを改善（ADR-022）
+  - Permission ログの enrichment を allowlist 判断向けに変更（`Bash(cmd)` / `Tool(dir/subdir)`）
+  - サマリーの mid_session_msgs を PR 平均に変更し、ask_user_question 週別トレンドを追加
+  - session_count 分布パネルを追加
+  - CHANGES_REQUESTED レビュー回数を backfill・SQLite・pr_metrics・ダッシュボードに追加
 - hooks の Shell スクリプトを Go サブコマンドに統一（ADR-021）
   - 5 つの hook を `hitl-metrics hook <event>` サブコマンドとして Go 実装
   - ツールアノテーション（internal/external 分類）を AnnotateTool 共通関数に統合

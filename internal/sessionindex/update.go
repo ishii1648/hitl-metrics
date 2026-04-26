@@ -161,9 +161,9 @@ func UpdateByBranch(indexPath string, targetRepo, targetBranch, newURL string) (
 	return false, nil
 }
 
-// UpdatePRMeta updates is_merged and review_comments for all sessions that have the given pr_url.
+// UpdatePRMeta updates PR metadata for all sessions that have the given pr_url.
 // Returns true if the file was modified.
-func UpdatePRMeta(indexPath string, prURL string, isMerged bool, reviewComments int) (bool, error) {
+func UpdatePRMeta(indexPath string, prURL string, isMerged bool, reviewComments, changesRequested int) (bool, error) {
 	if prURL == "" {
 		return false, nil
 	}
@@ -189,7 +189,7 @@ func UpdatePRMeta(indexPath string, prURL string, isMerged bool, reviewComments 
 		if !match {
 			continue
 		}
-		if s.IsMerged == isMerged && s.ReviewComments == reviewComments {
+		if s.IsMerged == isMerged && s.ReviewComments == reviewComments && s.ChangesRequested == changesRequested {
 			continue
 		}
 
@@ -199,6 +199,10 @@ func UpdatePRMeta(indexPath string, prURL string, isMerged bool, reviewComments 
 			return false, err
 		}
 		raw, err = remarshalWithUpdate(raw, "review_comments", reviewComments)
+		if err != nil {
+			return false, err
+		}
+		raw, err = remarshalWithUpdate(raw, "changes_requested", changesRequested)
 		if err != nil {
 			return false, err
 		}
@@ -246,6 +250,7 @@ func remarshalWithUpdate(raw json.RawMessage, key string, value any) (json.RawMe
 		"backfill_checked":  8,
 		"is_merged":         9,
 		"review_comments":   10,
+		"changes_requested": 11,
 	}
 	sort.Slice(keys, func(i, j int) bool {
 		oi, oki := order[keys[i]]

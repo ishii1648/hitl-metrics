@@ -10,17 +10,18 @@ import (
 
 // Session represents a single entry in session-index.jsonl.
 type Session struct {
-	Timestamp       string   `json:"timestamp"`
-	SessionID       string   `json:"session_id"`
-	CWD             string   `json:"cwd"`
-	Repo            string   `json:"repo"`
-	Branch          string   `json:"branch"`
-	PRURLs          []string `json:"pr_urls"`
-	Transcript      string   `json:"transcript"`
-	ParentSessionID string   `json:"parent_session_id"`
-	BackfillChecked bool     `json:"backfill_checked"`
-	IsMerged        bool     `json:"is_merged"`
-	ReviewComments  int      `json:"review_comments"`
+	Timestamp        string   `json:"timestamp"`
+	SessionID        string   `json:"session_id"`
+	CWD              string   `json:"cwd"`
+	Repo             string   `json:"repo"`
+	Branch           string   `json:"branch"`
+	PRURLs           []string `json:"pr_urls"`
+	Transcript       string   `json:"transcript"`
+	ParentSessionID  string   `json:"parent_session_id"`
+	BackfillChecked  bool     `json:"backfill_checked"`
+	IsMerged         bool     `json:"is_merged"`
+	ReviewComments   int      `json:"review_comments"`
+	ChangesRequested int      `json:"changes_requested"`
 }
 
 // IndexFile returns the default path to session-index.jsonl.

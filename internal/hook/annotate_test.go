@@ -14,18 +14,11 @@ func TestAnnotateTool(t *testing.T) {
 		want      string
 	}{
 		{
-			name:      "Bash internal command",
+			name:      "Bash command",
 			toolName:  "Bash",
 			toolInput: `{"command": "cp /home/user/project/foo.txt /home/user/project/bar.txt"}`,
 			cwd:       "/home/user/project",
-			want:      "Bash(cp(internal))",
-		},
-		{
-			name:      "Bash external command",
-			toolName:  "Bash",
-			toolInput: `{"command": "cp /tmp/foo.txt /tmp/bar.txt"}`,
-			cwd:       "/home/user/project",
-			want:      "Bash(cp(external))",
+			want:      "Bash(cp)",
 		},
 		{
 			name:      "Bash empty command",
@@ -39,14 +32,21 @@ func TestAnnotateTool(t *testing.T) {
 			toolName:  "Bash",
 			toolInput: `{"command": "ls"}`,
 			cwd:       "/home/user/project",
-			want:      "Bash(ls(external))",
+			want:      "Bash(ls)",
 		},
 		{
-			name:      "Read internal file",
+			name:      "Read root file",
 			toolName:  "Read",
 			toolInput: `{"file_path": "/home/user/project/main.go"}`,
 			cwd:       "/home/user/project",
-			want:      "Read(internal)",
+			want:      "Read(.)",
+		},
+		{
+			name:      "Read nested file",
+			toolName:  "Read",
+			toolInput: `{"file_path": "/home/user/project/internal/syncdb/syncdb.go"}`,
+			cwd:       "/home/user/project",
+			want:      "Read(internal/syncdb)",
 		},
 		{
 			name:      "Read external file",
@@ -58,23 +58,30 @@ func TestAnnotateTool(t *testing.T) {
 		{
 			name:      "Write internal file",
 			toolName:  "Write",
-			toolInput: `{"file_path": "/home/user/project/out.txt"}`,
+			toolInput: `{"file_path": "/home/user/project/docs/setup.md"}`,
 			cwd:       "/home/user/project",
-			want:      "Write(internal)",
+			want:      "Write(docs/setup.md)",
 		},
 		{
 			name:      "Edit internal file",
 			toolName:  "Edit",
-			toolInput: `{"file_path": "/home/user/project/main.go"}`,
+			toolInput: `{"file_path": "/home/user/project/grafana/dashboards/hitl-metrics.json"}`,
 			cwd:       "/home/user/project",
-			want:      "Edit(internal)",
+			want:      "Edit(grafana/dashboards)",
 		},
 		{
 			name:      "Grep with path field",
 			toolName:  "Grep",
 			toolInput: `{"path": "/home/user/project/src"}`,
 			cwd:       "/home/user/project",
-			want:      "Grep(internal)",
+			want:      "Grep(.)",
+		},
+		{
+			name:      "Relative internal file",
+			toolName:  "Edit",
+			toolInput: `{"file_path": "internal/hook/annotate.go"}`,
+			cwd:       "/home/user/project",
+			want:      "Edit(internal/hook)",
 		},
 		{
 			name:      "Grep external path",

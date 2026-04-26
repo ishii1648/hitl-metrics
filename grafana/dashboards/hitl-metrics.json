@@ -31,12 +31,16 @@
           "refId": "B"
         },
         {
-          "rawQueryText": "SELECT COALESCE(SUM(mid_session_msgs), 0) AS 'mid-session msgs' FROM pr_metrics",
+          "rawQueryText": "SELECT COALESCE(ROUND(AVG(mid_session_msgs), 1), 0) AS 'avg mid-session msgs' FROM pr_metrics",
           "refId": "C"
         },
         {
           "rawQueryText": "SELECT COALESCE(SUM(review_comments), 0) AS 'review comments' FROM pr_metrics",
           "refId": "D"
+        },
+        {
+          "rawQueryText": "SELECT COALESCE(SUM(changes_requested), 0) AS 'changes requested' FROM pr_metrics",
+          "refId": "E"
         }
       ],
       "fieldConfig": {
@@ -93,7 +97,7 @@
       "title": "perm rate 週別トレンド",
       "description": "週単位の permission 発生率推移",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 6 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
@@ -132,7 +136,7 @@
       "id": 12,
       "title": "タスク種別 perm rate",
       "type": "barchart",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
@@ -159,6 +163,37 @@
       }
     },
     {
+      "id": 13,
+      "title": "質問数 週別トレンド",
+      "description": "週単位の ask_user_question 合計",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 6 },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "targets": [
+        {
+          "rawQueryText": "SELECT strftime('%s', date(s.timestamp, 'weekday 0', '-6 days')) AS time, COALESCE(SUM(ts.ask_user_question), 0) AS ask_user_question FROM sessions s LEFT JOIN transcript_stats ts ON s.session_id = ts.session_id WHERE s.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' AND s.pr_url != '' AND s.is_subagent = 0 AND s.is_merged = 1 AND COALESCE(ts.is_ghost, 0) = 0 AND s.repo NOT IN ('ishii1648/dotfiles') GROUP BY date(s.timestamp, 'weekday 0', '-6 days') ORDER BY time",
+          "refId": "A",
+          "timeColumns": ["time"]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#f59e0b", "mode": "fixed" },
+          "unit": "short",
+          "custom": {
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "always"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      }
+    },
+    {
       "id": 102,
       "title": "PR 詳細",
       "type": "row",
@@ -171,11 +206,11 @@
       "title": "PR 別スコアカード（merged のみ）",
       "description": "merged PR ごとの介入指標・品質指標一覧",
       "type": "table",
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 15 },
+      "gridPos": { "h": 12, "w": 16, "x": 0, "y": 15 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT pm.pr_url, pm.task_type, pm.perm_rate, pm.perm_count, pm.session_count, pm.mid_session_msgs, pm.ask_user_question, pm.review_comments, pm.tool_use_total FROM pr_metrics pm ORDER BY pm.perm_rate DESC",
+          "rawQueryText": "SELECT pm.pr_url, pm.task_type, pm.perm_rate, pm.perm_count, pm.session_count, pm.mid_session_msgs, pm.ask_user_question, pm.review_comments, pm.changes_requested, pm.tool_use_total FROM pr_metrics pm ORDER BY pm.perm_rate DESC",
           "refId": "A"
         }
       ],
@@ -222,6 +257,33 @@
       "options": {
         "showHeader": true,
         "sortBy": [{ "displayName": "perm_rate", "desc": true }]
+      }
+    },
+    {
+      "id": 14,
+      "title": "PR 別 session_count 分布",
+      "description": "多セッション PR の外れ値検出",
+      "type": "barchart",
+      "gridPos": { "h": 12, "w": 8, "x": 16, "y": 15 },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "targets": [
+        {
+          "rawQueryText": "SELECT pr_url, session_count FROM pr_metrics ORDER BY session_count DESC, pr_url",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#64748b", "mode": "fixed" },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "vertical",
+        "showValue": "always",
+        "barWidth": 0.8
       }
     },
     {

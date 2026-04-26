@@ -174,3 +174,26 @@ func TestRunWithState_CursorBeyondLength(t *testing.T) {
 		t.Fatalf("expected offset 1 after reset, got %d", state.LastBackfillOffset)
 	}
 }
+
+func TestParsePRList_ChangesRequested(t *testing.T) {
+	prs := parsePRList([]byte(`[
+		{
+			"url": "https://github.com/user/repo/pull/1",
+			"state": "MERGED",
+			"comments": [{}, {}],
+			"reviews": [
+				{"state": "APPROVED"},
+				{"state": "CHANGES_REQUESTED"},
+				{"state": "COMMENTED"},
+				{"state": "CHANGES_REQUESTED"}
+			]
+		}
+	]`))
+
+	if len(prs) != 1 {
+		t.Fatalf("len(prs) = %d, want 1", len(prs))
+	}
+	if got := countChangesRequested(prs[0].Reviews); got != 2 {
+		t.Fatalf("countChangesRequested = %d, want 2", got)
+	}
+}

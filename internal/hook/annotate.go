@@ -2,12 +2,13 @@ package hook
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 )
 
 // AnnotateTool returns a tool name annotated with context information.
-//   - Bash → Bash(cmd(internal|external))
-//   - Read/Write/Edit/Grep → Tool(internal|external)
+//   - Bash → Bash(cmd)
+//   - Read/Write/Edit/Grep → Tool(dir/subdir), Tool(.), or Tool(external)
 //   - Other → unchanged
 func AnnotateTool(toolName string, toolInput json.RawMessage, cwd string) string {
 	switch toolName {
@@ -31,10 +32,7 @@ func annotateBash(toolInput json.RawMessage, cwd string) string {
 		return "Bash"
 	}
 	cmd := parts[0]
-	lastArg := parts[len(parts)-1]
-
-	loc := classifyLocation(lastArg, cwd)
-	return "Bash(" + cmd + "(" + loc + "))"
+	return "Bash(" + cmd + ")"
 }
 
 func annotateFileOp(toolName string, toolInput json.RawMessage, cwd string) string {
@@ -49,14 +47,40 @@ func annotateFileOp(toolName string, toolInput json.RawMessage, cwd string) stri
 		fp = input.Path
 	}
 
-	loc := classifyLocation(fp, cwd)
-	return toolName + "(" + loc + ")"
+	pattern := directoryPattern(fp, cwd)
+	return toolName + "(" + pattern + ")"
 }
 
-// classifyLocation returns "internal" if path is under cwd, "external" otherwise.
-func classifyLocation(path, cwd string) string {
-	if cwd != "" && path != "" && strings.HasPrefix(path, cwd+"/") {
-		return "internal"
+func directoryPattern(path, cwd string) string {
+	if cwd == "" || path == "" {
+		return "external"
 	}
-	return "external"
+
+	var rel string
+	if filepath.IsAbs(path) {
+		cleanCWD := filepath.Clean(cwd)
+		cleanPath := filepath.Clean(path)
+		if cleanPath == cleanCWD {
+			return "."
+		}
+		r, err := filepath.Rel(cleanCWD, cleanPath)
+		if err != nil || r == ".." || strings.HasPrefix(r, "../") {
+			return "external"
+		}
+		rel = r
+	} else {
+		rel = filepath.Clean(path)
+		if rel == "." || rel == ".." || strings.HasPrefix(rel, "../") {
+			return "external"
+		}
+	}
+
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) <= 1 {
+		return "."
+	}
+	if len(parts) == 2 {
+		return filepath.ToSlash(filepath.Join(parts[0], parts[1]))
+	}
+	return filepath.ToSlash(filepath.Join(parts[0], parts[1]))
 }

@@ -160,6 +160,31 @@ func TestUpdateByBranch_NormalizesRepo(t *testing.T) {
 	}
 }
 
+func TestUpdatePRMeta_ChangesRequested(t *testing.T) {
+	p := writeTempJSONL(t, []string{
+		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"main","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"","parent_session_id":"","backfill_checked":false}`,
+	})
+
+	updated, err := UpdatePRMeta(p, "https://github.com/user/repo/pull/1", true, 4, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated {
+		t.Fatal("expected updated=true")
+	}
+
+	sessions := readSessions(t, p)
+	if !sessions[0].IsMerged {
+		t.Fatal("is_merged should be true")
+	}
+	if sessions[0].ReviewComments != 4 {
+		t.Fatalf("review_comments = %d, want 4", sessions[0].ReviewComments)
+	}
+	if sessions[0].ChangesRequested != 2 {
+		t.Fatalf("changes_requested = %d, want 2", sessions[0].ChangesRequested)
+	}
+}
+
 func TestReadAll_PreservesExtraFields(t *testing.T) {
 	p := writeTempJSONL(t, []string{
 		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"main","pr_urls":[],"transcript":"","parent_session_id":"","backfill_checked":false,"extra_field":"keep_me"}`,

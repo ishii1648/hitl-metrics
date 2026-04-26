@@ -19,7 +19,8 @@ CREATE TABLE sessions (
     backfill_checked  INTEGER NOT NULL DEFAULT 0,
     is_merged         INTEGER NOT NULL DEFAULT 0,
     task_type         TEXT NOT NULL DEFAULT '',
-    review_comments   INTEGER NOT NULL DEFAULT 0
+    review_comments   INTEGER NOT NULL DEFAULT 0,
+    changes_requested INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE permission_events (
@@ -52,6 +53,7 @@ SELECT
     COALESCE(SUM(ts.ask_user_question), 0) AS ask_user_question,
     COALESCE(SUM(pe_agg.perm_count), 0) AS perm_count,
     MAX(s.review_comments) AS review_comments,
+    MAX(s.changes_requested) AS changes_requested,
     CASE WHEN COALESCE(SUM(ts.tool_use_total), 0) > 0
          THEN ROUND(COALESCE(SUM(pe_agg.perm_count), 0) * 100.0 / SUM(ts.tool_use_total), 1)
          ELSE NULL END AS perm_rate

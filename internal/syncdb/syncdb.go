@@ -70,8 +70,8 @@ func RunWithPaths(indexPath, permLogPath, dbPath string) error {
 	defer tx.Rollback()
 
 	sessionStmt, err := tx.Prepare(`INSERT OR REPLACE INTO sessions
-		(session_id, timestamp, cwd, repo, branch, pr_url, transcript, parent_session_id, is_subagent, backfill_checked, is_merged, task_type, review_comments)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		(session_id, timestamp, cwd, repo, branch, pr_url, transcript, parent_session_id, is_subagent, backfill_checked, is_merged, task_type, review_comments, changes_requested)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func RunWithPaths(indexPath, permLogPath, dbPath string) error {
 		if _, err := sessionStmt.Exec(
 			s.SessionID, s.Timestamp, s.CWD, s.Repo, s.Branch,
 			prURL, s.Transcript, s.ParentSessionID,
-			isSubagent, backfillChecked, isMerged, taskType, s.ReviewComments,
+			isSubagent, backfillChecked, isMerged, taskType, s.ReviewComments, s.ChangesRequested,
 		); err != nil {
 			return fmt.Errorf("insert session %s: %w", s.SessionID, err)
 		}
