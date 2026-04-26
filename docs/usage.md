@@ -12,9 +12,11 @@ hooks → ~/.claude/*.jsonl|log → hitl-metrics backfill → hitl-metrics sync-
 
 | hook | トリガー | 出力先 |
 |------|----------|--------|
-| `session-index.sh` | セッション開始時 | `~/.claude/session-index.jsonl` |
-| `permission-log.sh` | Permission UI 表示時 | `~/.claude/logs/permission.log` |
-| `stop.sh` | セッション終了時 | `~/.claude/hitl-metrics.db`（backfill + sync-db） |
+| `hitl-metrics hook session-start` | セッション開始時 | `~/.claude/session-index.jsonl` |
+| `hitl-metrics hook permission-request` | Permission UI 表示時 | `~/.claude/logs/permission.log` |
+| `hitl-metrics hook pre-tool-use` | ツール実行前 | `~/.claude/logs/last-tool-*` |
+| `hitl-metrics hook stop` | セッション終了時 | `~/.claude/hitl-metrics.db`（backfill + sync-db） |
+| `hitl-metrics hook todo-cleanup` | セッション開始時（main） | `TODO.md` → `CHANGELOG.md` |
 
 セッション開始時にインデックスが記録され、Permission UI 表示時にログが記録されます。セッション終了時に PR URL 補完と SQLite DB 同期が自動実行されます。
 
@@ -42,7 +44,7 @@ hitl-metrics sync-db
 ## CLI コマンド
 
 ```
-hitl-metrics install [--hooks-dir <path>]          hooks を ~/.claude/settings.json に登録
+hitl-metrics install                               hooks を ~/.claude/settings.json に登録
 hitl-metrics backfill [--recheck]                  PR URL の一括補完
 hitl-metrics sync-db                               JSONL/log → SQLite 変換
 hitl-metrics update <session_id> <url>...          PR URL を追加
@@ -64,8 +66,8 @@ make grafana-down        # コンテナ停止
 
 ### hook が動作しない
 
-- `~/.claude/settings.json` の hook パスが正しいか確認
-- hook スクリプトに実行権限があるか確認: `chmod +x hooks/*.sh`
+- `~/.claude/settings.json` に `hitl-metrics hook <event>` が登録されているか確認
+- `hitl-metrics` コマンドが PATH に存在するか確認: `which hitl-metrics`
 - デバッグログを確認: `~/.claude/logs/session-index-debug.log`
 
 ### sync-db でデータが空になる

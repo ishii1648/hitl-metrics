@@ -7,14 +7,16 @@ import (
 	"path/filepath"
 )
 
-// hookDef maps a hook event name to the script filename.
+// hookDef maps a Claude Code hook event to a hitl-metrics subcommand.
 var hookDefs = []struct {
-	Event  string
-	Script string
+	Event   string
+	Command string
 }{
-	{"SessionStart", "session-index.sh"},
-	{"PermissionRequest", "permission-log.sh"},
-	{"Stop", "stop.sh"},
+	{"SessionStart", "hitl-metrics hook session-start"},
+	{"SessionStart", "hitl-metrics hook todo-cleanup"},
+	{"PermissionRequest", "hitl-metrics hook permission-request"},
+	{"PreToolUse", "hitl-metrics hook pre-tool-use"},
+	{"Stop", "hitl-metrics hook stop"},
 }
 
 // settingsPathFn returns ~/.claude/settings.json. Replaceable in tests.
@@ -24,9 +26,8 @@ var settingsPathFn = func() string {
 }
 
 // Run registers hitl-metrics hooks into ~/.claude/settings.json.
-// hooksDir is the absolute path to the hooks/ directory.
-// Idempotent: skips hooks whose command path is already registered.
-func Run(hooksDir string) error {
+// Idempotent: skips hooks whose command is already registered.
+func Run() error {
 	path := settingsPathFn()
 
 	// Read existing settings or start with empty object
@@ -52,13 +53,6 @@ func Run(hooksDir string) error {
 	skipped := 0
 
 	for _, def := range hookDefs {
-		scriptPath := filepath.Join(hooksDir, def.Script)
-
-		// Verify script exists
-		if _, err := os.Stat(scriptPath); err != nil {
-			return fmt.Errorf("hook script not found: %s", scriptPath)
-		}
-
 		// Parse existing entries for this event
 		var entries []hookEntry
 		if raw, ok := hooks[def.Event]; ok {
@@ -68,8 +62,8 @@ func Run(hooksDir string) error {
 		}
 
 		// Check if already registered
-		if containsCommand(entries, scriptPath) {
-			fmt.Printf("install: %s — スキップ（登録済み）\n", def.Event)
+		if containsCommand(entries, def.Command) {
+			fmt.Printf("install: %s (%s) — スキップ（登録済み）\n", def.Event, def.Command)
 			skipped++
 			continue
 		}
@@ -79,7 +73,7 @@ func Run(hooksDir string) error {
 			Matcher: "",
 			Hooks: []hookCommand{{
 				Type:    "command",
-				Command: scriptPath,
+				Command: def.Command,
 			}},
 		})
 
@@ -88,7 +82,7 @@ func Run(hooksDir string) error {
 			return err
 		}
 		hooks[def.Event] = json.RawMessage(raw)
-		fmt.Printf("install: %s — 登録\n", def.Event)
+		fmt.Printf("install: %s (%s) — 登録\n", def.Event, def.Command)
 		added++
 	}
 
@@ -128,7 +122,7 @@ type hookCommand struct {
 	Command string `json:"command"`
 }
 
-// containsCommand checks if any entry already references the given command path.
+// containsCommand checks if any entry already references the given command.
 func containsCommand(entries []hookEntry, command string) bool {
 	for _, e := range entries {
 		for _, h := range e.Hooks {

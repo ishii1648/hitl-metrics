@@ -4,6 +4,13 @@ hitl-metrics の変更履歴。新しいものが上。
 
 ## 2026-03-29
 
+- hooks の Shell スクリプトを Go サブコマンドに統一（ADR-021）
+  - 5 つの hook を `hitl-metrics hook <event>` サブコマンドとして Go 実装
+  - ツールアノテーション（internal/external 分類）を AnnotateTool 共通関数に統合
+  - todo-cleanup の TODO パース処理に Go テストを追加
+  - `hitl-metrics install` が Go サブコマンド形式で settings.json に登録
+  - `go:embed` + Shell スクリプトファイルを削除、単一バイナリで完結
+  - `docs/architecture.md` を新規作成
 - GitHub Release でバイナリを自動ビルド・配布
   - goreleaser + GitHub Actions でタグ push 時にマルチプラットフォームバイナリを生成（darwin/linux × amd64/arm64）
   - hook スクリプトを go:embed でバイナリに内包、`hitl-metrics install` で `~/.local/share/hitl-metrics/hooks/` に展開
