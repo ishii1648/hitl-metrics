@@ -10,10 +10,15 @@ import (
 
 // Stats holds computed metrics from a transcript JSONL file.
 type Stats struct {
-	ToolUseTotal    int
-	MidSessionMsgs  int
-	AskUserQuestion int
-	IsGhost         bool // true if no user message exists
+	ToolUseTotal     int
+	MidSessionMsgs   int
+	AskUserQuestion  int
+	InputTokens      int64
+	OutputTokens     int64
+	CacheWriteTokens int64
+	CacheReadTokens  int64
+	Model            string
+	IsGhost          bool // true if no user message exists
 }
 
 // Parse reads a transcript JSONL file and returns computed stats.
@@ -33,6 +38,11 @@ func Parse(transcriptPath string) Stats {
 		toolUseTotal    int
 		midSessionMsgs  int
 		askUserQuestion int
+		inputTokens     int64
+		outputTokens    int64
+		cacheWrite      int64
+		cacheRead       int64
+		model           string
 		firstUserSeen   bool
 		hasUserMsg      bool
 	)
@@ -63,6 +73,14 @@ func Parse(transcriptPath string) Stats {
 			}
 
 		case "assistant":
+			inputTokens += entry.Message.Usage.InputTokens
+			outputTokens += entry.Message.Usage.OutputTokens
+			cacheWrite += entry.Message.Usage.CacheCreationInputTokens
+			cacheRead += entry.Message.Usage.CacheReadInputTokens
+			if entry.Message.Model != "" {
+				model = entry.Message.Model
+			}
+
 			content := entry.Message.Content
 			for _, item := range content {
 				if item.Type == "tool_use" {
@@ -76,10 +94,15 @@ func Parse(transcriptPath string) Stats {
 	}
 
 	return Stats{
-		ToolUseTotal:    toolUseTotal,
-		MidSessionMsgs:  midSessionMsgs,
-		AskUserQuestion: askUserQuestion,
-		IsGhost:         !hasUserMsg,
+		ToolUseTotal:     toolUseTotal,
+		MidSessionMsgs:   midSessionMsgs,
+		AskUserQuestion:  askUserQuestion,
+		InputTokens:      inputTokens,
+		OutputTokens:     outputTokens,
+		CacheWriteTokens: cacheWrite,
+		CacheReadTokens:  cacheRead,
+		Model:            model,
+		IsGhost:          !hasUserMsg,
 	}
 }
 
@@ -125,8 +148,8 @@ func isHumanTextMessage(entry *transcriptEntry) bool {
 
 // transcriptEntry represents a line in the transcript JSONL.
 type transcriptEntry struct {
-	Type      string           `json:"type"`
-	Timestamp string           `json:"timestamp"`
+	Type      string            `json:"type"`
+	Timestamp string            `json:"timestamp"`
 	Message   transcriptMessage `json:"message"`
 }
 
@@ -134,15 +157,21 @@ type transcriptEntry struct {
 type transcriptMessage struct {
 	Content    []contentItem `json:"-"`
 	ContentStr string        `json:"-"`
+	Usage      usageStats    `json:"-"`
+	Model      string        `json:"-"`
 }
 
 func (m *transcriptMessage) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		Content json.RawMessage `json:"content"`
+		Usage   usageStats      `json:"usage"`
+		Model   string          `json:"model"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	m.Usage = raw.Usage
+	m.Model = raw.Model
 	if len(raw.Content) == 0 {
 		return nil
 	}
@@ -168,6 +197,13 @@ type contentItem struct {
 	Type string `json:"type"`
 	Name string `json:"name,omitempty"`
 	Text string `json:"text,omitempty"`
+}
+
+type usageStats struct {
+	InputTokens              int64 `json:"input_tokens"`
+	OutputTokens             int64 `json:"output_tokens"`
+	CacheCreationInputTokens int64 `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int64 `json:"cache_read_input_tokens"`
 }
 
 // ParseTimestamp parses a transcript timestamp string.

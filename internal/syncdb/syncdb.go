@@ -9,7 +9,6 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/ishii1648/hitl-metrics/internal/permlog"
 	"github.com/ishii1648/hitl-metrics/internal/sessionindex"
 	"github.com/ishii1648/hitl-metrics/internal/transcript"
 )
@@ -22,13 +21,13 @@ func DBPath() string {
 	return filepath.Join(home, ".claude", "hitl-metrics.db")
 }
 
-// Run performs a full rebuild of the SQLite database from JSONL/log sources.
+// Run performs a full rebuild of the SQLite database from JSONL/transcript sources.
 func Run() error {
-	return RunWithPaths(sessionindex.IndexFile(), permlog.LogFile(), DBPath())
+	return RunWithPaths(sessionindex.IndexFile(), DBPath())
 }
 
 // RunWithPaths performs a full rebuild using specified paths (for testing).
-func RunWithPaths(indexPath, permLogPath, dbPath string) error {
+func RunWithPaths(indexPath, dbPath string) error {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
@@ -78,8 +77,8 @@ func RunWithPaths(indexPath, permLogPath, dbPath string) error {
 	defer sessionStmt.Close()
 
 	statsStmt, err := tx.Prepare(`INSERT OR REPLACE INTO transcript_stats
-		(session_id, tool_use_total, mid_session_msgs, ask_user_question, is_ghost)
-		VALUES (?, ?, ?, ?, ?)`)
+		(session_id, tool_use_total, mid_session_msgs, ask_user_question, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, model, is_ghost)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -125,42 +124,21 @@ func RunWithPaths(indexPath, permLogPath, dbPath string) error {
 			isGhost = 1
 		}
 		if _, err := statsStmt.Exec(
-			s.SessionID, ts.ToolUseTotal, ts.MidSessionMsgs, ts.AskUserQuestion, isGhost,
+			s.SessionID, ts.ToolUseTotal, ts.MidSessionMsgs, ts.AskUserQuestion,
+			ts.InputTokens, ts.OutputTokens, ts.CacheWriteTokens, ts.CacheReadTokens,
+			ts.Model, isGhost,
 		); err != nil {
 			return fmt.Errorf("insert stats %s: %w", s.SessionID, err)
 		}
 		transcriptCount++
 	}
 
-	// Load and insert permission events
-	permEntries, err := permlog.Parse(permLogPath)
-	if err != nil {
-		return fmt.Errorf("parse permission log: %w", err)
-	}
-
-	permStmt, err := tx.Prepare(`INSERT INTO permission_events (timestamp, session_id, tool) VALUES (?, ?, ?)`)
-	if err != nil {
-		return err
-	}
-	defer permStmt.Close()
-
-	permCount := 0
-	for _, entries := range permEntries {
-		for _, e := range entries {
-			tsStr := e.Timestamp.UTC().Format("2006-01-02T15:04:05Z")
-			if _, err := permStmt.Exec(tsStr, e.SessionID, e.Tool); err != nil {
-				return fmt.Errorf("insert perm event: %w", err)
-			}
-			permCount++
-		}
-	}
-
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
 
-	fmt.Printf("sync-db: 完了 — sessions: %d, transcript_stats: %d, permission_events: %d\n",
-		len(sessionMap), transcriptCount, permCount)
+	fmt.Printf("sync-db: 完了 — sessions: %d, transcript_stats: %d\n",
+		len(sessionMap), transcriptCount)
 
 	// Verify with a quick query
 	var prMetricsCount int

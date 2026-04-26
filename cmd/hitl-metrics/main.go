@@ -43,12 +43,10 @@ Commands:
   update --mark-checked <session_id>...  backfill_checked をセット
   update --by-branch <repo> <branch> <url>  ブランチ全セッションに URL 追加
   backfill [--recheck]                   PR URL の一括補完
-  sync-db                                JSONL/log → SQLite 変換
+  sync-db                                JSONL/transcript → SQLite 変換
   install                                hooks を ~/.claude/settings.json に登録
   hook <event>                           Claude Code hook を実行
     session-start                        セッションインデックスを記録
-    permission-request                   permission UI をログ記録
-    pre-tool-use                         ツール名を一時ファイルに記録
     stop                                 backfill + sync-db を実行
     todo-cleanup                         完了タスクを CHANGELOG に移動`)
 }

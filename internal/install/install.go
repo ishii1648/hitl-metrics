@@ -14,8 +14,6 @@ var hookDefs = []struct {
 }{
 	{"SessionStart", "hitl-metrics hook session-start"},
 	{"SessionStart", "hitl-metrics hook todo-cleanup"},
-	{"PermissionRequest", "hitl-metrics hook permission-request"},
-	{"PreToolUse", "hitl-metrics hook pre-tool-use"},
 	{"Stop", "hitl-metrics hook stop"},
 }
 

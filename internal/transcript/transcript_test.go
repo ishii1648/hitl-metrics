@@ -24,9 +24,9 @@ func writeTempTranscript(t *testing.T, lines []string) string {
 func TestParse_BasicStats(t *testing.T) {
 	p := writeTempTranscript(t, []string{
 		`{"type":"user","message":{"content":"hello"}}`,
-		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read"},{"type":"tool_use","name":"Edit"}]}}`,
+		`{"type":"assistant","message":{"model":"claude-sonnet-4-5","usage":{"input_tokens":100,"output_tokens":20,"cache_creation_input_tokens":30,"cache_read_input_tokens":400},"content":[{"type":"tool_use","name":"Read"},{"type":"tool_use","name":"Edit"}]}}`,
 		`{"type":"user","message":{"content":"fix this"}}`,
-		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"ask-user-question"}]}}`,
+		`{"type":"assistant","message":{"model":"claude-opus-4-5","usage":{"input_tokens":200,"output_tokens":40,"cache_creation_input_tokens":60,"cache_read_input_tokens":800},"content":[{"type":"tool_use","name":"ask-user-question"}]}}`,
 	})
 
 	stats := Parse(p)
@@ -39,8 +39,38 @@ func TestParse_BasicStats(t *testing.T) {
 	if stats.AskUserQuestion != 1 {
 		t.Errorf("ask_user_question: got %d, want 1", stats.AskUserQuestion)
 	}
+	if stats.InputTokens != 300 {
+		t.Errorf("input_tokens: got %d, want 300", stats.InputTokens)
+	}
+	if stats.OutputTokens != 60 {
+		t.Errorf("output_tokens: got %d, want 60", stats.OutputTokens)
+	}
+	if stats.CacheWriteTokens != 90 {
+		t.Errorf("cache_write_tokens: got %d, want 90", stats.CacheWriteTokens)
+	}
+	if stats.CacheReadTokens != 1200 {
+		t.Errorf("cache_read_tokens: got %d, want 1200", stats.CacheReadTokens)
+	}
+	if stats.Model != "claude-opus-4-5" {
+		t.Errorf("model: got %q, want %q", stats.Model, "claude-opus-4-5")
+	}
 	if stats.IsGhost {
 		t.Error("should not be ghost")
+	}
+}
+
+func TestParse_MissingUsage(t *testing.T) {
+	p := writeTempTranscript(t, []string{
+		`{"type":"user","message":{"content":"hello"}}`,
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read"}]}}`,
+	})
+
+	stats := Parse(p)
+	if stats.InputTokens != 0 || stats.OutputTokens != 0 || stats.CacheWriteTokens != 0 || stats.CacheReadTokens != 0 {
+		t.Errorf("missing usage should produce zero token stats: %+v", stats)
+	}
+	if stats.Model != "" {
+		t.Errorf("missing model: got %q, want empty", stats.Model)
 	}
 }
 

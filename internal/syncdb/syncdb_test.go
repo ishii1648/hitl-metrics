@@ -16,12 +16,12 @@ func TestRunWithPaths(t *testing.T) {
 	t1Path := filepath.Join(dir, "t1.jsonl")
 	os.WriteFile(t1Path, []byte(
 		`{"type":"user","message":{"content":"hello"}}`+"\n"+
-			`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read"}]}}`+"\n",
+			`{"type":"assistant","message":{"model":"claude-sonnet-4-5","usage":{"input_tokens":100,"output_tokens":20,"cache_creation_input_tokens":30,"cache_read_input_tokens":400},"content":[{"type":"tool_use","name":"Read"}]}}`+"\n",
 	), 0644)
 	t2Path := filepath.Join(dir, "t2.jsonl")
 	os.WriteFile(t2Path, []byte(
 		`{"type":"user","message":{"content":"hello"}}`+"\n"+
-			`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Edit"}]}}`+"\n",
+			`{"type":"assistant","message":{"model":"claude-sonnet-4-5","usage":{"input_tokens":200,"output_tokens":40,"cache_creation_input_tokens":60,"cache_read_input_tokens":800},"content":[{"type":"tool_use","name":"Edit"}]}}`+"\n",
 	), 0644)
 	t3Path := filepath.Join(dir, "t3.jsonl")
 	os.WriteFile(t3Path, []byte(
@@ -36,16 +36,8 @@ func TestRunWithPaths(t *testing.T) {
 			`{"timestamp":"2026-03-01 12:00:00","session_id":"s3","cwd":"/tmp","repo":"ishii1648/dotfiles","branch":"main","pr_urls":["https://github.com/ishii1648/dotfiles/pull/5"],"transcript":"`+t3Path+`","parent_session_id":"","backfill_checked":false,"is_merged":true}`+"\n",
 	), 0644)
 
-	// Create permission.log
-	permPath := filepath.Join(dir, "permission.log")
-	os.WriteFile(permPath, []byte(
-		"2026-03-01T10:05:00Z session=s1 tool=Bash(git)\n"+
-			"2026-03-01T10:10:00Z session=s1 tool=Edit(internal/syncdb)\n"+
-			"2026-03-01T11:05:00Z session=s2 tool=Write(grafana/dashboards)\n",
-	), 0644)
-
 	dbPath := filepath.Join(dir, "hitl-metrics.db")
-	err := RunWithPaths(indexPath, permPath, dbPath)
+	err := RunWithPaths(indexPath, dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,13 +75,6 @@ func TestRunWithPaths(t *testing.T) {
 		t.Errorf("changes_requested: got %d, want 1", changesRequested)
 	}
 
-	// Check permission_events count
-	var permCount int
-	db.QueryRow("SELECT COUNT(*) FROM permission_events").Scan(&permCount)
-	if permCount != 3 {
-		t.Errorf("permission_events count: got %d, want 3", permCount)
-	}
-
 	// Check transcript_stats count
 	var statsCount int
 	db.QueryRow("SELECT COUNT(*) FROM transcript_stats").Scan(&statsCount)
@@ -104,13 +89,22 @@ func TestRunWithPaths(t *testing.T) {
 		t.Errorf("pr_metrics count: got %d, want 1 (dotfiles excluded)", prMetricsCount)
 	}
 
-	// Check pr_metrics aggregation (LEFT JOIN inflation bug fixed)
+	// Check pr_metrics aggregation
 	var prURL string
-	var sessCount, permTotal int
+	var sessCount int
 	var prTaskType string
 	var prReviewComments int
 	var prChangesRequested int
-	db.QueryRow("SELECT pr_url, task_type, session_count, perm_count, review_comments, changes_requested FROM pr_metrics").Scan(&prURL, &prTaskType, &sessCount, &permTotal, &prReviewComments, &prChangesRequested)
+	var inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens, totalTokens int64
+	var tokensPerSession, tokensPerToolUse, prPerMillionTokens float64
+	db.QueryRow(`SELECT pr_url, task_type, session_count, review_comments, changes_requested,
+		input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, total_tokens,
+		tokens_per_session, tokens_per_tool_use, pr_per_million_tokens
+		FROM pr_metrics`).Scan(
+		&prURL, &prTaskType, &sessCount, &prReviewComments, &prChangesRequested,
+		&inputTokens, &outputTokens, &cacheWriteTokens, &cacheReadTokens, &totalTokens,
+		&tokensPerSession, &tokensPerToolUse, &prPerMillionTokens,
+	)
 	if prURL != "https://github.com/user/repo/pull/1" {
 		t.Errorf("pr_url: got %s", prURL)
 	}
@@ -120,14 +114,35 @@ func TestRunWithPaths(t *testing.T) {
 	if sessCount != 2 {
 		t.Errorf("session_count: got %d, want 2", sessCount)
 	}
-	if permTotal != 3 {
-		t.Errorf("perm_count: got %d, want 3", permTotal)
-	}
 	if prReviewComments != 3 {
 		t.Errorf("review_comments: got %d, want 3", prReviewComments)
 	}
 	if prChangesRequested != 1 {
 		t.Errorf("changes_requested: got %d, want 1", prChangesRequested)
+	}
+	if inputTokens != 300 {
+		t.Errorf("input_tokens: got %d, want 300", inputTokens)
+	}
+	if outputTokens != 60 {
+		t.Errorf("output_tokens: got %d, want 60", outputTokens)
+	}
+	if cacheWriteTokens != 90 {
+		t.Errorf("cache_write_tokens: got %d, want 90", cacheWriteTokens)
+	}
+	if cacheReadTokens != 1200 {
+		t.Errorf("cache_read_tokens: got %d, want 1200", cacheReadTokens)
+	}
+	if totalTokens != 1650 {
+		t.Errorf("total_tokens: got %d, want 1650", totalTokens)
+	}
+	if tokensPerSession != 825.0 {
+		t.Errorf("tokens_per_session: got %.1f, want 825.0", tokensPerSession)
+	}
+	if tokensPerToolUse != 825.0 {
+		t.Errorf("tokens_per_tool_use: got %.1f, want 825.0", tokensPerToolUse)
+	}
+	if prPerMillionTokens != 606.06 {
+		t.Errorf("pr_per_million_tokens: got %.2f, want 606.06", prPerMillionTokens)
 	}
 }
 
@@ -147,11 +162,8 @@ func TestRunWithPaths_MergedFilter(t *testing.T) {
 			`{"timestamp":"2026-03-01 11:00:00","session_id":"s2","cwd":"/tmp","repo":"user/repo","branch":"feat/b","pr_urls":["https://github.com/user/repo/pull/2"],"transcript":"`+tPath+`","parent_session_id":"","is_merged":false}`+"\n",
 	), 0644)
 
-	permPath := filepath.Join(dir, "permission.log")
-	os.WriteFile(permPath, []byte(""), 0644)
-
 	dbPath := filepath.Join(dir, "hitl-metrics.db")
-	if err := RunWithPaths(indexPath, permPath, dbPath); err != nil {
+	if err := RunWithPaths(indexPath, dbPath); err != nil {
 		t.Fatal(err)
 	}
 
@@ -190,16 +202,8 @@ func TestRunWithPaths_JoinInflationFix(t *testing.T) {
 		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat/x","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+tPath+`","parent_session_id":"","is_merged":true}`+"\n",
 	), 0644)
 
-	// 3 permission events for the same session
-	permPath := filepath.Join(dir, "permission.log")
-	os.WriteFile(permPath, []byte(
-		"2026-03-01T10:05:00Z session=s1 tool=Bash\n"+
-			"2026-03-01T10:10:00Z session=s1 tool=Edit\n"+
-			"2026-03-01T10:15:00Z session=s1 tool=Write\n",
-	), 0644)
-
 	dbPath := filepath.Join(dir, "hitl-metrics.db")
-	if err := RunWithPaths(indexPath, permPath, dbPath); err != nil {
+	if err := RunWithPaths(indexPath, dbPath); err != nil {
 		t.Fatal(err)
 	}
 
@@ -209,15 +213,10 @@ func TestRunWithPaths_JoinInflationFix(t *testing.T) {
 	}
 	defer db.Close()
 
-	// Before the fix: tool_use_total would be 15 (5 * 3 permission events)
-	// After the fix: tool_use_total should be 5
-	var toolUseTotal, permCount int
-	db.QueryRow("SELECT tool_use_total, perm_count FROM pr_metrics").Scan(&toolUseTotal, &permCount)
+	var toolUseTotal int
+	db.QueryRow("SELECT tool_use_total FROM pr_metrics").Scan(&toolUseTotal)
 	if toolUseTotal != 5 {
-		t.Errorf("tool_use_total: got %d, want 5 (LEFT JOIN inflation bug)", toolUseTotal)
-	}
-	if permCount != 3 {
-		t.Errorf("perm_count: got %d, want 3", permCount)
+		t.Errorf("tool_use_total: got %d, want 5", toolUseTotal)
 	}
 }
 
@@ -229,11 +228,8 @@ func TestRunWithPaths_DummyPRURL(t *testing.T) {
 		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat","pr_urls":["https://github.com/org/repo/pull/123"],"transcript":"","parent_session_id":"","backfill_checked":false}`+"\n",
 	), 0644)
 
-	permPath := filepath.Join(dir, "permission.log")
-	os.WriteFile(permPath, []byte(""), 0644)
-
 	dbPath := filepath.Join(dir, "hitl-metrics.db")
-	err := RunWithPaths(indexPath, permPath, dbPath)
+	err := RunWithPaths(indexPath, dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}

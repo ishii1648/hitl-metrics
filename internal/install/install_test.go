@@ -36,7 +36,7 @@ func TestRun_NewSettings(t *testing.T) {
 	var hooks map[string]json.RawMessage
 	json.Unmarshal(m["hooks"], &hooks)
 
-	for _, event := range []string{"SessionStart", "PermissionRequest", "PreToolUse", "Stop"} {
+	for _, event := range []string{"SessionStart", "Stop"} {
 		if _, ok := hooks[event]; !ok {
 			t.Fatalf("missing hook event: %s", event)
 		}
@@ -77,13 +77,10 @@ func TestRun_Idempotent(t *testing.T) {
 		t.Fatalf("SessionStart: expected 2 entries, got %d", len(sessionEntries))
 	}
 
-	// Other events: 1 entry each
-	for _, event := range []string{"PermissionRequest", "PreToolUse", "Stop"} {
-		var entries []hookEntry
-		json.Unmarshal(hooks[event], &entries)
-		if len(entries) != 1 {
-			t.Fatalf("%s: expected 1 entry, got %d", event, len(entries))
-		}
+	var stopEntries []hookEntry
+	json.Unmarshal(hooks["Stop"], &stopEntries)
+	if len(stopEntries) != 1 {
+		t.Fatalf("Stop: expected 1 entry, got %d", len(stopEntries))
 	}
 }
 

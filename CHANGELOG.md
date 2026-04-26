@@ -2,6 +2,15 @@
 
 hitl-metrics の変更履歴。新しいものが上。
 
+## 2026-04-27
+
+- PR 単位のトークン消費効率メトリクスを導入（ADR-023）
+  - transcript の `usage` から input / output / cache write / cache read token と model を集計
+  - `pr_metrics` に `total_tokens`, `tokens_per_session`, `tokens_per_tool_use`, `pr_per_million_tokens` を追加
+  - `perm_rate` / `perm_count` / permission breakdown を SQLite VIEW・Grafana・README から削除
+  - `hitl-metrics install` が PermissionRequest / PreToolUse hook を新規登録しないよう変更
+  - Grafana ダッシュボードを token 効率中心に再構成
+
 ## 2026-03-29
 
 - ダッシュボードのアクショナビリティを改善（ADR-022）

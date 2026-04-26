@@ -6,7 +6,7 @@ import (
 )
 
 // RunStop handles the Stop hook event.
-// Runs backfill (PR URL completion + merge status) and sync-db (JSONL/log → SQLite).
+// Runs backfill (PR URL completion + merge status) and sync-db (JSONL/transcript → SQLite).
 // Uses os/exec to call hitl-metrics subcommands, matching the original shell behavior
 // and avoiding sqlite dependency in this package.
 func RunStop() error {

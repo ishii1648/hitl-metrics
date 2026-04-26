@@ -17,25 +17,25 @@
     {
       "id": 1,
       "title": "サマリー",
-      "description": "merged PR の主要指標サマリー",
+      "description": "merged PR のトークン効率サマリー",
       "type": "stat",
       "gridPos": { "h": 4, "w": 24, "x": 0, "y": 1 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT COUNT(*) AS 'merged PR 数' FROM pr_metrics",
+          "rawQueryText": "SELECT COUNT(*) AS 'merged PR 数' FROM pr_metrics WHERE total_tokens > 0",
           "refId": "A"
         },
         {
-          "rawQueryText": "SELECT ROUND(AVG(perm_rate), 1) AS 'avg perm rate (%)' FROM pr_metrics WHERE perm_rate IS NOT NULL",
+          "rawQueryText": "SELECT COALESCE(SUM(total_tokens), 0) AS 'total tokens' FROM pr_metrics WHERE total_tokens > 0",
           "refId": "B"
         },
         {
-          "rawQueryText": "SELECT COALESCE(ROUND(AVG(mid_session_msgs), 1), 0) AS 'avg mid-session msgs' FROM pr_metrics",
+          "rawQueryText": "SELECT COALESCE(ROUND(AVG(total_tokens), 0), 0) AS 'avg tokens / PR' FROM pr_metrics WHERE total_tokens > 0",
           "refId": "C"
         },
         {
-          "rawQueryText": "SELECT COALESCE(SUM(review_comments), 0) AS 'review comments' FROM pr_metrics",
+          "rawQueryText": "SELECT COALESCE(ROUND(COUNT(*) * 1000000.0 / NULLIF(SUM(total_tokens), 0), 2), 0) AS 'PR / 1M tokens' FROM pr_metrics WHERE total_tokens > 0",
           "refId": "D"
         },
         {
@@ -54,21 +54,12 @@
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "avg perm rate (%)" },
-            "properties": [
-              { "id": "unit", "value": "percent" },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    { "color": "green", "value": null },
-                    { "color": "yellow", "value": 5 },
-                    { "color": "red", "value": 15 }
-                  ]
-                }
-              }
-            ]
+            "matcher": { "id": "byName", "options": "total tokens" },
+            "properties": [{ "id": "unit", "value": "short" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "avg tokens / PR" },
+            "properties": [{ "id": "unit", "value": "short" }]
           }
         ]
       },
@@ -94,22 +85,22 @@
     },
     {
       "id": 9,
-      "title": "perm rate 週別トレンド",
-      "description": "週単位の permission 発生率推移",
+      "title": "週別 token 消費",
+      "description": "週単位の total_tokens と merged PR 数",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', date(pe.timestamp, 'weekday 0', '-6 days')) AS time, COUNT(pe.id) AS perm_count, COALESCE(SUM(ts.tool_use_total), 0) AS tool_use_total, CASE WHEN COALESCE(SUM(ts.tool_use_total), 0) > 0 THEN ROUND(COUNT(pe.id) * 100.0 / SUM(ts.tool_use_total), 1) ELSE NULL END AS perm_rate FROM permission_events pe LEFT JOIN sessions s ON pe.session_id = s.session_id LEFT JOIN transcript_stats ts ON pe.session_id = ts.session_id WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' AND s.repo NOT IN ('ishii1648/dotfiles') GROUP BY date(pe.timestamp, 'weekday 0', '-6 days') ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', date(s.timestamp, 'weekday 0', '-6 days')) AS time, COALESCE(SUM(pm.total_tokens), 0) AS total_tokens, COUNT(DISTINCT pm.pr_url) AS merged_prs FROM pr_metrics pm JOIN sessions s ON pm.pr_url = s.pr_url WHERE s.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' AND pm.total_tokens > 0 AND s.is_subagent = 0 GROUP BY date(s.timestamp, 'weekday 0', '-6 days') ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "fixedColor": "#ef4444", "mode": "fixed" },
-          "unit": "percent",
+          "color": { "fixedColor": "#2563eb", "mode": "fixed" },
+          "unit": "short",
           "custom": {
             "lineWidth": 2,
             "pointSize": 5,
@@ -118,12 +109,8 @@
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "perm_count" },
-            "properties": [{ "id": "custom.hideFrom", "value": { "legend": true, "tooltip": false, "viz": true } }]
-          },
-          {
-            "matcher": { "id": "byName", "options": "tool_use_total" },
-            "properties": [{ "id": "custom.hideFrom", "value": { "legend": true, "tooltip": false, "viz": true } }]
+            "matcher": { "id": "byName", "options": "merged_prs" },
+            "properties": [{ "id": "custom.axisPlacement", "value": "right" }]
           }
         ]
       },
@@ -134,51 +121,21 @@
     },
     {
       "id": 12,
-      "title": "タスク種別 perm rate",
-      "type": "barchart",
-      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 6 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
-      "targets": [
-        {
-          "rawQueryText": "SELECT CASE WHEN task_type = '' THEN 'other' ELSE task_type END AS task_type, ROUND(SUM(perm_count) * 100.0 / NULLIF(SUM(tool_use_total), 0), 1) AS perm_rate, COUNT(*) AS pr_count FROM pr_metrics GROUP BY task_type ORDER BY perm_rate DESC",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "fixedColor": "#a855f7", "mode": "fixed" },
-          "unit": "percent"
-        },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "pr_count" },
-            "properties": [{ "id": "custom.hideFrom", "value": { "legend": true, "tooltip": false, "viz": true } }]
-          }
-        ]
-      },
-      "options": {
-        "orientation": "vertical",
-        "showValue": "always",
-        "barWidth": 0.8
-      }
-    },
-    {
-      "id": 13,
-      "title": "質問数 週別トレンド",
-      "description": "週単位の ask_user_question 合計",
+      "title": "週別 PR / 1M tokens",
+      "description": "同じ token 消費で完了できた PR 数",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 6 },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', date(s.timestamp, 'weekday 0', '-6 days')) AS time, COALESCE(SUM(ts.ask_user_question), 0) AS ask_user_question FROM sessions s LEFT JOIN transcript_stats ts ON s.session_id = ts.session_id WHERE s.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' AND s.pr_url != '' AND s.is_subagent = 0 AND s.is_merged = 1 AND COALESCE(ts.is_ghost, 0) = 0 AND s.repo NOT IN ('ishii1648/dotfiles') GROUP BY date(s.timestamp, 'weekday 0', '-6 days') ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', date(s.timestamp, 'weekday 0', '-6 days')) AS time, ROUND(COUNT(DISTINCT pm.pr_url) * 1000000.0 / NULLIF(SUM(pm.total_tokens), 0), 2) AS pr_per_million_tokens FROM pr_metrics pm JOIN sessions s ON pm.pr_url = s.pr_url WHERE s.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' AND pm.total_tokens > 0 AND s.is_subagent = 0 GROUP BY date(s.timestamp, 'weekday 0', '-6 days') ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "fixedColor": "#f59e0b", "mode": "fixed" },
+          "color": { "fixedColor": "#16a34a", "mode": "fixed" },
           "unit": "short",
           "custom": {
             "lineWidth": 2,
@@ -194,6 +151,36 @@
       }
     },
     {
+      "id": 13,
+      "title": "タスク種別 avg tokens / PR",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "targets": [
+        {
+          "rawQueryText": "SELECT CASE WHEN task_type = '' THEN 'other' ELSE task_type END AS task_type, ROUND(AVG(total_tokens), 0) AS avg_tokens_per_pr, COUNT(*) AS pr_count FROM pr_metrics WHERE total_tokens > 0 GROUP BY task_type ORDER BY avg_tokens_per_pr DESC",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#f59e0b", "mode": "fixed" },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "pr_count" },
+            "properties": [{ "id": "custom.hideFrom", "value": { "legend": true, "tooltip": false, "viz": true } }]
+          }
+        ]
+      },
+      "options": {
+        "orientation": "vertical",
+        "showValue": "always",
+        "barWidth": 0.8
+      }
+    },
+    {
       "id": 102,
       "title": "PR 詳細",
       "type": "row",
@@ -203,14 +190,14 @@
     },
     {
       "id": 2,
-      "title": "PR 別スコアカード（merged のみ）",
-      "description": "merged PR ごとの介入指標・品質指標一覧",
+      "title": "PR 別 token スコアカード（merged のみ）",
+      "description": "merged PR ごとの token 消費・効率・品質指標一覧",
       "type": "table",
       "gridPos": { "h": 12, "w": 16, "x": 0, "y": 15 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT pm.pr_url, pm.task_type, pm.perm_rate, pm.perm_count, pm.session_count, pm.mid_session_msgs, pm.ask_user_question, pm.review_comments, pm.changes_requested, pm.tool_use_total FROM pr_metrics pm ORDER BY pm.perm_rate DESC",
+          "rawQueryText": "SELECT pr_url, task_type, model, total_tokens, tokens_per_session, tokens_per_tool_use, pr_per_million_tokens, input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, session_count, tool_use_total, mid_session_msgs, ask_user_question, review_comments, changes_requested FROM pr_metrics WHERE total_tokens > 0 ORDER BY total_tokens DESC",
           "refId": "A"
         }
       ],
@@ -225,38 +212,25 @@
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "task_type" },
+            "matcher": { "id": "byName", "options": "total_tokens" },
             "properties": [
-              { "id": "custom.width", "value": 80 }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "perm_rate" },
-            "properties": [
-              { "id": "unit", "value": "percent" },
+              { "id": "unit", "value": "short" },
               { "id": "custom.width", "value": 120 },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    { "color": "green", "value": null },
-                    { "color": "yellow", "value": 5 },
-                    { "color": "red", "value": 15 }
-                  ]
-                }
-              },
               {
                 "id": "custom.cellOptions",
                 "value": { "type": "color-background", "mode": "basic" }
               }
             ]
+          },
+          {
+            "matcher": { "id": "byRegexp", "options": "/.*tokens.*/" },
+            "properties": [{ "id": "unit", "value": "short" }]
           }
         ]
       },
       "options": {
         "showHeader": true,
-        "sortBy": [{ "displayName": "perm_rate", "desc": true }]
+        "sortBy": [{ "displayName": "total_tokens", "desc": true }]
       }
     },
     {
@@ -264,7 +238,7 @@
       "title": "PR 別 session_count 分布",
       "description": "多セッション PR の外れ値検出",
       "type": "barchart",
-      "gridPos": { "h": 12, "w": 8, "x": 16, "y": 15 },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 15 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
@@ -287,55 +261,22 @@
       }
     },
     {
-      "id": 103,
-      "title": "アクション: allowlist 改善",
-      "type": "row",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
-      "collapsed": false,
-      "panels": []
-    },
-    {
-      "id": 10,
-      "title": "ツール別 permission 内訳",
-      "description": "ツールごとの permission 発生回数と割合",
-      "type": "table",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
-      "targets": [
-        {
-          "rawQueryText": "SELECT pe.tool, COUNT(*) AS count, ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM permission_events WHERE timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}'), 1) AS percentage FROM permission_events pe WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' AND pe.tool != 'unknown' GROUP BY pe.tool ORDER BY count DESC",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "percentage" },
-            "properties": [{ "id": "unit", "value": "percent" }]
-          }
-        ]
-      },
-      "options": {
-        "showHeader": true,
-        "sortBy": [{ "displayName": "count", "desc": true }]
-      }
-    },
-    {
-      "id": 11,
-      "title": "ツール別 permission 分布",
+      "id": 15,
+      "title": "PR 別 tokens / tool_use",
+      "description": "1 tool_use あたりの token 消費が大きい PR",
       "type": "barchart",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 21 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT pe.tool, COUNT(*) AS count FROM permission_events pe WHERE pe.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}' AND pe.tool != 'unknown' GROUP BY pe.tool ORDER BY count DESC",
+          "rawQueryText": "SELECT pr_url, tokens_per_tool_use FROM pr_metrics WHERE tokens_per_tool_use IS NOT NULL ORDER BY tokens_per_tool_use DESC, pr_url LIMIT 20",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "fixedColor": "#06b6d4", "mode": "fixed" }
+          "color": { "fixedColor": "#dc2626", "mode": "fixed" },
+          "unit": "short"
         },
         "overrides": []
       },
@@ -352,7 +293,7 @@
   "time": { "from": "now-30d", "to": "now" },
   "timepicker": {},
   "timezone": "Asia/Tokyo",
-  "title": "Claude 自律度ダッシュボード",
+  "title": "Claude token 効率ダッシュボード",
   "uid": "hitl-metrics",
   "version": 1
 }

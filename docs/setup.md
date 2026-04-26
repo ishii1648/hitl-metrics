@@ -56,18 +56,6 @@ hitl-metrics install
         "hooks": [{"type": "command", "command": "hitl-metrics hook todo-cleanup"}]
       }
     ],
-    "PermissionRequest": [
-      {
-        "matcher": "",
-        "hooks": [{"type": "command", "command": "hitl-metrics hook permission-request"}]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "",
-        "hooks": [{"type": "command", "command": "hitl-metrics hook pre-tool-use"}]
-      }
-    ],
     "Stop": [
       {
         "matcher": "",

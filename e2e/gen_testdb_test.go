@@ -20,7 +20,6 @@ func TestGenTestDB(t *testing.T) {
 	}
 
 	indexPath := filepath.Join(projectRoot, "e2e", "testdata", "session-index.jsonl")
-	permLogPath := filepath.Join(projectRoot, "e2e", "testdata", "permission.log")
 	dbPath := filepath.Join(projectRoot, "e2e", "testdata", "hitl-metrics.db")
 
 	// Create a temporary session-index.jsonl with absolute transcript paths.
@@ -29,7 +28,7 @@ func TestGenTestDB(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := syncdb.RunWithPaths(tmpIndex, permLogPath, dbPath); err != nil {
+	if err := syncdb.RunWithPaths(tmpIndex, dbPath); err != nil {
 		t.Fatal(err)
 	}
 
