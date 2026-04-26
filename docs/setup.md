@@ -56,6 +56,12 @@ hitl-metrics install
         "hooks": [{"type": "command", "command": "hitl-metrics hook todo-cleanup"}]
       }
     ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [{"type": "command", "command": "hitl-metrics hook session-end", "timeout": 10}]
+      }
+    ],
     "Stop": [
       {
         "matcher": "",

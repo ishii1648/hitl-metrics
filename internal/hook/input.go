@@ -14,6 +14,7 @@ type HookInput struct {
 	CWD             string          `json:"cwd"`
 	TranscriptPath  string          `json:"transcript_path"`
 	ParentSessionID string          `json:"parent_session_id"`
+	Reason          string          `json:"reason"`
 }
 
 // ReadInput reads and parses JSON hook input from stdin.

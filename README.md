@@ -41,6 +41,8 @@ merged PR 数、total tokens、平均 tokens / PR、PR / 1M tokens、changes req
 | **mid_session_msgs** | ユーザーが途中で方向転換した回数。要件の曖昧さの代理指標 |
 | **ask_user_question** | Claude がユーザーに質問した回数。仕様不明瞭さの指標 |
 | **session_count** | PR に紐づくセッション数。作業の完了困難さの指標 |
+| **peak_concurrent_sessions** | 期間内のトップレベル Claude Code セッション最大同時実行数 |
+| **avg_concurrent_sessions** | 期間内のトップレベル Claude Code セッション平均同時実行数 |
 | **review_comments** | PR レビューコメント数。成果物品質の外部フィードバック |
 | **changes_requested** | CHANGES_REQUESTED レビュー回数 |
 | **task_type** | ブランチプレフィックス (feat/fix/docs/chore) から自動抽出 |

@@ -2,6 +2,9 @@ package syncdb
 
 const createTablesSQL = `
 DROP VIEW IF EXISTS pr_metrics;
+DROP VIEW IF EXISTS session_concurrency_weekly;
+DROP VIEW IF EXISTS session_concurrency_daily;
+DROP VIEW IF EXISTS session_intervals;
 DROP TABLE IF EXISTS permission_events;
 DROP TABLE IF EXISTS transcript_stats;
 DROP TABLE IF EXISTS sessions;
@@ -15,6 +18,8 @@ CREATE TABLE sessions (
     pr_url            TEXT NOT NULL DEFAULT '',
     transcript        TEXT NOT NULL DEFAULT '',
     parent_session_id TEXT NOT NULL DEFAULT '',
+    ended_at          TEXT NOT NULL DEFAULT '',
+    end_reason        TEXT NOT NULL DEFAULT '',
     is_subagent       INTEGER NOT NULL DEFAULT 0,
     backfill_checked  INTEGER NOT NULL DEFAULT 0,
     is_merged         INTEGER NOT NULL DEFAULT 0,
@@ -38,6 +43,49 @@ CREATE TABLE transcript_stats (
 
 CREATE INDEX idx_sessions_pr_url ON sessions(pr_url);
 CREATE INDEX idx_sessions_repo ON sessions(repo);
+
+CREATE VIEW session_intervals AS
+SELECT
+    s.session_id,
+    s.timestamp AS started_at,
+    s.ended_at,
+    s.repo,
+    s.branch,
+    s.pr_url,
+    s.task_type
+FROM sessions s
+LEFT JOIN transcript_stats ts ON s.session_id = ts.session_id
+WHERE s.is_subagent = 0
+  AND COALESCE(ts.is_ghost, 0) = 0
+  AND s.repo NOT IN ('ishii1648/dotfiles')
+  AND s.timestamp != ''
+  AND s.ended_at != '';
+
+CREATE VIEW session_concurrency_daily AS
+SELECT
+    date(anchor.started_at) AS day,
+    ROUND(AVG((
+        SELECT COUNT(*)
+        FROM session_intervals active
+        WHERE datetime(active.started_at) <= datetime(anchor.started_at)
+          AND datetime(active.ended_at) > datetime(anchor.started_at)
+    )), 2) AS avg_concurrent_sessions,
+    MAX((
+        SELECT COUNT(*)
+        FROM session_intervals active
+        WHERE datetime(active.started_at) <= datetime(anchor.started_at)
+          AND datetime(active.ended_at) > datetime(anchor.started_at)
+    )) AS peak_concurrent_sessions
+FROM session_intervals anchor
+GROUP BY date(anchor.started_at);
+
+CREATE VIEW session_concurrency_weekly AS
+SELECT
+    date(day, 'weekday 0', '-6 days') AS week_start,
+    ROUND(AVG(avg_concurrent_sessions), 2) AS avg_concurrent_sessions,
+    MAX(peak_concurrent_sessions) AS peak_concurrent_sessions
+FROM session_concurrency_daily
+GROUP BY date(day, 'weekday 0', '-6 days');
 
 CREATE VIEW pr_metrics AS
 SELECT

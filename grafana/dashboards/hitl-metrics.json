@@ -41,6 +41,10 @@
         {
           "rawQueryText": "SELECT COALESCE(SUM(changes_requested), 0) AS 'changes requested' FROM pr_metrics",
           "refId": "E"
+        },
+        {
+          "rawQueryText": "SELECT COALESCE(MAX(peak_concurrent_sessions), 0) AS 'peak concurrent sessions' FROM session_concurrency_daily",
+          "refId": "F"
         }
       ],
       "fieldConfig": {
@@ -88,7 +92,7 @@
       "title": "週別 token 消費",
       "description": "週単位の total_tokens と merged PR 数",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 6 },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
@@ -124,7 +128,7 @@
       "title": "週別 PR / 1M tokens",
       "description": "同じ token 消費で完了できた PR 数",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 6 },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
@@ -151,10 +155,47 @@
       }
     },
     {
+      "id": 16,
+      "title": "週別 concurrent sessions",
+      "description": "トップレベル Claude Code セッションの週別平均・最大同時実行数",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 6 },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "targets": [
+        {
+          "rawQueryText": "SELECT strftime('%s', week_start) AS time, avg_concurrent_sessions, peak_concurrent_sessions FROM session_concurrency_weekly WHERE week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
+          "refId": "A",
+          "timeColumns": ["time"]
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#7c3aed", "mode": "palette-classic" },
+          "unit": "short",
+          "decimals": 2,
+          "custom": {
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "always"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "peak_concurrent_sessions" },
+            "properties": [{ "id": "decimals", "value": 0 }]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      }
+    },
+    {
       "id": 13,
       "title": "タスク種別 avg tokens / PR",
       "type": "barchart",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {

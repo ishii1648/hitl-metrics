@@ -18,6 +18,8 @@ type Session struct {
 	PRURLs           []string `json:"pr_urls"`
 	Transcript       string   `json:"transcript"`
 	ParentSessionID  string   `json:"parent_session_id"`
+	EndedAt          string   `json:"ended_at"`
+	EndReason        string   `json:"end_reason"`
 	BackfillChecked  bool     `json:"backfill_checked"`
 	IsMerged         bool     `json:"is_merged"`
 	ReviewComments   int      `json:"review_comments"`

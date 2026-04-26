@@ -161,6 +161,49 @@ func UpdateByBranch(indexPath string, targetRepo, targetBranch, newURL string) (
 	return false, nil
 }
 
+// UpdateEnd records the end timestamp and reason for the given session.
+// Returns true if the file was modified.
+func UpdateEnd(indexPath string, sessionID string, endedAt string, reason string) (bool, error) {
+	if sessionID == "" || endedAt == "" {
+		return false, nil
+	}
+	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+		return false, nil
+	}
+
+	raws, sessions, err := ReadAll(indexPath)
+	if err != nil {
+		return false, err
+	}
+
+	updated := false
+	for i, s := range sessions {
+		if s.SessionID != sessionID {
+			continue
+		}
+		if s.EndedAt == endedAt && s.EndReason == reason {
+			continue
+		}
+
+		raw := raws[i]
+		raw, err = remarshalWithUpdate(raw, "ended_at", endedAt)
+		if err != nil {
+			return false, err
+		}
+		raw, err = remarshalWithUpdate(raw, "end_reason", reason)
+		if err != nil {
+			return false, err
+		}
+		raws[i] = raw
+		updated = true
+	}
+
+	if updated {
+		return true, WriteAll(indexPath, raws)
+	}
+	return false, nil
+}
+
 // UpdatePRMeta updates PR metadata for all sessions that have the given pr_url.
 // Returns true if the file was modified.
 func UpdatePRMeta(indexPath string, prURL string, isMerged bool, reviewComments, changesRequested int) (bool, error) {

@@ -47,6 +47,7 @@ Commands:
   install                                hooks を ~/.claude/settings.json に登録
   hook <event>                           Claude Code hook を実行
     session-start                        セッションインデックスを記録
+    session-end                          セッション終了時刻を記録
     stop                                 backfill + sync-db を実行
     todo-cleanup                         完了タスクを CHANGELOG に移動`)
 }
@@ -138,6 +139,13 @@ func runHook(args []string) {
 			os.Exit(1)
 		}
 		err = hook.RunSessionStart(input)
+	case "session-end":
+		input, e := hook.ReadInput()
+		if e != nil {
+			fmt.Fprintf(os.Stderr, "hook input error: %v\n", e)
+			os.Exit(1)
+		}
+		err = hook.RunSessionEnd(input)
 	case "permission-request":
 		input, e := hook.ReadInput()
 		if e != nil {

@@ -31,8 +31,8 @@ func TestRunWithPaths(t *testing.T) {
 	// Create session-index.jsonl (is_merged=true for merged PR sessions)
 	indexPath := filepath.Join(dir, "session-index.jsonl")
 	os.WriteFile(indexPath, []byte(
-		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat/add-metrics","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+t1Path+`","parent_session_id":"","backfill_checked":false,"is_merged":true,"review_comments":3,"changes_requested":1}`+"\n"+
-			`{"timestamp":"2026-03-01 11:00:00","session_id":"s2","cwd":"/tmp","repo":"user/repo","branch":"feat/add-metrics","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+t2Path+`","parent_session_id":"","backfill_checked":false,"is_merged":true,"review_comments":3,"changes_requested":1}`+"\n"+
+		`{"timestamp":"2026-03-01 10:00:00","ended_at":"2026-03-01 12:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat/add-metrics","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+t1Path+`","parent_session_id":"","backfill_checked":false,"is_merged":true,"review_comments":3,"changes_requested":1}`+"\n"+
+			`{"timestamp":"2026-03-01 11:00:00","ended_at":"2026-03-01 11:30:00","session_id":"s2","cwd":"/tmp","repo":"user/repo","branch":"feat/add-metrics","pr_urls":["https://github.com/user/repo/pull/1"],"transcript":"`+t2Path+`","parent_session_id":"","backfill_checked":false,"is_merged":true,"review_comments":3,"changes_requested":1}`+"\n"+
 			`{"timestamp":"2026-03-01 12:00:00","session_id":"s3","cwd":"/tmp","repo":"ishii1648/dotfiles","branch":"main","pr_urls":["https://github.com/ishii1648/dotfiles/pull/5"],"transcript":"`+t3Path+`","parent_session_id":"","backfill_checked":false,"is_merged":true}`+"\n",
 	), 0644)
 
@@ -59,14 +59,18 @@ func TestRunWithPaths(t *testing.T) {
 	// Check new columns on sessions
 	var isMerged int
 	var taskType string
+	var endedAt string
 	var reviewComments int
 	var changesRequested int
-	db.QueryRow("SELECT is_merged, task_type, review_comments, changes_requested FROM sessions WHERE session_id = 's1'").Scan(&isMerged, &taskType, &reviewComments, &changesRequested)
+	db.QueryRow("SELECT is_merged, task_type, ended_at, review_comments, changes_requested FROM sessions WHERE session_id = 's1'").Scan(&isMerged, &taskType, &endedAt, &reviewComments, &changesRequested)
 	if isMerged != 1 {
 		t.Errorf("is_merged: got %d, want 1", isMerged)
 	}
 	if taskType != "feat" {
 		t.Errorf("task_type: got %q, want %q", taskType, "feat")
+	}
+	if endedAt != "2026-03-01 12:00:00" {
+		t.Errorf("ended_at: got %q", endedAt)
 	}
 	if reviewComments != 3 {
 		t.Errorf("review_comments: got %d, want 3", reviewComments)
@@ -143,6 +147,27 @@ func TestRunWithPaths(t *testing.T) {
 	}
 	if prPerMillionTokens != 606.06 {
 		t.Errorf("pr_per_million_tokens: got %.2f, want 606.06", prPerMillionTokens)
+	}
+
+	var concurrencyRows int
+	db.QueryRow("SELECT COUNT(*) FROM session_concurrency_daily").Scan(&concurrencyRows)
+	if concurrencyRows != 1 {
+		t.Errorf("session_concurrency_daily count: got %d, want 1", concurrencyRows)
+	}
+	var avgConcurrent float64
+	var peakConcurrent int
+	db.QueryRow("SELECT avg_concurrent_sessions, peak_concurrent_sessions FROM session_concurrency_daily WHERE day = '2026-03-01'").Scan(&avgConcurrent, &peakConcurrent)
+	if avgConcurrent != 1.5 {
+		t.Errorf("avg_concurrent_sessions: got %.2f, want 1.50", avgConcurrent)
+	}
+	if peakConcurrent != 2 {
+		t.Errorf("peak_concurrent_sessions: got %d, want 2", peakConcurrent)
+	}
+
+	var weeklyPeak int
+	db.QueryRow("SELECT peak_concurrent_sessions FROM session_concurrency_weekly WHERE week_start = '2026-02-23'").Scan(&weeklyPeak)
+	if weeklyPeak != 2 {
+		t.Errorf("weekly peak_concurrent_sessions: got %d, want 2", weeklyPeak)
 	}
 }
 

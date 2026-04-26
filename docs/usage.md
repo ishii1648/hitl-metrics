@@ -13,10 +13,11 @@ hooks → ~/.claude/session-index.jsonl + transcript JSONL → hitl-metrics back
 | hook | トリガー | 出力先 |
 |------|----------|--------|
 | `hitl-metrics hook session-start` | セッション開始時 | `~/.claude/session-index.jsonl` |
-| `hitl-metrics hook stop` | セッション終了時 | `~/.claude/hitl-metrics.db`（backfill + sync-db） |
+| `hitl-metrics hook session-end` | セッション終了時 | `~/.claude/session-index.jsonl`（`ended_at`, `end_reason`）+ SQLite 同期 |
+| `hitl-metrics hook stop` | 応答完了時 | `~/.claude/hitl-metrics.db`（backfill + sync-db） |
 | `hitl-metrics hook todo-cleanup` | セッション開始時（main） | `TODO.md` → `CHANGELOG.md` |
 
-セッション開始時にインデックスが記録されます。セッション終了時に PR URL 補完と SQLite DB 同期が自動実行されます。
+セッション開始時にインデックスが記録され、セッション終了時に終了時刻が追記されます。Stop hook で PR URL 補完と SQLite DB 同期が自動実行されます。
 
 ## データ同期の仕組み
 
@@ -24,7 +25,7 @@ Stop hook がセッション終了時に `hitl-metrics backfill` → `hitl-metri
 
 - **backfill Phase 1（URL 補完）**: `pr_urls` が空のセッションに対し、`gh pr list` で PR URL を取得
 - **backfill Phase 2（マージ判定）**: 未マージ PR の `is_merged` と `review_comments` を更新（1時間間隔）
-- **sync-db**: JSONL/transcript → SQLite 変換（`~/.claude/hitl-metrics.db` を生成）
+- **sync-db**: JSONL/transcript → SQLite 変換（`~/.claude/hitl-metrics.db` を生成）。日次・週次の `avg_concurrent_sessions` / `peak_concurrent_sessions` も算出
 
 cursor（`~/.claude/hitl-metrics-state.json`）により前回処理済み以降のエントリのみが走査されるため、高速に完了します。
 

@@ -185,6 +185,28 @@ func TestUpdatePRMeta_ChangesRequested(t *testing.T) {
 	}
 }
 
+func TestUpdateEnd(t *testing.T) {
+	p := writeTempJSONL(t, []string{
+		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"main","pr_urls":[],"transcript":"","parent_session_id":"","backfill_checked":false}`,
+	})
+
+	updated, err := UpdateEnd(p, "s1", "2026-03-01 10:30:00", "prompt_input_exit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated {
+		t.Fatal("expected updated=true")
+	}
+
+	sessions := readSessions(t, p)
+	if sessions[0].EndedAt != "2026-03-01 10:30:00" {
+		t.Fatalf("ended_at = %q", sessions[0].EndedAt)
+	}
+	if sessions[0].EndReason != "prompt_input_exit" {
+		t.Fatalf("end_reason = %q", sessions[0].EndReason)
+	}
+}
+
 func TestReadAll_PreservesExtraFields(t *testing.T) {
 	p := writeTempJSONL(t, []string{
 		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"main","pr_urls":[],"transcript":"","parent_session_id":"","backfill_checked":false,"extra_field":"keep_me"}`,

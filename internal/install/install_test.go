@@ -36,7 +36,7 @@ func TestRun_NewSettings(t *testing.T) {
 	var hooks map[string]json.RawMessage
 	json.Unmarshal(m["hooks"], &hooks)
 
-	for _, event := range []string{"SessionStart", "Stop"} {
+	for _, event := range []string{"SessionStart", "SessionEnd", "Stop"} {
 		if _, ok := hooks[event]; !ok {
 			t.Fatalf("missing hook event: %s", event)
 		}
@@ -81,6 +81,12 @@ func TestRun_Idempotent(t *testing.T) {
 	json.Unmarshal(hooks["Stop"], &stopEntries)
 	if len(stopEntries) != 1 {
 		t.Fatalf("Stop: expected 1 entry, got %d", len(stopEntries))
+	}
+
+	var endEntries []hookEntry
+	json.Unmarshal(hooks["SessionEnd"], &endEntries)
+	if len(endEntries) != 1 {
+		t.Fatalf("SessionEnd: expected 1 entry, got %d", len(endEntries))
 	}
 }
 
@@ -165,5 +171,15 @@ func TestRun_CommandFormat(t *testing.T) {
 	cmd := stopEntries[0].Hooks[0].Command
 	if cmd != "hitl-metrics hook stop" {
 		t.Fatalf("Stop command = %q, want %q", cmd, "hitl-metrics hook stop")
+	}
+
+	var endEntries []hookEntry
+	json.Unmarshal(hooks["SessionEnd"], &endEntries)
+	if len(endEntries) != 1 {
+		t.Fatal("expected 1 SessionEnd entry")
+	}
+	cmd = endEntries[0].Hooks[0].Command
+	if cmd != "hitl-metrics hook session-end" {
+		t.Fatalf("SessionEnd command = %q, want %q", cmd, "hitl-metrics hook session-end")
 	}
 }

@@ -11,10 +11,12 @@ import (
 var hookDefs = []struct {
 	Event   string
 	Command string
+	Timeout int
 }{
-	{"SessionStart", "hitl-metrics hook session-start"},
-	{"SessionStart", "hitl-metrics hook todo-cleanup"},
-	{"Stop", "hitl-metrics hook stop"},
+	{"SessionStart", "hitl-metrics hook session-start", 0},
+	{"SessionStart", "hitl-metrics hook todo-cleanup", 0},
+	{"SessionEnd", "hitl-metrics hook session-end", 10},
+	{"Stop", "hitl-metrics hook stop", 0},
 }
 
 // settingsPathFn returns ~/.claude/settings.json. Replaceable in tests.
@@ -72,6 +74,7 @@ func Run() error {
 			Hooks: []hookCommand{{
 				Type:    "command",
 				Command: def.Command,
+				Timeout: def.Timeout,
 			}},
 		})
 
@@ -118,6 +121,7 @@ type hookEntry struct {
 type hookCommand struct {
 	Type    string `json:"type"`
 	Command string `json:"command"`
+	Timeout int    `json:"timeout,omitempty"`
 }
 
 // containsCommand checks if any entry already references the given command.
