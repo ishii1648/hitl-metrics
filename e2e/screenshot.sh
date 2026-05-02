@@ -16,7 +16,10 @@ TZ="Asia/Tokyo"
 
 # Format: "panelId:name:width:height"  (width/height override defaults)
 declare -a PANELS=(
-  "1:headline-kpi:${WIDTH}:${HEIGHT}"
+  "1:headline-sessions:${WIDTH}:${HEIGHT}"
+  "24:headline-merged-prs:${WIDTH}:${HEIGHT}"
+  "25:headline-total-tokens:${WIDTH}:${HEIGHT}"
+  "26:headline-peak-concurrent:${WIDTH}:${HEIGHT}"
   "9:weekly-token-consumption:${WIDTH}:${HEIGHT}"
   "20:weekly-sessions-and-prs:${WIDTH}:${HEIGHT}"
   "16:weekly-concurrent-sessions:${WIDTH}:${HEIGHT}"
@@ -46,7 +49,7 @@ echo "  → ${FULL}"
 # Also export key panels for README docs
 DOCDIR="docs/images"
 mkdir -p "$DOCDIR"
-for pair in "1:headline-kpi:dashboard-headline" "9:weekly-token-consumption:dashboard-weekly-trend" "2:pr-scorecard:dashboard-pr-scorecard"; do
+for pair in "1:headline-sessions:dashboard-headline" "9:weekly-token-consumption:dashboard-weekly-trend" "2:pr-scorecard:dashboard-pr-scorecard"; do
   ID="${pair%%:*}"
   rest="${pair#*:}"
   PANEL_NAME="${rest%%:*}"

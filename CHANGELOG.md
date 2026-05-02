@@ -14,6 +14,7 @@ hitl-metrics の変更履歴。新しいものが上。
   - `task_type` 列を全 table から削除（ADR-024）— branch 命名規約に依存し脆い指標。hitl-metrics は定量指標で状態評価・問題特定を行うツールであり、PR の定性評価は LLM に委ねる方針
   - `pr_merged_at_approx` view を `ended_at` 欠損時に session timestamp で代替するよう変更 — hook 未実装・abort・強制終了でも拾える
   - e2e fixture の timestamp をテスト実行時を基準にシフトするよう変更 — Grafana を直接開いても Last 30 days のデフォルト range で常にデータが描画される
+  - 活動量サマリーを 4 つの個別 stat panel に分割して横並び化 — 1 panel 内 cell の自動レイアウトでは horizontal を確実に維持できないため
 
 ## 2026-04-27
 
