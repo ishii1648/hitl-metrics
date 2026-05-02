@@ -5,10 +5,10 @@ OUTDIR="${1:-.outputs/grafana-screenshots}"
 mkdir -p "$OUTDIR"
 
 BASE="http://localhost:${GRAFANA_PORT:-13000}"
-# 2026-03-01T00:00:00Z → 1772323200000 ms
-# 2026-03-17T00:00:00Z → 1773705600000 ms
-FROM=1772323200000
-TO=1773705600000
+# fixture は gen_testdb_test.go によりテスト実行時の日時へシフトされる。
+# 「Last 30 days」相当の相対指定で最新データが必ず描画されるようにする。
+FROM="now-30d"
+TO="now"
 WIDTH=1600
 HEIGHT=600
 SCALE=2
