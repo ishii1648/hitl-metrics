@@ -41,29 +41,26 @@ grafana-screenshot: grafana-up
 lint-dashboard:
 	go run github.com/grafana/dashboard-linter@latest lint --strict --config grafana/dashboards/.lint grafana/dashboards/hitl-metrics.json
 
-# Worktree management (usage: make worktree-create ADR=017)
-# Path convention: <repo_root>@feat-adr-<NNN> (gw_add と同じ @ 区切り)
+# Worktree management (usage: make worktree-create BRANCH=feat/atomic-write)
+# Path convention: <repo_root>@<branch_dir_name> (gw_add と同じ @ 区切り)
 MAIN_WORKTREE := $(shell git worktree list --porcelain | head -1 | sed 's/worktree //')
-WT_BRANCH = feat/adr-$(ADR)
-WT_DIR_NAME = feat-adr-$(ADR)
+WT_DIR_NAME = $(subst /,-,$(BRANCH))
 WT_PATH = $(MAIN_WORKTREE)@$(WT_DIR_NAME)
 
 worktree-create:
-	@if [ -z "$(ADR)" ]; then echo "Usage: make worktree-create ADR=017"; exit 1; fi
-	@adr_file=$$(ls docs/adr/$(ADR)-*.md 2>/dev/null | head -1); \
-	if [ -z "$$adr_file" ]; then echo "Error: ADR-$(ADR) not found in docs/adr/"; exit 1; fi
+	@if [ -z "$(BRANCH)" ]; then echo "Usage: make worktree-create BRANCH=feat/atomic-write"; exit 1; fi
 	git fetch origin
-	git worktree add "$(WT_PATH)" -b "$(WT_BRANCH)" origin/HEAD
+	git worktree add "$(WT_PATH)" -b "$(BRANCH)" origin/HEAD
 	@if [ -f .claude/settings.local.json ]; then \
 		mkdir -p "$(WT_PATH)/.claude"; \
 		cp .claude/settings.local.json "$(WT_PATH)/.claude/settings.local.json"; \
 		echo "Copied .claude/settings.local.json"; \
 	fi
-	@echo "Worktree created: $(WT_PATH) (branch: $(WT_BRANCH))"
+	@echo "Worktree created: $(WT_PATH) (branch: $(BRANCH))"
 
 worktree-list:
 	git worktree list
 
 worktree-remove:
-	@if [ -z "$(ADR)" ]; then echo "Usage: make worktree-remove ADR=017"; exit 1; fi
+	@if [ -z "$(BRANCH)" ]; then echo "Usage: make worktree-remove BRANCH=feat/atomic-write"; exit 1; fi
 	git worktree remove "$(WT_PATH)"

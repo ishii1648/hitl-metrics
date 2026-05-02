@@ -57,6 +57,13 @@ Claude Code hooks → ~/.claude/session-index.jsonl + transcript JSONL → hitl-
 2. **データ変換層** (`cmd/hitl-metrics/`, `internal/`) — Go CLI で JSONL/transcript → SQLite 変換・PR URL 補完
 3. **可視化層** (`grafana/`) — Grafana ダッシュボードで PR 単位の token 効率を表示
 
-## セットアップ
+## ドキュメント
 
-→ [docs/setup.md](docs/setup.md)
+| ファイル | 内容 |
+|---|---|
+| [docs/spec.md](docs/spec.md) | 外部契約（CLI・hook 仕様・データモデル・ダッシュボード） |
+| [docs/design.md](docs/design.md) | 実装方針と設計判断 |
+| [docs/history.md](docs/history.md) | 過去の経緯と廃止された設計 |
+| [docs/setup.md](docs/setup.md) | セットアップ手順 |
+| [docs/usage.md](docs/usage.md) | 日常運用とトラブルシューティング |
+| [docs/archive/adr/](docs/archive/adr/) | 過去の意思決定記録（旧 ADR 形式・参照のみ） |
