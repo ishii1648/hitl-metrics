@@ -32,14 +32,7 @@ mv hitl-metrics ~/.local/bin/
 
 ## 2. Claude Code hook の登録
 
-```fish
-hitl-metrics install
-```
-
-`hitl-metrics hook <event>` サブコマンドを `~/.claude/settings.json` に自動登録します。既に登録済みの hook はスキップされます（冪等）。
-
-<details>
-<summary>手動で設定する場合</summary>
+hitl-metrics が利用する hook は **dotfiles または手動** で `~/.claude/settings.json` に登録します。`hitl-metrics install` は hook を自動登録しません（dotfiles 等で settings.json を一元管理する構成と整合させるため）。
 
 `~/.claude/settings.json` に以下を追加します。`hitl-metrics` が PATH に存在する必要があります。
 
@@ -71,7 +64,22 @@ hitl-metrics install
   }
 }
 ```
-</details>
+
+登録できたら `hitl-metrics doctor` で検証します。
+
+```fish
+hitl-metrics doctor
+```
+
+binary の PATH 配置・データディレクトリ（`~/.claude/`）の存在・hook 登録状況をチェックします。未登録の hook があれば warning として表示しますが、**自動修復は行いません**（dotfiles 一元管理の前提を壊さないため）。
+
+> **過去に `hitl-metrics install` で自動登録した hook を取り除きたい場合**
+>
+> ```fish
+> hitl-metrics install --uninstall-hooks
+> ```
+>
+> 旧バージョンが書き込んだ単一フックエントリのみを `~/.claude/settings.json` から削除します。matcher 付きエントリや複数フックを束ねたエントリは（人間が編集した可能性が高いため）触りません。
 
 ## 3. 初回データ生成
 

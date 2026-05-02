@@ -26,7 +26,7 @@ Grafana ダッシュボード
 ## データ収集層（hooks）
 
 実装: `hitl-metrics hook <event>` サブコマンド（`internal/hook/` パッケージ）
-設定場所: `~/.claude/settings.json`（`hitl-metrics install` で登録）
+設定場所: `~/.claude/settings.json`（dotfiles または手動で登録。検証は `hitl-metrics doctor`）
 
 | hook イベント | サブコマンド | 役割 | 出力先 |
 |---|---|---|---|
@@ -59,7 +59,9 @@ hitl-metrics update --mark-checked <session_id>...  # backfill_checked フラグ
 hitl-metrics update --by-branch <repo> <branch> <url>  # 同一 repo+branch の全セッションに URL を追加
 hitl-metrics backfill [--recheck]                   # pr_urls が空のセッションを GitHub API で補完
 hitl-metrics sync-db                                # JSONL/transcript → SQLite 変換（DROP & CREATE）
-hitl-metrics install [--hooks-dir <path>]           # hooks を ~/.claude/settings.json に登録
+hitl-metrics install                                # セットアップ案内（hook 登録は dotfiles 側で行う）
+hitl-metrics install --uninstall-hooks              # 旧 install で書き込んだ hook を ~/.claude/settings.json から削除
+hitl-metrics doctor                                 # binary / data dir / hook 登録の検証（自動修復はしない）
 ```
 
 ### backfill の処理フロー

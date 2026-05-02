@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/ishii1648/hitl-metrics/internal/backfill"
+	"github.com/ishii1648/hitl-metrics/internal/doctor"
 	"github.com/ishii1648/hitl-metrics/internal/hook"
 	"github.com/ishii1648/hitl-metrics/internal/install"
 	"github.com/ishii1648/hitl-metrics/internal/sessionindex"
@@ -25,7 +26,9 @@ func main() {
 	case "sync-db":
 		runSyncDB()
 	case "install":
-		runInstall()
+		runInstall(os.Args[2:])
+	case "doctor":
+		runDoctor()
 	case "hook":
 		runHook(os.Args[2:])
 	default:
@@ -44,7 +47,9 @@ Commands:
   update --by-branch <repo> <branch> <url>  ブランチ全セッションに URL 追加
   backfill [--recheck]                   PR URL の一括補完
   sync-db                                JSONL/transcript → SQLite 変換
-  install                                hooks を ~/.claude/settings.json に登録
+  install                                セットアップ案内（hook 登録は dotfiles または手動で行う）
+  install --uninstall-hooks              旧 install で登録された hook を ~/.claude/settings.json から削除
+  doctor                                 binary / data dir / hook 登録の検証（自動修復はしない）
   hook <event>                           Claude Code hook を実行
     session-start                        セッションインデックスを記録
     session-end                          セッション終了時刻を記録
@@ -117,9 +122,29 @@ func runSyncDB() {
 	}
 }
 
-func runInstall() {
+func runInstall(args []string) {
+	for _, a := range args {
+		if a == "--uninstall-hooks" {
+			if err := install.Uninstall(); err != nil {
+				fmt.Fprintf(os.Stderr, "install --uninstall-hooks error: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		}
+	}
 	if err := install.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "install error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func runDoctor() {
+	r, err := doctor.Run()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "doctor error: %v\n", err)
+		os.Exit(1)
+	}
+	if r.HasFailure() {
 		os.Exit(1)
 	}
 }
