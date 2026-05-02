@@ -98,6 +98,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
+          "decimals": 1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -168,6 +169,7 @@
         "defaults": {
           "color": { "fixedColor": "#2563eb", "mode": "fixed" },
           "unit": "short",
+          "decimals": 1,
           "custom": {
             "lineWidth": 2,
             "pointSize": 5,
@@ -183,80 +185,34 @@
     },
     {
       "id": 20,
-      "title": "週別 セッション数 / merged PR 数",
-      "description": "活動量とスループットの推移",
+      "title": "週別 merged PR 数",
+      "description": "週ごとのスループット推移",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', week_start) AS time, session_count FROM weekly_session_metrics WHERE week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
-          "refId": "A",
-          "timeColumns": ["time"]
-        },
-        {
           "rawQueryText": "SELECT strftime('%s', week_start) AS time, merged_pr_count FROM weekly_pr_metrics WHERE week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
-          "refId": "B",
-          "timeColumns": ["time"]
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "unit": "short",
-          "custom": {
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "always"
-          }
-        },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "merged_pr_count" },
-            "properties": [{ "id": "custom.axisPlacement", "value": "right" }]
-          }
-        ]
-      },
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
-      }
-    },
-    {
-      "id": 16,
-      "title": "週別 concurrent sessions",
-      "description": "トップレベル Claude Code セッションの週別平均・最大同時実行数",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
-      "targets": [
-        {
-          "rawQueryText": "SELECT strftime('%s', week_start) AS time, avg_concurrent_sessions, peak_concurrent_sessions FROM session_concurrency_weekly WHERE week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": { "fixedColor": "#eab308", "mode": "fixed" },
           "unit": "short",
-          "decimals": 2,
+          "decimals": 0,
           "custom": {
             "lineWidth": 2,
             "pointSize": 5,
             "showPoints": "always"
           }
         },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "peak_concurrent_sessions" },
-            "properties": [{ "id": "decimals", "value": 0 }]
-          }
-        ]
+        "overrides": []
       },
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
+        "tooltip": { "mode": "single" }
       }
     },
     {
@@ -264,7 +220,7 @@
       "title": "週別 PR / 1M tokens",
       "description": "期間集計の効率指標。PR 単位ではなく週内で平均化されているため複雑度差は均される",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 14 },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
@@ -277,6 +233,7 @@
         "defaults": {
           "color": { "fixedColor": "#16a34a", "mode": "fixed" },
           "unit": "short",
+          "decimals": 1,
           "custom": {
             "lineWidth": 2,
             "pointSize": 5,
@@ -292,87 +249,66 @@
     },
     {
       "id": 21,
-      "title": "週別 tokens / session・ask_user_question / session",
-      "description": "期間集計のセッション効率と指示不足傾向の推移",
+      "title": "週別 tokens / session",
+      "description": "1 セッションあたり token 消費の推移",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 14 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', week_start) AS time, tokens_per_session, ask_user_question_per_session FROM weekly_session_metrics WHERE week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', week_start) AS time, tokens_per_session FROM weekly_session_metrics WHERE week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": { "fixedColor": "#16a34a", "mode": "fixed" },
           "unit": "short",
+          "decimals": 1,
           "custom": {
             "lineWidth": 2,
             "pointSize": 5,
             "showPoints": "always"
           }
         },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "ask_user_question_per_session" },
-            "properties": [
-              { "id": "custom.axisPlacement", "value": "right" },
-              { "id": "decimals", "value": 2 }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
+        "tooltip": { "mode": "single" }
       }
     },
     {
       "id": 22,
-      "title": "週別 changes_requested 発生率 / merge までの avg session 数",
-      "description": "リワーク傾向と PR 完了までに要したセッション数の推移",
+      "title": "週別 changes_requested 発生率",
+      "description": "リワーク傾向の推移",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 14 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', week_start) AS time, changes_requested_rate, avg_sessions_per_pr FROM weekly_pr_metrics WHERE week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', week_start) AS time, changes_requested_rate FROM weekly_pr_metrics WHERE week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "unit": "short",
+          "color": { "fixedColor": "#dc2626", "mode": "fixed" },
+          "unit": "percentunit",
+          "decimals": 1,
           "custom": {
             "lineWidth": 2,
             "pointSize": 5,
             "showPoints": "always"
           }
         },
-        "overrides": [
-          {
-            "matcher": { "id": "byName", "options": "changes_requested_rate" },
-            "properties": [
-              { "id": "unit", "value": "percentunit" },
-              { "id": "decimals", "value": 1 }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "avg_sessions_per_pr" },
-            "properties": [
-              { "id": "custom.axisPlacement", "value": "right" },
-              { "id": "decimals", "value": 2 }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
+        "tooltip": { "mode": "single" }
       }
     },
     {
@@ -416,11 +352,8 @@
             "matcher": { "id": "byName", "options": "total_tokens" },
             "properties": [
               { "id": "unit", "value": "short" },
-              { "id": "custom.width", "value": 120 },
-              {
-                "id": "custom.cellOptions",
-                "value": { "type": "color-background", "mode": "basic" }
-              }
+              { "id": "decimals", "value": 1 },
+              { "id": "custom.width", "value": 120 }
             ]
           },
           {
@@ -445,7 +378,10 @@
           },
           {
             "matcher": { "id": "byRegexp", "options": "/.*tokens.*/" },
-            "properties": [{ "id": "unit", "value": "short" }]
+            "properties": [
+              { "id": "unit", "value": "short" },
+              { "id": "decimals", "value": 1 }
+            ]
           }
         ]
       },
@@ -458,13 +394,13 @@
     {
       "id": 14,
       "title": "PR 別 session_count 分布",
-      "description": "多セッション PR の外れ値検出。脱線・やり直しの兆候。上位 10 件のみ",
+      "description": "多セッション PR の外れ値検出。脱線・やり直しの兆候。上位 5 件のみ",
       "type": "barchart",
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 23 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, session_count FROM pr_metrics ORDER BY session_count DESC, pr_url LIMIT 10",
+          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, session_count FROM pr_metrics ORDER BY session_count DESC, pr_url LIMIT 5",
           "refId": "A"
         }
       ],
@@ -479,33 +415,40 @@
       "options": {
         "orientation": "horizontal",
         "showValue": "always",
-        "barWidth": 0.8
+        "barWidth": 0.6,
+        "text": {
+          "valueSize": 30
+        }
       }
     },
     {
       "id": 15,
       "title": "PR 別 tokens / tool_use",
-      "description": "1 tool_use あたりの token 消費が大きい PR。ファイル肥大・無駄な再読みの兆候。上位 10 件のみ",
+      "description": "1 tool_use あたりの token 消費が大きい PR。ファイル肥大・無駄な再読みの兆候。上位 5 件のみ",
       "type": "barchart",
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 31 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, tokens_per_tool_use FROM pr_metrics WHERE tokens_per_tool_use IS NOT NULL ORDER BY tokens_per_tool_use DESC, pr_url LIMIT 10",
+          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, tokens_per_tool_use FROM pr_metrics WHERE tokens_per_tool_use IS NOT NULL ORDER BY tokens_per_tool_use DESC, pr_url LIMIT 5",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "color": { "fixedColor": "#dc2626", "mode": "fixed" },
-          "unit": "short"
+          "unit": "short",
+          "decimals": 1
         },
         "overrides": []
       },
       "options": {
         "orientation": "horizontal",
         "showValue": "always",
-        "barWidth": 0.8
+        "barWidth": 0.6,
+        "text": {
+          "valueSize": 30
+        }
       }
     }
   ],
