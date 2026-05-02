@@ -30,7 +30,32 @@
 主指標は `perm_rate`（permission UI 発生率）から `total_tokens` / `pr_per_million_tokens` に切り替えた。Claude Code の auto mode の進化により permission UI は構造的に減少していくため、長期的な改善対象としてトークン効率の方が安定していると判断した。これに伴い permission_events テーブル・PermissionRequest hook・関連 Grafana パネルをすべて廃止した。
 [ADR-023](archive/adr/023-pr-token-efficiency-metrics.md)
 
-### 5. backfill 方式の変遷
+### 5. Claude Code 単一エージェント → マルチコーディングエージェント対応（2026-05-02）
+
+当初は Claude Code 専用ツールとして設計されていたため、データディレクトリ (`~/.claude/`)・hook 入力スキーマ・transcript 形式が暗黙にハードコードされていた。Codex CLI が lifecycle hooks（SessionStart / Stop / PostToolUse 等）と rollout JSONL（`event_msg.payload.type=="token_count"` で累積トークン記録）を提供しはじめたため、両エージェントを単一の SQLite DB に集約する構成に拡張した。
+
+主な設計判断:
+
+- **DB は単一に集約** — `~/.claude/hitl-metrics.db` を維持し、`sessions.coding_agent` カラムで claude/codex を区別する。Grafana datasource 設定の後方互換を壊さないため。
+- **データ収集元は agent ごとに分離** — `~/.claude/session-index.jsonl` と `~/.codex/session-index.jsonl` を別ファイルにし、`internal/agent/{claude,codex}/` のアダプタで読み込み元と transcript パーサだけを差し替える。
+- **PRIMARY KEY を複合化** — `(session_id, coding_agent)`。両 agent の UUID 衝突に対する保険。
+- **Codex の SessionEnd 不在を Stop hook で代替** — Stop が応答完了ごとに発火するため `ended_at` を毎回上書き。プロセス kill のケースは backfill が rollout JSONL の最終 event タイムスタンプで補正する。
+- **`reasoning_tokens` カラム追加** — Codex の token_count イベントに reasoning が独立して記録されるため、Claude では 0 固定、Codex では実値を入れる。
+- **`--agent` フラグ既定値を `claude` に** — 既存の `~/.claude/settings.json` 登録（フラグなし）が壊れないようにするため。
+- **`install` → `setup` リネーム + `uninstall-hooks` 独立化** — 旧 `install` は何も書き込まないのに `--uninstall-hooks` だけが破壊的、という非対称が認知的負荷だった。マルチエージェント対応で `--agent codex` が増えると「install というコマンドが Codex 設定に書き込みに来るのでは」という誤解を一層誘発する見通しがあったため、CLI 表面が変わる節目にまとめてリネームした。旧 `install` は deprecation warning 付き alias として残す。
+
+### 6. CHANGELOG.md → history.md / GitHub Release への一本化（2026-05-02）
+
+ADR から spec/design/history へ移行した直後は CHANGELOG.md と history.md が並走していた。両者は WHAT（日付ごとの変更）と WHY（方針転換の経緯）として理屈の上では役割が分離していたが、実態としては ADR 番号参照や同一イベントの重複記載で境界が緩んでいた。goreleaser によるバイナリ配布で GitHub Release が事実上のリリースノートとして機能していたため、CHANGELOG.md を廃止して以下に再分配した。
+
+- リリース単位の WHAT → GitHub Release（タグ push 時に goreleaser が生成）
+- 方針転換の WHY → `docs/history.md`
+- 1 コミット内の判断 → Contextual Commits のアクション行
+- 個別コミットの WHAT → `git log`
+
+これに伴い `todo-cleanup` hook の「TODO.md 完了タスク → CHANGELOG.md 移送」動作は「TODO.md からの削除のみ」に変更する（`git-ship` skill の CHANGELOG チェックステップも削除）。
+
+### 7. backfill 方式の変遷
 
 | 段階 | 方式 | 廃止理由 |
 |---|---|---|
@@ -107,4 +132,4 @@ ADR-006 で導入した `session-index-backfill-batch.py` は launchd `StartCale
 
 ### 設計/実装セッション分離の自動 dispatch
 
-ADR-017 で導入した `/dispatch` skill は user skill 化したため、本リポジトリの `.claude/skills/dispatch/` は削除済み。TODO.md の「実装待ち」セクションを入力ソースとするフロー自体は維持する。
+ADR-017 で導入した `/dispatch` skill は user skill 化したため、本リポジトリの `.claude/skills/dispatch/` は削除済み。TODO.md の実装可能タスクを入力ソースとして worktree + tmux で並列ディスパッチするフロー自体は `impl` skill が引き継いでいる（入力ソースは `実装タスク` セクションに統一済み）。

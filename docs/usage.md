@@ -15,7 +15,7 @@ hooks → ~/.claude/session-index.jsonl + transcript JSONL → hitl-metrics back
 | `hitl-metrics hook session-start` | セッション開始時 | `~/.claude/session-index.jsonl` |
 | `hitl-metrics hook session-end` | セッション終了時 | `~/.claude/session-index.jsonl`（`ended_at`, `end_reason`）+ SQLite 同期 |
 | `hitl-metrics hook stop` | 応答完了時 | `~/.claude/hitl-metrics.db`（backfill + sync-db） |
-| `hitl-metrics hook todo-cleanup` | セッション開始時（main） | `TODO.md` → `CHANGELOG.md` |
+| `hitl-metrics hook todo-cleanup` | セッション開始時（main） | `TODO.md`（完了タスクを削除） |
 
 セッション開始時にインデックスが記録され、セッション終了時に終了時刻が追記されます。Stop hook で PR URL 補完と SQLite DB 同期が自動実行されます。
 

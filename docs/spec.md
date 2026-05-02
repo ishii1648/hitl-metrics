@@ -8,31 +8,49 @@
 
 ## 概要
 
-hitl-metrics は Claude Code の **PR 単位のトークン消費効率** を追跡・可視化する計測ツールである。
-Claude Code hook が記録したセッションイベントとトランスクリプトを SQLite に変換し、Grafana ダッシュボードで PR ごとの token 消費・効率を表示する。
+hitl-metrics は **Claude Code および Codex CLI** の **PR 単位のトークン消費効率** を追跡・可視化する計測ツールである。
+各エージェントの hook が記録したセッションイベントとトランスクリプトを SQLite に変換し、Grafana ダッシュボードで PR ごとの token 消費・効率を表示する。
 
 データフロー:
 
 ```
-Claude Code hooks
-    → ~/.claude/session-index.jsonl + transcript JSONL
-    → hitl-metrics backfill / sync-db
-    → ~/.claude/hitl-metrics.db (SQLite)
-    → Grafana
+Claude Code hooks → ~/.claude/session-index.jsonl + transcript JSONL ┐
+                                                                     ├→ hitl-metrics backfill / sync-db
+Codex CLI hooks   → ~/.codex/session-index.jsonl  + rollout JSONL    ┘
+                                                                     → ~/.claude/hitl-metrics.db (SQLite)
+                                                                     → Grafana
 ```
+
+DB は単一の `~/.claude/hitl-metrics.db` に集約する。後方互換のためファイル位置は変更せず、`sessions.coding_agent` カラムで `claude` / `codex` を区別する。
 
 ---
 
 ## hook の登録と役割
 
-`~/.claude/settings.json` に登録する hook は `hitl-metrics hook <event>` のサブコマンド形式で呼び出す。`hitl-metrics` バイナリが PATH 上にある必要がある。登録は dotfiles または手動で行い、`hitl-metrics install` は自動登録しない。
+hook は `hitl-metrics hook <event> --agent <claude|codex>` のサブコマンド形式で呼び出す。`hitl-metrics` バイナリが PATH 上にある必要がある。登録は dotfiles または手動で行い、`hitl-metrics setup` は登録例を表示するだけで自動登録はしない。
+
+`--agent` を省略した場合は `claude` を既定値とする（既存登録の後方互換）。
+
+### Claude Code
+
+`~/.claude/settings.json` に登録する。
 
 | hook イベント | サブコマンド | 役割 |
 |---|---|---|
-| `SessionStart` | `hitl-metrics hook session-start` | セッション開始メタデータを `session-index.jsonl` に追記 |
-| `SessionStart` | `hitl-metrics hook todo-cleanup` | main ブランチで `TODO.md` の完了タスクを `CHANGELOG.md` に移送 |
-| `SessionEnd` | `hitl-metrics hook session-end` | 終了時刻と終了理由を `session-index.jsonl` に追記し、SQLite を同期 |
-| `Stop` | `hitl-metrics hook stop` | 応答完了時に `backfill` → `sync-db` を実行（ブロッキング） |
+| `SessionStart` | `hitl-metrics hook session-start --agent claude` | セッション開始メタデータを `~/.claude/session-index.jsonl` に追記 |
+| `SessionStart` | `hitl-metrics hook todo-cleanup` | main ブランチで `TODO.md` の完了済みタスクを削除（履歴は git log / GitHub Release で追跡） |
+| `SessionEnd` | `hitl-metrics hook session-end --agent claude` | 終了時刻と終了理由を `~/.claude/session-index.jsonl` に追記し、SQLite を同期 |
+| `Stop` | `hitl-metrics hook stop --agent claude` | 応答完了時に `backfill` → `sync-db` を実行（ブロッキング） |
+
+### Codex CLI
+
+`~/.codex/config.toml` に `[features] codex_hooks = true` を設定したうえで `[[hooks.<Event>]]` を追加するか、`~/.codex/hooks.json` を配置する。Codex には `SessionEnd` イベントが存在しないため、終了時刻は `Stop` hook で逐次更新する（最後の `Stop` 発火が SessionEnd 相当となる）。
+
+| hook イベント | サブコマンド | 役割 |
+|---|---|---|
+| `SessionStart` (`startup\|resume`) | `hitl-metrics hook session-start --agent codex` | セッション開始メタデータを `~/.codex/session-index.jsonl` に追記 |
+| `Stop` | `hitl-metrics hook stop --agent codex` | 応答完了時に `ended_at` を更新し `backfill` → `sync-db` を実行（ブロッキング） |
+| `PostToolUse` | `hitl-metrics hook post-tool-use --agent codex` | `tool_response` から PR URL を抽出し `pr_urls` に追記（任意） |
 
 `Stop` hook はセッション終了を待機するが、cursor 方式・時間条件スキップ・goroutine 並列・8 秒タイムアウトで処理時間を抑制する。
 
@@ -41,37 +59,56 @@ Claude Code hooks
 ## CLI
 
 ```
-hitl-metrics install                                   セットアップ案内を表示（hook 登録は dotfiles または手動）
-hitl-metrics install --uninstall-hooks                 旧 install で書き込んだ hook を ~/.claude/settings.json から削除
-hitl-metrics doctor                                    binary / data dir / hook 登録の検証（自動修復はしない）
-hitl-metrics backfill [--recheck]                      pr_urls / is_merged / review_comments を補完
-hitl-metrics sync-db                                   JSONL/transcript → SQLite 変換（毎回フル再構築）
+hitl-metrics setup [--agent <claude|codex>]            セットアップ案内を表示（hook 登録は dotfiles または手動）
+hitl-metrics uninstall-hooks                           旧 install が書き込んだ hook を ~/.claude/settings.json から削除
+hitl-metrics doctor                                    検出された agent ごとに binary / data dir / hook 登録を検証（自動修復はしない）
+hitl-metrics backfill [--recheck]                      検出された agent すべての pr_urls / is_merged / review_comments を補完
+hitl-metrics sync-db                                   検出された agent すべての JSONL/transcript → SQLite 変換（毎回フル再構築）
 hitl-metrics update <session_id> <url>...              session-index.jsonl に PR URL を追加（重複排除）
 hitl-metrics update --mark-checked <session_id>...     backfill_checked フラグをセット
 hitl-metrics update --by-branch <repo> <branch> <url>  同一 repo+branch の全セッションに URL を追加
-hitl-metrics hook <event>                              hook サブコマンド（settings.json から呼ばれる）
+hitl-metrics hook <event> [--agent <claude|codex>]     hook サブコマンド（settings.json / config.toml から呼ばれる、既定 claude）
 hitl-metrics version                                   version を表示
+hitl-metrics install                                   廃止予定 alias。`setup` への誘導 warning を出して同等の案内を表示
 ```
 
+`setup` は何も書き込まず案内表示のみを行う。書き込みを伴うのは `uninstall-hooks` だけで、対象は `~/.claude/settings.json` に過去 `install` が登録した単一エントリに限定する。Codex 側 (`~/.codex/config.toml`) は人間編集が前提のため自動削除を提供しない。
+
 `backfill --recheck` は cursor を無視してフルスキャンする。
+
+agent の検出は次の優先順位で行う:
+
+1. `--agent` フラグ（hook 経路では必須に近い）
+2. 環境変数 `HITL_METRICS_AGENT`（`claude` / `codex`）
+3. データディレクトリの存在（`~/.claude/session-index.jsonl` および `~/.codex/session-index.jsonl` の有無）
+
+`backfill` / `sync-db` / `doctor` は検出された agent **すべて** を対象とする。明示的に絞り込むには `--agent` を指定する。
 
 ---
 
 ## データファイル
 
-すべて `~/.claude/` 配下に配置する。
+agent ごとに収集元を分離し、SQLite DB は単一に集約する。
 
 | ファイル | 形式 | 役割 |
 |---|---|---|
-| `session-index.jsonl` | JSON Lines | セッション単位のメタデータ。SessionStart で追記、SessionEnd / backfill で更新 |
-| `hitl-metrics-state.json` | JSON | backfill の cursor（`last_backfill_offset`, `last_meta_check`） |
-| `hitl-metrics.db` | SQLite | sync-db が生成する集計 DB。毎回 DROP & CREATE で再構築 |
-| `logs/session-index-debug.log` | テキスト | hook のデバッグログ |
+| `~/.claude/session-index.jsonl` | JSON Lines | Claude Code セッション単位のメタデータ |
+| `~/.claude/hitl-metrics-state.json` | JSON | Claude Code 用 backfill の cursor |
+| `~/.claude/projects/**/<session-id>.jsonl` | JSON Lines | Claude Code transcript |
+| `~/.codex/session-index.jsonl` | JSON Lines | Codex CLI セッション単位のメタデータ |
+| `~/.codex/hitl-metrics-state.json` | JSON | Codex CLI 用 backfill の cursor |
+| `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl[.zst]` | JSON Lines (任意で zstd 圧縮) | Codex CLI rollout transcript |
+| `~/.claude/hitl-metrics.db` | SQLite | sync-db が生成する集計 DB（両 agent を集約）。毎回 DROP & CREATE で再構築 |
+| `~/.claude/logs/session-index-debug.log` | テキスト | hook のデバッグログ（agent を問わず共通） |
+
+`session-index.jsonl` の形式は agent 共通。`hitl-metrics-state.json` の cursor も agent ごとに独立して管理する。
 
 ### `session-index.jsonl` のレコード
 
 ```json
 {
+  "coding_agent": "claude",
+  "agent_version": "1.2.3",
   "timestamp": "2026-02-27 12:34:56",
   "session_id": "xxx-yyy-zzz",
   "cwd": "/path/to/project",
@@ -89,8 +126,11 @@ hitl-metrics version                                   version を表示
 }
 ```
 
+- `coding_agent` は `claude` または `codex`。欠落時は `claude` として扱う（後方互換）。
+- `agent_version` は agent 自身が報告するバージョン文字列（取得不能なら空文字列）。バージョン跨ぎでの効率比較に使う。
 - `pr_urls` は PostToolUse / Stop / `update` / `backfill` から重複排除しつつ追記される。`sync-db` は配列の最後の 1 件を採用する。
 - `backfill_checked: true` のレコードは backfill で再 API 呼び出しされない。PR が存在しないブランチで永続スキップされる。
+- Codex の場合: `end_reason` は Stop hook の最終発火を記録するため `stop` 固定。`transcript` は `~/.codex/sessions/.../rollout-*.jsonl[.zst]` のフルパス。
 - 後方互換: 古いレコードに新フィールドが欠けていても扱える（欠落値は 0 / false / 空文字列）。
 
 ---
@@ -103,7 +143,9 @@ hitl-metrics version                                   version を表示
 
 | カラム | 型 | 説明 |
 |---|---|---|
-| `session_id` | TEXT PK | Claude Code セッション ID |
+| `session_id` | TEXT | エージェント発行のセッション ID |
+| `coding_agent` | TEXT | `claude` または `codex` |
+| `agent_version` | TEXT | agent 自身が報告するバージョン文字列（取得不能なら空） |
 | `timestamp` | TEXT | セッション開始時刻（ISO8601） |
 | `cwd` | TEXT | 作業ディレクトリ |
 | `repo` | TEXT | リポジトリ（`org/repo` 形式） |
@@ -112,7 +154,7 @@ hitl-metrics version                                   version を表示
 | `transcript` | TEXT | transcript ファイルパス |
 | `parent_session_id` | TEXT | 親セッション ID。サブエージェント判定用 |
 | `ended_at` | TEXT | セッション終了時刻 |
-| `end_reason` | TEXT | SessionEnd hook の終了理由 |
+| `end_reason` | TEXT | SessionEnd hook の終了理由（Codex は `stop` 固定） |
 | `is_subagent` | INTEGER | `parent_session_id` 非空なら 1 |
 | `backfill_checked` | INTEGER | backfill 処理済みなら 1 |
 | `is_merged` | INTEGER | PR がマージ済みなら 1 |
@@ -120,22 +162,33 @@ hitl-metrics version                                   version を表示
 | `review_comments` | INTEGER | PR レビューコメント数 |
 | `changes_requested` | INTEGER | CHANGES_REQUESTED レビュー回数 |
 
+PRIMARY KEY は (`session_id`, `coding_agent`) の複合キー。両 agent の UUID が万一衝突しても安全に区別できる。
+
 ### `transcript_stats` テーブル
 
 | カラム | 型 | 説明 |
 |---|---|---|
-| `session_id` | TEXT PK | セッション ID |
+| `session_id` | TEXT | セッション ID |
+| `coding_agent` | TEXT | `claude` または `codex` |
 | `tool_use_total` | INTEGER | ツール呼び出し総数 |
 | `mid_session_msgs` | INTEGER | mid-session ユーザーメッセージ数（tool_result 除外） |
-| `ask_user_question` | INTEGER | AskUserQuestion 呼び出し回数 |
-| `input_tokens` | INTEGER | `usage.input_tokens` の合計 |
-| `output_tokens` | INTEGER | `usage.output_tokens` の合計 |
-| `cache_write_tokens` | INTEGER | `usage.cache_creation_input_tokens` の合計 |
-| `cache_read_tokens` | INTEGER | `usage.cache_read_input_tokens` の合計 |
+| `ask_user_question` | INTEGER | AskUserQuestion 呼び出し回数（Codex では常に 0） |
+| `input_tokens` | INTEGER | 入力トークン合計 |
+| `output_tokens` | INTEGER | 出力トークン合計 |
+| `cache_write_tokens` | INTEGER | cache write トークン合計 |
+| `cache_read_tokens` | INTEGER | cache read トークン合計 |
+| `reasoning_tokens` | INTEGER | reasoning トークン合計（Claude では常に 0、Codex のみ非ゼロ） |
 | `model` | TEXT | セッション内で最後に観測した model |
-| `is_ghost` | INTEGER | `type:"user"` エントリが 0 件なら 1 |
+| `is_ghost` | INTEGER | ユーザー発話相当のエントリが 0 件なら 1 |
 
-`usage` 欠落の transcript はトークンを 0 として扱う。
+PRIMARY KEY は (`session_id`, `coding_agent`)。
+
+トークンの収集元:
+
+- Claude: assistant message の `usage.input_tokens` / `output_tokens` / `cache_creation_input_tokens` / `cache_read_input_tokens`
+- Codex: rollout JSONL の `event_msg.payload.type == "token_count"` の最終累積値（input / output / cache_read / cache_write / reasoning）
+
+いずれも該当フィールド欠落時は 0 として扱う。
 
 ### `pr_metrics` VIEW
 
@@ -149,15 +202,17 @@ PR 単位の集約ビュー。次のフィルタ条件を適用する。
 | `is_ghost = 0` | ゴーストセッションを除外 |
 | `repo NOT IN ('ishii1648/dotfiles')` | dotfiles リポジトリを除外 |
 
-集約カラム: `pr_url`, `task_type`, `model`, `session_count`, `tool_use_total`, `mid_session_msgs`, `ask_user_question`, `input_tokens`, `output_tokens`, `cache_write_tokens`, `cache_read_tokens`, `review_comments`, `changes_requested`, `total_tokens`, `tokens_per_session`, `tokens_per_tool_use`, `pr_per_million_tokens`
+集約カラム: `pr_url`, `coding_agent`, `task_type`, `model`, `session_count`, `tool_use_total`, `mid_session_msgs`, `ask_user_question`, `input_tokens`, `output_tokens`, `cache_write_tokens`, `cache_read_tokens`, `reasoning_tokens`, `review_comments`, `changes_requested`, `total_tokens`, `tokens_per_session`, `tokens_per_tool_use`, `pr_per_million_tokens`
 
-`total_tokens` は input / output / cache write / cache read token の合計。`pr_per_million_tokens` は 100 万 token あたりに完了した PR 数。
+GROUP BY は (`pr_url`, `coding_agent`)。同一 PR が複数 agent から触られた場合は agent ごとに別行になる（実運用上ほぼ発生しないが意味的に分離する）。
+
+`total_tokens` は input / output / cache write / cache read / reasoning token の合計。`pr_per_million_tokens` は 100 万 token あたりに完了した PR 数。
 
 ### `session_concurrency_daily` / `session_concurrency_weekly` VIEW
 
-トップレベル Claude Code セッションの同時実行数を時間軸で集約する。`sessions.timestamp` と `sessions.ended_at` の区間重なりから算出し、subagent / ghost / dotfiles を除外する。
+トップレベルセッションの同時実行数を時間軸で集約する。`sessions.timestamp` と `sessions.ended_at` の区間重なりから算出し、subagent / ghost / dotfiles を除外する。`coding_agent` ごとに別行で集約する。
 
-集約カラム: `day` または `week_start`, `avg_concurrent_sessions`, `peak_concurrent_sessions`
+集約カラム: `day` または `week_start`, `coding_agent`, `avg_concurrent_sessions`, `peak_concurrent_sessions`
 
 ---
 
@@ -168,16 +223,19 @@ PR 単位の集約ビュー。次のフィルタ条件を適用する。
 
 ### パネル構成
 
+ダッシュボード全体に `coding_agent` テンプレート変数（`All` / `claude` / `codex`）を持たせ、各クエリで `WHERE coding_agent IN ($coding_agent)` を適用する。
+
 | パネル | 種別 | 内容 |
 |---|---|---|
 | ヘッドライン | Stat | merged PR 数、total tokens、avg tokens / PR、PR / 1M tokens、changes requested |
-| 週別 token 消費 | Time series | total_tokens と merged PR 数の推移 |
-| 週別 PR / 1M tokens | Time series | token 効率の推移 |
-| 週別 concurrent sessions | Time series | トップレベルセッションの平均・最大同時実行数 |
+| 週別 token 消費 | Time series | total_tokens と merged PR 数の推移（agent 別シリーズ） |
+| 週別 PR / 1M tokens | Time series | token 効率の推移（agent 別シリーズ） |
+| 週別 concurrent sessions | Time series | トップレベルセッションの平均・最大同時実行数（agent 別シリーズ） |
 | タスク種別 token | Bar chart | task_type 別 avg tokens / PR |
-| PR 別スコアカード | Table | pr_url, task_type, model, total_tokens, tokens_per_session, tokens_per_tool_use, pr_per_million_tokens, token 内訳, session_count, tool_use_total, mid_session_msgs, ask_user_question, review_comments, changes_requested |
+| PR 別スコアカード | Table | pr_url, coding_agent, task_type, model, total_tokens, tokens_per_session, tokens_per_tool_use, pr_per_million_tokens, token 内訳（reasoning 含む）, session_count, tool_use_total, mid_session_msgs, ask_user_question, review_comments, changes_requested。詳細展開時に `sessions.agent_version` も表示 |
 | PR 別 session_count 分布 | Bar chart | 多セッション PR の外れ値検出 |
 | PR 別 tokens / tool_use | Bar chart | 1 tool_use あたりの token 消費が大きい PR |
+| Agent 別比較 | Stat | claude / codex の avg tokens / PR と PR / 1M tokens の対比 |
 
 ---
 
@@ -186,6 +244,8 @@ PR 単位の集約ビュー。次のフィルタ条件を適用する。
 | 変数 | 説明 |
 |---|---|
 | `GRAFANA_PORT` | E2E スクリーンショット時の Grafana ポート。未指定なら `13000` |
+| `HITL_METRICS_AGENT` | hook / CLI のデフォルト agent（`claude` / `codex`）。`--agent` が省略され、かつ自動検出を行わない経路で参照する |
+| `CODEX_HOME` | Codex CLI のホームディレクトリ。未指定なら `~/.codex`。Codex 標準と同じ |
 
 ---
 

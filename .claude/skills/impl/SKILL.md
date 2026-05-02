@@ -8,7 +8,7 @@ version: 0.1.0
 
 # impl
 
-TODO.md の未着手タスクを検出し、タスクごとに worktree + tmux session + Claude Code を起動して並列実装をディスパッチする。
+TODO.md の `実装タスク` セクションを検出し、タスクごとに worktree + tmux session + Claude Code を起動して並列実装をディスパッチする。
 
 ## 前提条件
 
@@ -24,7 +24,7 @@ TODO.md の未着手タスクを検出し、タスクごとに worktree + tmux s
 
 ### Step 2: TODO.md パース
 
-`$PWD/TODO.md` を Read して「未着手」セクションからタスクを抽出する。「進行中」セクションのタスクは対象外。
+`$PWD/TODO.md` を Read して `実装タスク` セクションからタスクを抽出する。`検討中` セクションのタスクは仕様未確定のため対象外。作業中タスクの識別はブランチ・Draft PR で行うため TODO.md 上の状態セクションは持たない。
 
 **タスクの識別ルール:**
 
@@ -132,7 +132,7 @@ TODO.md の以下のタスクを実装してください。
 - 詳細2
 
 全ての要件を満たすまで実装→テスト→検証を繰り返してください。
-完了したら TODO.md の該当タスクを「進行中」セクションに移動し、Draft PR を作成してください。
+完了したら Draft PR を作成してください（TODO.md からの完了タスク削除は次回 main で SessionStart hook が `todo-cleanup` 経由で自動的に行います）。
 ```
 
 タスクタイトルは TODO.md の先頭行、詳細は `  - ` で始まるサブ行から抽出する。
