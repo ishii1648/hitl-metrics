@@ -43,7 +43,9 @@ hitl-metrics sync-db
 ## CLI コマンド
 
 ```
-hitl-metrics install                               hooks を ~/.claude/settings.json に登録
+hitl-metrics install                               セットアップ案内を表示（hook 登録は dotfiles または手動）
+hitl-metrics install --uninstall-hooks             旧 install で登録された hook を ~/.claude/settings.json から削除
+hitl-metrics doctor                                binary / data dir / hook 登録の検証（自動修復はしない）
 hitl-metrics backfill [--recheck]                  PR URL の一括補完
 hitl-metrics sync-db                               JSONL/transcript → SQLite 変換
 hitl-metrics update <session_id> <url>...          PR URL を追加
@@ -65,8 +67,8 @@ make grafana-down        # コンテナ停止
 
 ### hook が動作しない
 
-- `~/.claude/settings.json` に `hitl-metrics hook <event>` が登録されているか確認
-- `hitl-metrics` コマンドが PATH に存在するか確認: `which hitl-metrics`
+- `hitl-metrics doctor` で binary / data dir / hook 登録状況を一括確認
+- 未登録の hook があれば dotfiles または手動で `~/.claude/settings.json` に追加（[setup.md](setup.md#2-claude-code-hook-の登録) 参照）
 - デバッグログを確認: `~/.claude/logs/session-index-debug.log`
 
 ### sync-db でデータが空になる

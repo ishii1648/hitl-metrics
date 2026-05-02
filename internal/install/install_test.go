@@ -7,7 +7,14 @@ import (
 	"testing"
 )
 
-func readJSON(t *testing.T, path string) map[string]json.RawMessage {
+func withSettingsPath(t *testing.T, path string) {
+	t.Helper()
+	orig := settingsPathFn
+	settingsPathFn = func() string { return path }
+	t.Cleanup(func() { settingsPathFn = orig })
+}
+
+func readSettings(t *testing.T, path string) map[string]json.RawMessage {
 	t.Helper()
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -20,166 +27,167 @@ func readJSON(t *testing.T, path string) map[string]json.RawMessage {
 	return m
 }
 
-func TestRun_NewSettings(t *testing.T) {
-	settingsDir := t.TempDir()
-	settingsFile := filepath.Join(settingsDir, ".claude", "settings.json")
-
-	origFn := settingsPathFn
-	settingsPathFn = func() string { return settingsFile }
-	defer func() { settingsPathFn = origFn }()
+// Run() は settings.json を一切変更してはならない。ファイルが存在しない場合も
+// 作成されないこと（dotfiles 一元管理の前提を壊さないため）。
+func TestRun_DoesNotModifySettings_WhenMissing(t *testing.T) {
+	dir := t.TempDir()
+	settingsFile := filepath.Join(dir, ".claude", "settings.json")
+	withSettingsPath(t, settingsFile)
 
 	if err := Run(); err != nil {
 		t.Fatal(err)
 	}
 
-	m := readJSON(t, settingsFile)
-	var hooks map[string]json.RawMessage
-	json.Unmarshal(m["hooks"], &hooks)
-
-	for _, event := range []string{"SessionStart", "SessionEnd", "Stop"} {
-		if _, ok := hooks[event]; !ok {
-			t.Fatalf("missing hook event: %s", event)
-		}
-	}
-
-	// SessionStart should have 2 entries (session-start + todo-cleanup)
-	var entries []hookEntry
-	json.Unmarshal(hooks["SessionStart"], &entries)
-	if len(entries) != 2 {
-		t.Fatalf("SessionStart: expected 2 entries, got %d", len(entries))
+	if _, err := os.Stat(settingsFile); !os.IsNotExist(err) {
+		t.Fatalf("Run() should not create settings.json, got err=%v", err)
 	}
 }
 
-func TestRun_Idempotent(t *testing.T) {
-	settingsDir := t.TempDir()
-	settingsFile := filepath.Join(settingsDir, ".claude", "settings.json")
+func TestRun_DoesNotModifySettings_WhenPresent(t *testing.T) {
+	dir := t.TempDir()
+	settingsFile := filepath.Join(dir, ".claude", "settings.json")
+	withSettingsPath(t, settingsFile)
 
-	origFn := settingsPathFn
-	settingsPathFn = func() string { return settingsFile }
-	defer func() { settingsPathFn = origFn }()
-
-	// Run twice
-	if err := Run(); err != nil {
+	original := []byte(`{"model":"sonnet","hooks":{"SessionStart":[{"matcher":"","hooks":[{"type":"command","command":"/other/hook.sh"}]}]}}`)
+	if err := os.MkdirAll(filepath.Dir(settingsFile), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := Run(); err != nil {
+	if err := os.WriteFile(settingsFile, original, 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	m := readJSON(t, settingsFile)
-	var hooks map[string]json.RawMessage
-	json.Unmarshal(m["hooks"], &hooks)
-
-	// SessionStart: 2 entries (session-start + todo-cleanup), not duplicated
-	var sessionEntries []hookEntry
-	json.Unmarshal(hooks["SessionStart"], &sessionEntries)
-	if len(sessionEntries) != 2 {
-		t.Fatalf("SessionStart: expected 2 entries, got %d", len(sessionEntries))
+	if err := Run(); err != nil {
+		t.Fatal(err)
 	}
 
-	var stopEntries []hookEntry
-	json.Unmarshal(hooks["Stop"], &stopEntries)
-	if len(stopEntries) != 1 {
-		t.Fatalf("Stop: expected 1 entry, got %d", len(stopEntries))
+	got, err := os.ReadFile(settingsFile)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	var endEntries []hookEntry
-	json.Unmarshal(hooks["SessionEnd"], &endEntries)
-	if len(endEntries) != 1 {
-		t.Fatalf("SessionEnd: expected 1 entry, got %d", len(endEntries))
+	if string(got) != string(original) {
+		t.Fatalf("Run() modified settings.json:\n  before: %s\n  after:  %s", original, got)
 	}
 }
 
-func TestRun_PreservesExistingSettings(t *testing.T) {
-	settingsDir := t.TempDir()
-	settingsFile := filepath.Join(settingsDir, ".claude", "settings.json")
+func TestUninstall_RemovesHitlHooks(t *testing.T) {
+	dir := t.TempDir()
+	settingsFile := filepath.Join(dir, ".claude", "settings.json")
+	withSettingsPath(t, settingsFile)
 
-	origFn := settingsPathFn
-	settingsPathFn = func() string { return settingsFile }
-	defer func() { settingsPathFn = origFn }()
-
-	os.MkdirAll(filepath.Dir(settingsFile), 0755)
-	os.WriteFile(settingsFile, []byte(`{"model":"sonnet","hooks":{}}`), 0644)
-
-	if err := Run(); err != nil {
-		t.Fatal(err)
-	}
-
-	m := readJSON(t, settingsFile)
-	var model string
-	json.Unmarshal(m["model"], &model)
-	if model != "sonnet" {
-		t.Fatalf("existing key lost: model=%q", model)
-	}
-}
-
-func TestRun_PreservesExistingHooks(t *testing.T) {
-	settingsDir := t.TempDir()
-	settingsFile := filepath.Join(settingsDir, ".claude", "settings.json")
-
-	origFn := settingsPathFn
-	settingsPathFn = func() string { return settingsFile }
-	defer func() { settingsPathFn = origFn }()
-
-	os.MkdirAll(filepath.Dir(settingsFile), 0755)
-	os.WriteFile(settingsFile, []byte(`{
+	initial := `{
+		"model": "sonnet",
 		"hooks": {
 			"SessionStart": [
-				{"matcher": "", "hooks": [{"type": "command", "command": "/other/hook.sh"}]}
+				{"matcher": "", "hooks": [{"type": "command", "command": "hitl-metrics hook session-start"}]},
+				{"matcher": "", "hooks": [{"type": "command", "command": "hitl-metrics hook todo-cleanup"}]},
+				{"matcher": "", "hooks": [{"type": "command", "command": "/other/script.sh"}]}
+			],
+			"SessionEnd": [
+				{"matcher": "", "hooks": [{"type": "command", "command": "hitl-metrics hook session-end", "timeout": 10}]}
+			],
+			"Stop": [
+				{"matcher": "", "hooks": [{"type": "command", "command": "hitl-metrics hook stop"}]}
 			]
 		}
-	}`), 0644)
-
-	if err := Run(); err != nil {
+	}`
+	if err := os.MkdirAll(filepath.Dir(settingsFile), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(settingsFile, []byte(initial), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	m := readJSON(t, settingsFile)
-	var hooks map[string]json.RawMessage
-	json.Unmarshal(m["hooks"], &hooks)
+	if err := Uninstall(); err != nil {
+		t.Fatal(err)
+	}
 
-	var entries []hookEntry
-	json.Unmarshal(hooks["SessionStart"], &entries)
-	// Should have: existing + session-start + todo-cleanup = 3
-	if len(entries) != 3 {
-		t.Fatalf("SessionStart: expected 3 entries, got %d", len(entries))
+	m := readSettings(t, settingsFile)
+
+	var model string
+	if err := json.Unmarshal(m["model"], &model); err != nil {
+		t.Fatal(err)
+	}
+	if model != "sonnet" {
+		t.Fatalf("model lost: got %q", model)
+	}
+
+	var hooks map[string]json.RawMessage
+	if err := json.Unmarshal(m["hooks"], &hooks); err != nil {
+		t.Fatal(err)
+	}
+
+	// SessionStart には ユーザー定義の /other/script.sh のみ残るはず
+	var ssEntries []hookEntry
+	if err := json.Unmarshal(hooks["SessionStart"], &ssEntries); err != nil {
+		t.Fatal(err)
+	}
+	if len(ssEntries) != 1 {
+		t.Fatalf("SessionStart: expected 1 entry, got %d", len(ssEntries))
+	}
+	if ssEntries[0].Hooks[0].Command != "/other/script.sh" {
+		t.Fatalf("SessionStart: unexpected remaining command %q", ssEntries[0].Hooks[0].Command)
+	}
+
+	// SessionEnd / Stop は全削除 → キーごと消える
+	if _, ok := hooks["SessionEnd"]; ok {
+		t.Fatalf("SessionEnd should be removed entirely, got %s", hooks["SessionEnd"])
+	}
+	if _, ok := hooks["Stop"]; ok {
+		t.Fatalf("Stop should be removed entirely, got %s", hooks["Stop"])
 	}
 }
 
-func TestRun_CommandFormat(t *testing.T) {
-	settingsDir := t.TempDir()
-	settingsFile := filepath.Join(settingsDir, ".claude", "settings.json")
+// 複数 hook をまとめたエントリ（matcher 付き or 複数 hook）は人間が編集した
+// 可能性が高いため触らない。
+func TestUninstall_PreservesComposedEntries(t *testing.T) {
+	dir := t.TempDir()
+	settingsFile := filepath.Join(dir, ".claude", "settings.json")
+	withSettingsPath(t, settingsFile)
 
-	origFn := settingsPathFn
-	settingsPathFn = func() string { return settingsFile }
-	defer func() { settingsPathFn = origFn }()
-
-	if err := Run(); err != nil {
+	initial := `{
+		"hooks": {
+			"SessionStart": [
+				{
+					"matcher": "Bash",
+					"hooks": [
+						{"type": "command", "command": "hitl-metrics hook session-start"},
+						{"type": "command", "command": "/other/script.sh"}
+					]
+				}
+			]
+		}
+	}`
+	if err := os.MkdirAll(filepath.Dir(settingsFile), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(settingsFile, []byte(initial), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	m := readJSON(t, settingsFile)
+	if err := Uninstall(); err != nil {
+		t.Fatal(err)
+	}
+
+	m := readSettings(t, settingsFile)
 	var hooks map[string]json.RawMessage
-	json.Unmarshal(m["hooks"], &hooks)
+	if err := json.Unmarshal(m["hooks"], &hooks); err != nil {
+		t.Fatal(err)
+	}
+	var entries []hookEntry
+	if err := json.Unmarshal(hooks["SessionStart"], &entries); err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || len(entries[0].Hooks) != 2 {
+		t.Fatalf("composed entry should be preserved, got %+v", entries)
+	}
+}
 
-	// Verify commands use "hitl-metrics hook <event>" format
-	var stopEntries []hookEntry
-	json.Unmarshal(hooks["Stop"], &stopEntries)
-	if len(stopEntries) != 1 {
-		t.Fatal("expected 1 Stop entry")
-	}
-	cmd := stopEntries[0].Hooks[0].Command
-	if cmd != "hitl-metrics hook stop" {
-		t.Fatalf("Stop command = %q, want %q", cmd, "hitl-metrics hook stop")
-	}
+func TestUninstall_NoSettingsFile(t *testing.T) {
+	dir := t.TempDir()
+	settingsFile := filepath.Join(dir, ".claude", "settings.json")
+	withSettingsPath(t, settingsFile)
 
-	var endEntries []hookEntry
-	json.Unmarshal(hooks["SessionEnd"], &endEntries)
-	if len(endEntries) != 1 {
-		t.Fatal("expected 1 SessionEnd entry")
-	}
-	cmd = endEntries[0].Hooks[0].Command
-	if cmd != "hitl-metrics hook session-end" {
-		t.Fatalf("SessionEnd command = %q, want %q", cmd, "hitl-metrics hook session-end")
+	if err := Uninstall(); err != nil {
+		t.Fatalf("Uninstall on missing file should be no-op, got err=%v", err)
 	}
 }
