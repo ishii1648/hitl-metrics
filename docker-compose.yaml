@@ -13,7 +13,7 @@ services:
       - ./grafana/provisioning/datasources/hitl-metrics-docker.yaml:/etc/grafana/provisioning/datasources/hitl-metrics.yaml
       - ./grafana/provisioning/dashboards/hitl-metrics-docker.yaml:/etc/grafana/provisioning/dashboards/hitl-metrics.yaml
       - ./grafana/dashboards:/var/lib/grafana/dashboards
-      - ./e2e/testdata/hitl-metrics.db:/var/lib/grafana/hitl-metrics.db
+      - ${HITL_METRICS_DB:-./e2e/testdata/hitl-metrics.db}:/var/lib/grafana/hitl-metrics.db
     depends_on:
       - renderer
     healthcheck:

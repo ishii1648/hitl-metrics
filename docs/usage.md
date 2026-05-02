@@ -77,12 +77,29 @@ hitl-metrics install                                   廃止予定 alias。setu
 hitl-metrics version                                   version を表示
 ```
 
-## E2E テスト環境（開発者向け）
+## Grafana を Docker で起動する
 
-テストデータを使った Grafana 環境を Docker で起動できます。
+実データ（`~/.claude/hitl-metrics.db`）を使った Grafana 環境:
 
 ```fish
-make grafana-up          # Grafana + Image Renderer 起動 → http://localhost:13000
+make grafana-up          # 実 DB を mount して Grafana + Image Renderer 起動 → http://localhost:13000
+make grafana-down        # コンテナ停止
+```
+
+DB パスを上書きしたい場合は `HITL_METRICS_DB` を渡す:
+
+```fish
+make grafana-up HITL_METRICS_DB=/custom/path/hitl-metrics.db
+```
+
+> **注意**: mount は読み書き可能です（SQLite が WAL モードのため `:ro` mount は不可）。frser-sqlite-datasource は SELECT のみで書き込みは行わないので実害はありませんが、Grafana コンテナに DB ファイルへの書き込み権限が渡る点を留意してください。
+
+### E2E テスト環境（開発者向け）
+
+決定的な fixture データを使った Grafana 環境（README 用スクリーンショット生成に使用）:
+
+```fish
+make grafana-up-e2e      # fixture 生成 → Grafana 起動
 make grafana-screenshot  # 全パネルの PNG を取得
 make grafana-down        # コンテナ停止
 ```

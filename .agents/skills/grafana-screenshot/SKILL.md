@@ -11,7 +11,7 @@ Grafana ダッシュボードのスクリーンショットを取得し、パネ
 
 ## フロー
 
-1. Docker 起動確認（未起動なら `make grafana-up`）
+1. Docker 起動確認（未起動なら `make grafana-up-e2e`）
 2. `bash e2e/screenshot.sh .outputs/grafana-screenshots` でスクリーンショット取得
 3. `.outputs/grafana-screenshots/panel-*.png` を Read ツールで読み込み分析
 4. 問題があれば `grafana/dashboards/hitl-metrics.json` を修正
@@ -23,7 +23,7 @@ Grafana ダッシュボードのスクリーンショットを取得し、パネ
 ### 1. Docker 起動確認
 
 ```bash
-curl -sf http://localhost:13000/api/health > /dev/null 2>&1 || make grafana-up
+curl -sf http://localhost:13000/api/health > /dev/null 2>&1 || make grafana-up-e2e
 ```
 
 ### 2. スクリーンショット取得

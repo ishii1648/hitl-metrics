@@ -1,8 +1,11 @@
-.PHONY: build install uninstall grafana-fixtures grafana-up grafana-down grafana-screenshot lint-dashboard worktree-create worktree-list worktree-remove
+.PHONY: build install uninstall grafana-fixtures grafana-up grafana-up-e2e grafana-down grafana-screenshot lint-dashboard worktree-create worktree-list worktree-remove
 
 PREFIX ?= $(HOME)/.local
 BIN_DIR := $(PREFIX)/bin
 BIN_NAME := hitl-metrics
+
+# 実データ表示用 DB パス（grafana-up が参照）。上書き可。
+HITL_METRICS_DB ?= $(HOME)/.claude/hitl-metrics.db
 
 build:
 	CGO_ENABLED=0 go build -o bin/$(BIN_NAME) ./cmd/hitl-metrics/
@@ -20,22 +23,40 @@ uninstall:
 grafana-fixtures:
 	CGO_ENABLED=0 GOTOOLCHAIN=local go test -run TestGenTestDB -v ./e2e/
 
-grafana-up: grafana-fixtures
-	docker compose up -d
+grafana-up:
+	@if [ ! -f "$(HITL_METRICS_DB)" ]; then \
+		echo "DB not found: $(HITL_METRICS_DB)"; \
+		echo "Run 'hitl-metrics sync-db' first, or override: make grafana-up HITL_METRICS_DB=/path/to/db"; \
+		exit 1; \
+	fi
+	HITL_METRICS_DB=$(HITL_METRICS_DB) docker compose up -d
 	@echo "Waiting for Grafana to be ready..."
 	@for i in $$(seq 1 60); do \
 		if curl -sf http://localhost:$${GRAFANA_PORT:-13000}/api/health > /dev/null 2>&1; then \
 			echo "Grafana is ready at http://localhost:$${GRAFANA_PORT:-13000}"; \
+			echo "Showing data from: $(HITL_METRICS_DB)"; \
 			exit 0; \
 		fi; \
 		sleep 1; \
 	done; \
-	echo "Grafana failed to start within 30s"; exit 1
+	echo "Grafana failed to start within 60s"; exit 1
+
+grafana-up-e2e: grafana-fixtures
+	HITL_METRICS_DB=$(CURDIR)/e2e/testdata/hitl-metrics.db docker compose up -d
+	@echo "Waiting for Grafana to be ready..."
+	@for i in $$(seq 1 60); do \
+		if curl -sf http://localhost:$${GRAFANA_PORT:-13000}/api/health > /dev/null 2>&1; then \
+			echo "Grafana is ready at http://localhost:$${GRAFANA_PORT:-13000} (e2e fixtures)"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "Grafana failed to start within 60s"; exit 1
 
 grafana-down:
 	docker compose down
 
-grafana-screenshot: grafana-up
+grafana-screenshot: grafana-up-e2e
 	bash e2e/screenshot.sh .outputs/grafana-screenshots
 
 lint-dashboard:
