@@ -305,7 +305,7 @@
       "title": "PR 別 token スコアカード（merged のみ）",
       "description": "merged PR ごとの token 消費・効率・品質指標一覧。複雑度の異なる PR を比較するのではなく、外れ値を発見しドリルダウンする用途",
       "type": "table",
-      "gridPos": { "h": 12, "w": 16, "x": 0, "y": 22 },
+      "gridPos": { "h": 16, "w": 16, "x": 0, "y": 22 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
@@ -377,7 +377,7 @@
       "title": "PR 別 session_count 分布",
       "description": "多セッション PR の外れ値検出。脱線・やり直しの兆候。上位 10 件のみ",
       "type": "barchart",
-      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 22 },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 22 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
@@ -404,7 +404,7 @@
       "title": "PR 別 tokens / tool_use",
       "description": "1 tool_use あたりの token 消費が大きい PR。ファイル肥大・無駄な再読みの兆候。上位 10 件のみ",
       "type": "barchart",
-      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 28 },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 30 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
