@@ -202,7 +202,9 @@ PR 単位の集約ビュー。次のフィルタ条件を適用する。
 | `is_ghost = 0` | ゴーストセッションを除外 |
 | `repo NOT IN ('ishii1648/dotfiles')` | dotfiles リポジトリを除外 |
 
-集約カラム: `pr_url`, `coding_agent`, `task_type`, `model`, `session_count`, `tool_use_total`, `mid_session_msgs`, `ask_user_question`, `input_tokens`, `output_tokens`, `cache_write_tokens`, `cache_read_tokens`, `reasoning_tokens`, `review_comments`, `changes_requested`, `total_tokens`, `tokens_per_session`, `tokens_per_tool_use`, `pr_per_million_tokens`
+集約カラム: `pr_url`, `coding_agent`, `model`, `session_count`, `tool_use_total`, `mid_session_msgs`, `ask_user_question`, `input_tokens`, `output_tokens`, `cache_write_tokens`, `cache_read_tokens`, `reasoning_tokens`, `review_comments`, `changes_requested`, `total_tokens`, `tokens_per_session`, `tokens_per_tool_use`, `pr_per_million_tokens`
+
+`task_type` は集約軸から外れている（ADR-024 で「定量指標は task_type を集計軸に使わない」方針が採用されたため）。`sessions.task_type` カラム自体は後方互換と任意フィルタの余地として残す。
 
 GROUP BY は (`pr_url`, `coding_agent`)。同一 PR が複数 agent から触られた場合は agent ごとに別行になる（実運用上ほぼ発生しないが意味的に分離する）。
 
@@ -231,8 +233,7 @@ GROUP BY は (`pr_url`, `coding_agent`)。同一 PR が複数 agent から触ら
 | 週別 token 消費 | Time series | total_tokens と merged PR 数の推移（agent 別シリーズ） |
 | 週別 PR / 1M tokens | Time series | token 効率の推移（agent 別シリーズ） |
 | 週別 concurrent sessions | Time series | トップレベルセッションの平均・最大同時実行数（agent 別シリーズ） |
-| タスク種別 token | Bar chart | task_type 別 avg tokens / PR |
-| PR 別スコアカード | Table | pr_url, coding_agent, task_type, model, total_tokens, tokens_per_session, tokens_per_tool_use, pr_per_million_tokens, token 内訳（reasoning 含む）, session_count, tool_use_total, mid_session_msgs, ask_user_question, review_comments, changes_requested。詳細展開時に `sessions.agent_version` も表示 |
+| PR 別スコアカード | Table | pr_url, coding_agent, model, total_tokens, tokens_per_session, tokens_per_tool_use, pr_per_million_tokens, token 内訳（reasoning 含む）, session_count, tool_use_total, mid_session_msgs, ask_user_question, review_comments, changes_requested。詳細展開時に `sessions.agent_version` も表示 |
 | PR 別 session_count 分布 | Bar chart | 多セッション PR の外れ値検出 |
 | PR 別 tokens / tool_use | Bar chart | 1 tool_use あたりの token 消費が大きい PR |
 | Agent 別比較 | Stat | claude / codex の avg tokens / PR と PR / 1M tokens の対比 |

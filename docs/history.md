@@ -111,6 +111,7 @@ ADR から spec/design/history へ移行した直後は CHANGELOG.md と history
 | `pr_metrics` を merged PR スコープに限定 | 未マージ・放棄 PR のノイズを排除し、最終成果物のみを評価対象とする | ADR-018 |
 | `transcript_stats` に token usage を保存 | `pr_metrics` の主指標を「PR あたりのトークン消費効率」に切り替えるため | ADR-023 |
 | permission_events テーブルを廃止 | Claude Code の auto mode 進化で permission UI 計測の長期価値が低下したため | ADR-023 |
+| `task_type` を集計軸から廃止（schema には残す） | branch 命名規約への依存・命名と内容の乖離・「同種タスクは複雑度が近い」という暗黙前提の崩壊。定性評価は LLM 評価層に委ねる方針 | ADR-024 |
 | `install` で hook を自動登録しない | dotfiles 等で settings.json を一元管理する構成と整合させるため | （ADR なし、運用判断） |
 | `doctor` で hook を自動修復しない | 同上 | （ADR なし、運用判断） |
 

@@ -238,9 +238,11 @@ Claude Code はファイル編集履歴のスナップショットとして UUID
 
 現在のスキーマは permission_events を持たないため該当箇所はないが、将来 1:N の補助テーブルを追加する際はこの方針を維持する。
 
-### `task_type` の自動抽出
+### `task_type` の自動抽出（集計軸からは廃止）
 
-`branch` カラムを `^(feat|fix|docs|chore)/` でマッチして抽出する。マッチしないブランチは空文字列とし、ダッシュボードでは `(unknown)` として扱う。
+`branch` カラムを `^(feat|fix|docs|chore)/` でマッチして `sessions.task_type` を埋める。マッチしないブランチは空文字列。
+
+ADR-024 で task_type を集計軸から廃止したため、`pr_metrics` の集約・ダッシュボード panel ではこのカラムを使わない。schema にカラムは残すが、用途は SQL 実行時の任意フィルタと、過去の集計を再現する場合の後方互換に限定する。
 
 ### `session_concurrency_*` VIEW
 
