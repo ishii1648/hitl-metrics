@@ -48,7 +48,7 @@ echo "  → ${FULL}"
 # Also export key panels for README docs
 DOCDIR="docs/images"
 mkdir -p "$DOCDIR"
-for pair in "1:headline-sessions:dashboard-headline" "9:weekly-token-consumption:dashboard-weekly-trend" "2:pr-scorecard:dashboard-pr-scorecard"; do
+for pair in "2:pr-scorecard:dashboard-pr-scorecard"; do
   ID="${pair%%:*}"
   rest="${pair#*:}"
   PANEL_NAME="${rest%%:*}"
