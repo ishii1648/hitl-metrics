@@ -12,13 +12,9 @@ merged PR ごとに Claude Code が消費した input / output / cache token を
 
 ### 1. ヘッドライン — 今の消費効率を一目で
 
-![ヘッドライン KPI](docs/images/dashboard-headline.png)
-
 merged PR 数、total tokens、平均 tokens / PR、PR / 1M tokens、changes requested 数を表示します。平均 tokens / PR が下がり、PR / 1M tokens が上がっていれば、同じ計算資源でより多くの PR を完了できています。
 
 ### 2. トレンド — 改善しているか
-
-![週別トレンド](docs/images/dashboard-weekly-trend.png)
 
 週ごとの token 消費、merged PR 数、PR / 1M tokens を表示します。横に並ぶタスク種別バーで feat/fix/docs/chore ごとの token 消費傾向も確認できます。
 

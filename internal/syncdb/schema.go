@@ -1,6 +1,9 @@
 package syncdb
 
 const createTablesSQL = `
+DROP VIEW IF EXISTS weekly_session_metrics;
+DROP VIEW IF EXISTS weekly_pr_metrics;
+DROP VIEW IF EXISTS pr_merged_at_approx;
 DROP VIEW IF EXISTS pr_metrics;
 DROP VIEW IF EXISTS session_concurrency_weekly;
 DROP VIEW IF EXISTS session_concurrency_daily;
@@ -124,4 +127,47 @@ FROM (
       AND s.repo NOT IN ('ishii1648/dotfiles')
     GROUP BY s.pr_url
 ) pm;
+
+-- merge 時刻が schema に無いため、PR に紐づくセッション群の最後のタイムスタンプを近似値として使う
+-- ended_at が空のセッション（hook 未実装・abort・強制終了）でも timestamp で代替して拾う
+CREATE VIEW pr_merged_at_approx AS
+SELECT
+    pr_url,
+    MAX(COALESCE(NULLIF(ended_at, ''), timestamp)) AS merged_at_approx
+FROM sessions
+WHERE pr_url != ''
+  AND is_merged = 1
+  AND is_subagent = 0
+  AND repo NOT IN ('ishii1648/dotfiles')
+GROUP BY pr_url;
+
+CREATE VIEW weekly_pr_metrics AS
+SELECT
+    date(p.merged_at_approx, 'weekday 0', '-6 days') AS week_start,
+    COUNT(DISTINCT p.pr_url) AS merged_pr_count,
+    ROUND(AVG(pm.session_count), 2) AS avg_sessions_per_pr,
+    SUM(CASE WHEN pm.changes_requested > 0 THEN 1 ELSE 0 END) AS prs_with_changes_requested,
+    ROUND(SUM(CASE WHEN pm.changes_requested > 0 THEN 1.0 ELSE 0 END) / COUNT(DISTINCT p.pr_url), 3) AS changes_requested_rate
+FROM pr_merged_at_approx p
+JOIN pr_metrics pm ON pm.pr_url = p.pr_url
+GROUP BY date(p.merged_at_approx, 'weekday 0', '-6 days');
+
+CREATE VIEW weekly_session_metrics AS
+SELECT
+    date(s.timestamp, 'weekday 0', '-6 days') AS week_start,
+    COUNT(DISTINCT s.session_id) AS session_count,
+    COALESCE(SUM(ts.input_tokens + ts.output_tokens + ts.cache_write_tokens + ts.cache_read_tokens), 0) AS total_tokens,
+    CASE WHEN COUNT(DISTINCT s.session_id) > 0
+         THEN ROUND(SUM(ts.input_tokens + ts.output_tokens + ts.cache_write_tokens + ts.cache_read_tokens) * 1.0 / COUNT(DISTINCT s.session_id), 1)
+         ELSE 0 END AS tokens_per_session,
+    CASE WHEN COUNT(DISTINCT s.session_id) > 0
+         THEN ROUND(SUM(ts.ask_user_question) * 1.0 / COUNT(DISTINCT s.session_id), 2)
+         ELSE 0 END AS ask_user_question_per_session
+FROM sessions s
+LEFT JOIN transcript_stats ts ON s.session_id = ts.session_id
+WHERE s.is_subagent = 0
+  AND COALESCE(ts.is_ghost, 0) = 0
+  AND s.repo NOT IN ('ishii1648/dotfiles')
+  AND s.timestamp != ''
+GROUP BY date(s.timestamp, 'weekday 0', '-6 days');
 `

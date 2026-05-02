@@ -5,10 +5,10 @@ OUTDIR="${1:-.outputs/grafana-screenshots}"
 mkdir -p "$OUTDIR"
 
 BASE="http://localhost:${GRAFANA_PORT:-13000}"
-# 2026-03-01T00:00:00Z → 1772323200000 ms
-# 2026-03-17T00:00:00Z → 1773705600000 ms
-FROM=1772323200000
-TO=1773705600000
+# fixture は gen_testdb_test.go によりテスト実行時の日時へシフトされる。
+# 「Last 30 days」相当の相対指定で最新データが必ず描画されるようにする。
+FROM="now-30d"
+TO="now"
 WIDTH=1600
 HEIGHT=600
 SCALE=2
@@ -16,9 +16,15 @@ TZ="Asia/Tokyo"
 
 # Format: "panelId:name:width:height"  (width/height override defaults)
 declare -a PANELS=(
-  "1:headline-kpi:${WIDTH}:${HEIGHT}"
-  "9:weekly-trend:${WIDTH}:${HEIGHT}"
-  "13:task-type-token-rate:${WIDTH}:${HEIGHT}"
+  "1:headline-sessions:${WIDTH}:${HEIGHT}"
+  "24:headline-merged-prs:${WIDTH}:${HEIGHT}"
+  "25:headline-total-tokens:${WIDTH}:${HEIGHT}"
+  "26:headline-peak-concurrent:${WIDTH}:${HEIGHT}"
+  "9:weekly-token-consumption:${WIDTH}:${HEIGHT}"
+  "20:weekly-merged-prs:${WIDTH}:${HEIGHT}"
+  "12:weekly-pr-per-million-tokens:${WIDTH}:${HEIGHT}"
+  "21:weekly-tokens-per-session:${WIDTH}:${HEIGHT}"
+  "22:weekly-changes-requested-rate:${WIDTH}:${HEIGHT}"
   "2:pr-scorecard:${WIDTH}:900"
   "14:session-count:${WIDTH}:${HEIGHT}"
   "15:tokens-per-tool-use:${WIDTH}:${HEIGHT}"
@@ -42,7 +48,7 @@ echo "  → ${FULL}"
 # Also export key panels for README docs
 DOCDIR="docs/images"
 mkdir -p "$DOCDIR"
-for pair in "1:headline-kpi:dashboard-headline" "9:weekly-trend:dashboard-weekly-trend" "2:pr-scorecard:dashboard-pr-scorecard"; do
+for pair in "2:pr-scorecard:dashboard-pr-scorecard"; do
   ID="${pair%%:*}"
   rest="${pair#*:}"
   PANEL_NAME="${rest%%:*}"
