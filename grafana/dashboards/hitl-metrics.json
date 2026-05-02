@@ -309,7 +309,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, task_type, total_tokens, tokens_per_tool_use, pr_per_million_tokens, session_count, mid_session_msgs, ask_user_question, changes_requested, pr_url FROM pr_metrics WHERE total_tokens > 0 ORDER BY total_tokens DESC",
+          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, total_tokens, tokens_per_tool_use, pr_per_million_tokens, session_count, mid_session_msgs, ask_user_question, changes_requested, pr_url FROM pr_metrics WHERE total_tokens > 0 ORDER BY total_tokens DESC",
           "refId": "A"
         }
       ],
@@ -414,7 +414,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, task_type, changes_requested, ask_user_question, mid_session_msgs, session_count, pr_url FROM pr_metrics WHERE changes_requested > 0 OR ask_user_question > 0 OR mid_session_msgs > 0 ORDER BY changes_requested DESC, ask_user_question DESC, mid_session_msgs DESC",
+          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, changes_requested, ask_user_question, mid_session_msgs, session_count, pr_url FROM pr_metrics WHERE changes_requested > 0 OR ask_user_question > 0 OR mid_session_msgs > 0 ORDER BY changes_requested DESC, ask_user_question DESC, mid_session_msgs DESC",
           "refId": "A"
         }
       ],

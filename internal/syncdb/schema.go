@@ -128,16 +128,16 @@ FROM (
     GROUP BY s.pr_url
 ) pm;
 
--- merge 時刻が schema に無いため、PR に紐づくセッション群の最後の ended_at を近似値として使う
+-- merge 時刻が schema に無いため、PR に紐づくセッション群の最後のタイムスタンプを近似値として使う
+-- ended_at が空のセッション（hook 未実装・abort・強制終了）でも timestamp で代替して拾う
 CREATE VIEW pr_merged_at_approx AS
 SELECT
     pr_url,
-    MAX(ended_at) AS merged_at_approx
+    MAX(COALESCE(NULLIF(ended_at, ''), timestamp)) AS merged_at_approx
 FROM sessions
 WHERE pr_url != ''
   AND is_merged = 1
   AND is_subagent = 0
-  AND ended_at != ''
   AND repo NOT IN ('ishii1648/dotfiles')
 GROUP BY pr_url;
 

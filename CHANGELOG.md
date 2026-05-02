@@ -11,6 +11,8 @@ hitl-metrics の変更履歴。新しいものが上。
   - 状態評価行: PR 非依存の期間集計指標のみ採用（活動量・スループット・コスト・期間集計効率・質の推移）。PR 単位効率指標は複雑度が平準化されないため除外
   - 改善のきっかけ行: PR 単位の外れ値検出を集約し、`changes_requested` / `ask_user_question` / `mid_session_msgs` を組み合わせたリワークホットスポット表を追加
   - schema に週別集計 view (`pr_merged_at_approx`, `weekly_pr_metrics`, `weekly_session_metrics`) を追加
+  - `task_type` 列を全 table から削除 — branch 命名規約に依存し脆い指標。hitl-metrics は定量指標で状態評価・問題特定を行うツールであり、PR の定性評価は LLM に委ねる方針
+  - `pr_merged_at_approx` view を `ended_at` 欠損時に session timestamp で代替するよう変更 — hook 未実装・abort・強制終了でも拾える
 
 ## 2026-04-27
 
