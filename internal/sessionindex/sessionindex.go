@@ -10,6 +10,8 @@ import (
 
 // Session represents a single entry in session-index.jsonl.
 type Session struct {
+	CodingAgent      string   `json:"coding_agent"`
+	AgentVersion     string   `json:"agent_version"`
 	Timestamp        string   `json:"timestamp"`
 	SessionID        string   `json:"session_id"`
 	CWD              string   `json:"cwd"`
@@ -26,7 +28,20 @@ type Session struct {
 	ChangesRequested int      `json:"changes_requested"`
 }
 
-// IndexFile returns the default path to session-index.jsonl.
+// AgentName returns the coding agent name, defaulting to "claude" when the
+// field is empty (legacy entries written before the Codex CLI work).
+func (s Session) AgentName() string {
+	if s.CodingAgent == "" {
+		return "claude"
+	}
+	return s.CodingAgent
+}
+
+// IndexFile returns the default path to ~/.claude/session-index.jsonl.
+//
+// Deprecated: prefer agent.SessionIndexPath() so Codex sessions land under
+// ~/.codex/. Kept for callers that have not been threaded through with an
+// agent yet.
 func IndexFile() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".claude", "session-index.jsonl")

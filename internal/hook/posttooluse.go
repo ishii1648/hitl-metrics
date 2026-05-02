@@ -1,0 +1,62 @@
+package hook
+
+import (
+	"encoding/json"
+	"regexp"
+
+	"github.com/ishii1648/hitl-metrics/internal/agent"
+	"github.com/ishii1648/hitl-metrics/internal/sessionindex"
+)
+
+// prURLRe matches a GitHub PR URL anywhere in a text blob, e.g. inside a
+// `gh pr create` stdout or a tool result. We capture the URL only — owner /
+// repo / number are reconstructed downstream.
+var prURLRe = regexp.MustCompile(`https://github\.com/[^/\s]+/[^/\s]+/pull/\d+`)
+
+// RunPostToolUse handles the PostToolUse hook event. The Claude variant
+// historically only logs tool annotations; the Codex variant additionally
+// scans `tool_response` for newly created PR URLs and appends them to
+// session-index.jsonl so backfill can attach merge metadata next run.
+//
+// Failure to find a URL is normal (most tools return non-PR output) and
+// must not surface as an error — that would break Codex's hook chain on
+// every Bash call.
+func RunPostToolUse(input *HookInput, a *agent.Agent) error {
+	if a == nil {
+		a = agent.Claude()
+	}
+	if input == nil || input.SessionID == "" {
+		return nil
+	}
+
+	urls := extractPRURLs(input.ToolResponse)
+	if len(urls) == 0 {
+		return nil
+	}
+	_, err := sessionindex.Update(a.SessionIndexPath(), input.SessionID, urls)
+	return err
+}
+
+// extractPRURLs scans a JSON blob (the tool_response payload) for any
+// GitHub PR URLs. Both string and structured payloads are covered: we
+// stringify the raw JSON and regex over the result, which is cheap and
+// agnostic to the exact tool that produced the output.
+func extractPRURLs(payload json.RawMessage) []string {
+	if len(payload) == 0 {
+		return nil
+	}
+	matches := prURLRe.FindAllString(string(payload), -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(matches))
+	out := make([]string, 0, len(matches))
+	for _, u := range matches {
+		if _, ok := seen[u]; ok {
+			continue
+		}
+		seen[u] = struct{}{}
+		out = append(out, u)
+	}
+	return out
+}

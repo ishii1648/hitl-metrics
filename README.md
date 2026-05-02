@@ -1,8 +1,8 @@
 # hitl-metrics
 
-Claude Code を使った開発で、**PR 単位のトークン消費効率**を追跡・可視化する計測ツール。
+Claude Code および Codex CLI を使った開発で、**PR 単位のトークン消費効率**を追跡・可視化する計測ツール。
 
-merged PR ごとに Claude Code が消費した input / output / cache token を集計し、どの PR が重く、どのタスク種別で効率が落ちているかを特定します。
+merged PR ごとに各 agent が消費した input / output / cache / reasoning token を集計し、どの PR が重く、どの agent / タスク種別で効率が落ちているかを特定します。
 
 ![Claude token 効率ダッシュボード](docs/images/dashboard-full.png)
 
@@ -46,12 +46,16 @@ merged PR 数、total tokens、平均 tokens / PR、PR / 1M tokens、changes req
 ## アーキテクチャ
 
 ```
-Claude Code hooks → ~/.claude/session-index.jsonl + transcript JSONL → hitl-metrics sync-db → SQLite → Grafana
+Claude Code hooks → ~/.claude/session-index.jsonl + transcript JSONL ┐
+                                                                     ├→ hitl-metrics backfill / sync-db
+Codex CLI hooks   → ~/.codex/session-index.jsonl  + rollout JSONL    ┘
+                                                                     → ~/.claude/hitl-metrics.db (SQLite)
+                                                                     → Grafana
 ```
 
-1. **データ収集層** (`hooks/`) — Claude Code hook で session イベントを記録
-2. **データ変換層** (`cmd/hitl-metrics/`, `internal/`) — Go CLI で JSONL/transcript → SQLite 変換・PR URL 補完
-3. **可視化層** (`grafana/`) — Grafana ダッシュボードで PR 単位の token 効率を表示
+1. **データ収集層** (`internal/hook/`) — 各 agent の hook で session イベントを記録（`internal/agent/` で agent 差分を吸収）
+2. **データ変換層** (`cmd/hitl-metrics/`, `internal/syncdb/`, `internal/transcript/`) — Go CLI で JSONL/transcript → SQLite 変換・PR URL 補完
+3. **可視化層** (`grafana/`) — Grafana ダッシュボードで PR 単位の token 効率を agent 別に表示
 
 ## ドキュメント
 

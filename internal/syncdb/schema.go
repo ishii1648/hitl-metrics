@@ -13,7 +13,9 @@ DROP TABLE IF EXISTS transcript_stats;
 DROP TABLE IF EXISTS sessions;
 
 CREATE TABLE sessions (
-    session_id        TEXT PRIMARY KEY,
+    session_id        TEXT NOT NULL,
+    coding_agent      TEXT NOT NULL DEFAULT 'claude',
+    agent_version     TEXT NOT NULL DEFAULT '',
     timestamp         TEXT NOT NULL,
     cwd               TEXT NOT NULL DEFAULT '',
     repo              TEXT NOT NULL DEFAULT '',
@@ -28,11 +30,13 @@ CREATE TABLE sessions (
     is_merged         INTEGER NOT NULL DEFAULT 0,
     task_type         TEXT NOT NULL DEFAULT '',
     review_comments   INTEGER NOT NULL DEFAULT 0,
-    changes_requested INTEGER NOT NULL DEFAULT 0
+    changes_requested INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (session_id, coding_agent)
 );
 
 CREATE TABLE transcript_stats (
-    session_id         TEXT PRIMARY KEY,
+    session_id         TEXT NOT NULL,
+    coding_agent       TEXT NOT NULL DEFAULT 'claude',
     tool_use_total     INTEGER NOT NULL DEFAULT 0,
     mid_session_msgs   INTEGER NOT NULL DEFAULT 0,
     ask_user_question  INTEGER NOT NULL DEFAULT 0,
@@ -40,16 +44,20 @@ CREATE TABLE transcript_stats (
     output_tokens      INTEGER NOT NULL DEFAULT 0,
     cache_write_tokens INTEGER NOT NULL DEFAULT 0,
     cache_read_tokens  INTEGER NOT NULL DEFAULT 0,
+    reasoning_tokens   INTEGER NOT NULL DEFAULT 0,
     model              TEXT NOT NULL DEFAULT '',
-    is_ghost           INTEGER NOT NULL DEFAULT 0
+    is_ghost           INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (session_id, coding_agent)
 );
 
 CREATE INDEX idx_sessions_pr_url ON sessions(pr_url);
 CREATE INDEX idx_sessions_repo ON sessions(repo);
+CREATE INDEX idx_sessions_coding_agent ON sessions(coding_agent);
 
 CREATE VIEW session_intervals AS
 SELECT
     s.session_id,
+    s.coding_agent,
     s.timestamp AS started_at,
     s.ended_at,
     s.repo,
@@ -57,7 +65,8 @@ SELECT
     s.pr_url,
     s.task_type
 FROM sessions s
-LEFT JOIN transcript_stats ts ON s.session_id = ts.session_id
+LEFT JOIN transcript_stats ts
+    ON s.session_id = ts.session_id AND s.coding_agent = ts.coding_agent
 WHERE s.is_subagent = 0
   AND COALESCE(ts.is_ghost, 0) = 0
   AND s.repo NOT IN ('ishii1648/dotfiles')
@@ -67,45 +76,50 @@ WHERE s.is_subagent = 0
 CREATE VIEW session_concurrency_daily AS
 SELECT
     date(anchor.started_at) AS day,
+    anchor.coding_agent AS coding_agent,
     ROUND(AVG((
         SELECT COUNT(*)
         FROM session_intervals active
-        WHERE datetime(active.started_at) <= datetime(anchor.started_at)
+        WHERE active.coding_agent = anchor.coding_agent
+          AND datetime(active.started_at) <= datetime(anchor.started_at)
           AND datetime(active.ended_at) > datetime(anchor.started_at)
     )), 2) AS avg_concurrent_sessions,
     MAX((
         SELECT COUNT(*)
         FROM session_intervals active
-        WHERE datetime(active.started_at) <= datetime(anchor.started_at)
+        WHERE active.coding_agent = anchor.coding_agent
+          AND datetime(active.started_at) <= datetime(anchor.started_at)
           AND datetime(active.ended_at) > datetime(anchor.started_at)
     )) AS peak_concurrent_sessions
 FROM session_intervals anchor
-GROUP BY date(anchor.started_at);
+GROUP BY date(anchor.started_at), anchor.coding_agent;
 
 CREATE VIEW session_concurrency_weekly AS
 SELECT
     date(day, 'weekday 0', '-6 days') AS week_start,
+    coding_agent,
     ROUND(AVG(avg_concurrent_sessions), 2) AS avg_concurrent_sessions,
     MAX(peak_concurrent_sessions) AS peak_concurrent_sessions
 FROM session_concurrency_daily
-GROUP BY date(day, 'weekday 0', '-6 days');
+GROUP BY date(day, 'weekday 0', '-6 days'), coding_agent;
 
 CREATE VIEW pr_metrics AS
 SELECT
     pm.*,
-    (pm.input_tokens + pm.output_tokens + pm.cache_write_tokens + pm.cache_read_tokens) AS total_tokens,
+    (pm.input_tokens + pm.output_tokens + pm.cache_write_tokens + pm.cache_read_tokens + pm.reasoning_tokens) AS total_tokens,
     CASE WHEN pm.session_count > 0
-         THEN ROUND((pm.input_tokens + pm.output_tokens + pm.cache_write_tokens + pm.cache_read_tokens) * 1.0 / pm.session_count, 1)
+         THEN ROUND((pm.input_tokens + pm.output_tokens + pm.cache_write_tokens + pm.cache_read_tokens + pm.reasoning_tokens) * 1.0 / pm.session_count, 1)
          ELSE NULL END AS tokens_per_session,
     CASE WHEN pm.tool_use_total > 0
-         THEN ROUND((pm.input_tokens + pm.output_tokens + pm.cache_write_tokens + pm.cache_read_tokens) * 1.0 / pm.tool_use_total, 1)
+         THEN ROUND((pm.input_tokens + pm.output_tokens + pm.cache_write_tokens + pm.cache_read_tokens + pm.reasoning_tokens) * 1.0 / pm.tool_use_total, 1)
          ELSE NULL END AS tokens_per_tool_use,
-    CASE WHEN (pm.input_tokens + pm.output_tokens + pm.cache_write_tokens + pm.cache_read_tokens) > 0
-         THEN ROUND(1000000.0 / (pm.input_tokens + pm.output_tokens + pm.cache_write_tokens + pm.cache_read_tokens), 2)
+    CASE WHEN (pm.input_tokens + pm.output_tokens + pm.cache_write_tokens + pm.cache_read_tokens + pm.reasoning_tokens) > 0
+         THEN ROUND(1000000.0 / (pm.input_tokens + pm.output_tokens + pm.cache_write_tokens + pm.cache_read_tokens + pm.reasoning_tokens), 2)
          ELSE NULL END AS pr_per_million_tokens
 FROM (
     SELECT
         s.pr_url,
+        s.coding_agent,
         MAX(s.task_type) AS task_type,
         MAX(ts.model) AS model,
         COUNT(DISTINCT s.session_id) AS session_count,
@@ -116,16 +130,18 @@ FROM (
         COALESCE(SUM(ts.output_tokens), 0) AS output_tokens,
         COALESCE(SUM(ts.cache_write_tokens), 0) AS cache_write_tokens,
         COALESCE(SUM(ts.cache_read_tokens), 0) AS cache_read_tokens,
+        COALESCE(SUM(ts.reasoning_tokens), 0) AS reasoning_tokens,
         MAX(s.review_comments) AS review_comments,
         MAX(s.changes_requested) AS changes_requested
     FROM sessions s
-    LEFT JOIN transcript_stats ts ON s.session_id = ts.session_id
+    LEFT JOIN transcript_stats ts
+        ON s.session_id = ts.session_id AND s.coding_agent = ts.coding_agent
     WHERE s.pr_url != ''
       AND s.is_subagent = 0
       AND s.is_merged = 1
       AND COALESCE(ts.is_ghost, 0) = 0
       AND s.repo NOT IN ('ishii1648/dotfiles')
-    GROUP BY s.pr_url
+    GROUP BY s.pr_url, s.coding_agent
 ) pm;
 
 -- merge 時刻が schema に無いため、PR に紐づくセッション群の最後のタイムスタンプを近似値として使う
@@ -133,41 +149,46 @@ FROM (
 CREATE VIEW pr_merged_at_approx AS
 SELECT
     pr_url,
+    coding_agent,
     MAX(COALESCE(NULLIF(ended_at, ''), timestamp)) AS merged_at_approx
 FROM sessions
 WHERE pr_url != ''
   AND is_merged = 1
   AND is_subagent = 0
   AND repo NOT IN ('ishii1648/dotfiles')
-GROUP BY pr_url;
+GROUP BY pr_url, coding_agent;
 
 CREATE VIEW weekly_pr_metrics AS
 SELECT
     date(p.merged_at_approx, 'weekday 0', '-6 days') AS week_start,
+    p.coding_agent,
     COUNT(DISTINCT p.pr_url) AS merged_pr_count,
     ROUND(AVG(pm.session_count), 2) AS avg_sessions_per_pr,
     SUM(CASE WHEN pm.changes_requested > 0 THEN 1 ELSE 0 END) AS prs_with_changes_requested,
     ROUND(SUM(CASE WHEN pm.changes_requested > 0 THEN 1.0 ELSE 0 END) / COUNT(DISTINCT p.pr_url), 3) AS changes_requested_rate
 FROM pr_merged_at_approx p
-JOIN pr_metrics pm ON pm.pr_url = p.pr_url
-GROUP BY date(p.merged_at_approx, 'weekday 0', '-6 days');
+JOIN pr_metrics pm
+    ON pm.pr_url = p.pr_url AND pm.coding_agent = p.coding_agent
+GROUP BY date(p.merged_at_approx, 'weekday 0', '-6 days'), p.coding_agent;
 
 CREATE VIEW weekly_session_metrics AS
 SELECT
     date(s.timestamp, 'weekday 0', '-6 days') AS week_start,
+    s.coding_agent,
     COUNT(DISTINCT s.session_id) AS session_count,
-    COALESCE(SUM(ts.input_tokens + ts.output_tokens + ts.cache_write_tokens + ts.cache_read_tokens), 0) AS total_tokens,
+    COALESCE(SUM(ts.input_tokens + ts.output_tokens + ts.cache_write_tokens + ts.cache_read_tokens + ts.reasoning_tokens), 0) AS total_tokens,
     CASE WHEN COUNT(DISTINCT s.session_id) > 0
-         THEN ROUND(SUM(ts.input_tokens + ts.output_tokens + ts.cache_write_tokens + ts.cache_read_tokens) * 1.0 / COUNT(DISTINCT s.session_id), 1)
+         THEN ROUND(SUM(ts.input_tokens + ts.output_tokens + ts.cache_write_tokens + ts.cache_read_tokens + ts.reasoning_tokens) * 1.0 / COUNT(DISTINCT s.session_id), 1)
          ELSE 0 END AS tokens_per_session,
     CASE WHEN COUNT(DISTINCT s.session_id) > 0
          THEN ROUND(SUM(ts.ask_user_question) * 1.0 / COUNT(DISTINCT s.session_id), 2)
          ELSE 0 END AS ask_user_question_per_session
 FROM sessions s
-LEFT JOIN transcript_stats ts ON s.session_id = ts.session_id
+LEFT JOIN transcript_stats ts
+    ON s.session_id = ts.session_id AND s.coding_agent = ts.coding_agent
 WHERE s.is_subagent = 0
   AND COALESCE(ts.is_ghost, 0) = 0
   AND s.repo NOT IN ('ishii1648/dotfiles')
   AND s.timestamp != ''
-GROUP BY date(s.timestamp, 'weekday 0', '-6 days');
+GROUP BY date(s.timestamp, 'weekday 0', '-6 days'), s.coding_agent;
 `

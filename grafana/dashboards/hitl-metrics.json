@@ -23,7 +23,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT COUNT(DISTINCT s.session_id) AS 'sessions' FROM sessions s LEFT JOIN transcript_stats ts ON s.session_id = ts.session_id WHERE s.is_subagent = 0 AND COALESCE(ts.is_ghost, 0) = 0 AND s.repo NOT IN ('ishii1648/dotfiles') AND s.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}'",
+          "rawQueryText": "SELECT COUNT(DISTINCT s.session_id) AS 'sessions' FROM sessions s LEFT JOIN transcript_stats ts ON s.session_id = ts.session_id AND s.coding_agent = ts.coding_agent WHERE s.is_subagent = 0 AND COALESCE(ts.is_ghost, 0) = 0 AND s.repo NOT IN ('ishii1648/dotfiles') AND s.coding_agent IN (${coding_agent:singlequote}) AND s.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}'",
           "refId": "A"
         }
       ],
@@ -57,7 +57,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT COUNT(*) AS 'merged PRs' FROM pr_merged_at_approx WHERE merged_at_approx BETWEEN '${__from:date:iso}' AND '${__to:date:iso}'",
+          "rawQueryText": "SELECT COUNT(*) AS 'merged PRs' FROM pr_merged_at_approx WHERE coding_agent IN (${coding_agent:singlequote}) AND merged_at_approx BETWEEN '${__from:date:iso}' AND '${__to:date:iso}'",
           "refId": "A"
         }
       ],
@@ -91,7 +91,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT COALESCE(SUM(ts.input_tokens + ts.output_tokens + ts.cache_write_tokens + ts.cache_read_tokens), 0) AS 'total tokens' FROM sessions s LEFT JOIN transcript_stats ts ON s.session_id = ts.session_id WHERE s.is_subagent = 0 AND COALESCE(ts.is_ghost, 0) = 0 AND s.repo NOT IN ('ishii1648/dotfiles') AND s.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}'",
+          "rawQueryText": "SELECT COALESCE(SUM(ts.input_tokens + ts.output_tokens + ts.cache_write_tokens + ts.cache_read_tokens + ts.reasoning_tokens), 0) AS 'total tokens' FROM sessions s LEFT JOIN transcript_stats ts ON s.session_id = ts.session_id AND s.coding_agent = ts.coding_agent WHERE s.is_subagent = 0 AND COALESCE(ts.is_ghost, 0) = 0 AND s.repo NOT IN ('ishii1648/dotfiles') AND s.coding_agent IN (${coding_agent:singlequote}) AND s.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}'",
           "refId": "A"
         }
       ],
@@ -126,7 +126,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT COALESCE(MAX(peak_concurrent_sessions), 0) AS 'peak concurrent' FROM session_concurrency_daily WHERE day BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}')",
+          "rawQueryText": "SELECT COALESCE(MAX(peak_concurrent_sessions), 0) AS 'peak concurrent' FROM session_concurrency_daily WHERE coding_agent IN (${coding_agent:singlequote}) AND day BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}')",
           "refId": "A"
         }
       ],
@@ -160,7 +160,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', week_start) AS time, total_tokens FROM weekly_session_metrics WHERE week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', week_start) AS time, coding_agent AS metric, SUM(total_tokens) AS total_tokens FROM weekly_session_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') GROUP BY week_start, coding_agent ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }
@@ -192,7 +192,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', week_start) AS time, merged_pr_count FROM weekly_pr_metrics WHERE week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', week_start) AS time, coding_agent AS metric, SUM(merged_pr_count) AS merged_pr_count FROM weekly_pr_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') GROUP BY week_start, coding_agent ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }
@@ -224,7 +224,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', wpr.week_start) AS time, ROUND(wpr.merged_pr_count * 1000000.0 / NULLIF(wsm.total_tokens, 0), 2) AS pr_per_million_tokens FROM weekly_pr_metrics wpr JOIN weekly_session_metrics wsm ON wpr.week_start = wsm.week_start WHERE wpr.week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', wpr.week_start) AS time, wpr.coding_agent AS metric, ROUND(wpr.merged_pr_count * 1000000.0 / NULLIF(wsm.total_tokens, 0), 2) AS pr_per_million_tokens FROM weekly_pr_metrics wpr JOIN weekly_session_metrics wsm ON wpr.week_start = wsm.week_start AND wpr.coding_agent = wsm.coding_agent WHERE wpr.coding_agent IN (${coding_agent:singlequote}) AND wpr.week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }
@@ -256,7 +256,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', week_start) AS time, tokens_per_session FROM weekly_session_metrics WHERE week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', week_start) AS time, coding_agent AS metric, tokens_per_session FROM weekly_session_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }
@@ -288,7 +288,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', week_start) AS time, changes_requested_rate FROM weekly_pr_metrics WHERE week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', week_start) AS time, coding_agent AS metric, changes_requested_rate FROM weekly_pr_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }
@@ -328,7 +328,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, total_tokens, tokens_per_tool_use, pr_per_million_tokens, session_count, mid_session_msgs, ask_user_question, changes_requested, pr_url FROM pr_metrics WHERE total_tokens > 0 ORDER BY total_tokens DESC",
+          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, coding_agent, model, total_tokens, tokens_per_tool_use, pr_per_million_tokens, session_count, mid_session_msgs, ask_user_question, reasoning_tokens, changes_requested, pr_url FROM pr_metrics WHERE total_tokens > 0 AND coding_agent IN (${coding_agent:singlequote}) ORDER BY total_tokens DESC",
           "refId": "A"
         }
       ],
@@ -400,7 +400,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, session_count FROM pr_metrics ORDER BY session_count DESC, pr_url LIMIT 5",
+          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, session_count FROM pr_metrics WHERE coding_agent IN (${coding_agent:singlequote}) ORDER BY session_count DESC, pr_url LIMIT 5",
           "refId": "A"
         }
       ],
@@ -430,7 +430,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, tokens_per_tool_use FROM pr_metrics WHERE tokens_per_tool_use IS NOT NULL ORDER BY tokens_per_tool_use DESC, pr_url LIMIT 5",
+          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, tokens_per_tool_use FROM pr_metrics WHERE tokens_per_tool_use IS NOT NULL AND coding_agent IN (${coding_agent:singlequote}) ORDER BY tokens_per_tool_use DESC, pr_url LIMIT 5",
           "refId": "A"
         }
       ],
@@ -454,11 +454,30 @@
   ],
   "schemaVersion": 39,
   "tags": ["hitl-metrics"],
-  "templating": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "name": "coding_agent",
+        "label": "agent",
+        "type": "custom",
+        "query": "All : claude,codex,claude,codex",
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "options": [
+          { "selected": true, "text": "All", "value": "$__all" },
+          { "selected": false, "text": "claude", "value": "claude" },
+          { "selected": false, "text": "codex", "value": "codex" }
+        ],
+        "includeAll": true,
+        "allValue": "claude','codex",
+        "multi": true,
+        "hide": 0
+      }
+    ]
+  },
   "time": { "from": "now-30d", "to": "now" },
   "timepicker": {},
   "timezone": "Asia/Tokyo",
-  "title": "Claude token 効率ダッシュボード",
+  "title": "Coding agent token 効率ダッシュボード",
   "uid": "hitl-metrics",
-  "version": 1
+  "version": 2
 }

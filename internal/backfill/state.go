@@ -13,7 +13,10 @@ type State struct {
 	LastMetaCheck      time.Time `json:"last_meta_check"`
 }
 
-// StatePath returns the default path to hitl-metrics-state.json.
+// StatePath returns ~/.claude/hitl-metrics-state.json (Claude default).
+//
+// Deprecated: use agent.StatePath() so Codex cursors land under ~/.codex/.
+// Kept for callers that have not been threaded through with an agent yet.
 func StatePath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".claude", "hitl-metrics-state.json")

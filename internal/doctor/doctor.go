@@ -8,10 +8,10 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
-	"github.com/ishii1648/hitl-metrics/internal/install"
+	"github.com/ishii1648/hitl-metrics/internal/agent"
+	"github.com/ishii1648/hitl-metrics/internal/setup"
 )
 
 // Run executes all checks against the real filesystem and writes a report
@@ -21,72 +21,94 @@ func Run() (Result, error) {
 	return RunWith(os.Stdout, defaultEnv())
 }
 
-// RunWith is the test-friendly entry point. The caller supplies an io.Writer
-// for the report and an Env describing the paths/lookup functions to use.
+// RunWith is the test-friendly entry point.
 func RunWith(w io.Writer, env Env) (Result, error) {
 	r := Result{}
 
 	r.Binary = checkBinary(env)
 	writeBinary(w, r.Binary)
 
-	r.DataDir = checkDataDir(env)
-	writeDataDir(w, r.DataDir)
+	for _, a := range env.Agents {
+		ar := AgentReport{Agent: a}
+		ar.DataDir = checkDataDir(a)
+		writeDataDir(w, a, ar.DataDir)
 
-	r.Hooks = checkHooks(env)
-	writeHooks(w, env, r.Hooks)
+		ar.Hooks = checkHooks(env, a)
+		writeHooks(w, a, env, ar.Hooks)
 
+		r.AgentReports = append(r.AgentReports, ar)
+	}
 	return r, nil
 }
 
-// Env bundles the paths and lookup functions doctor depends on. Tests
-// substitute fakes; production code uses defaultEnv().
+// Env bundles the lookup functions doctor depends on. Tests substitute
+// fakes; production code uses defaultEnv().
 type Env struct {
-	SettingsPath string                       // ~/.claude/settings.json
-	DataDir      string                       // ~/.claude
-	LookPath     func(string) (string, error) // exec.LookPath replacement
-	BinaryName   string                       // "hitl-metrics"
+	LookPath   func(string) (string, error)
+	BinaryName string
+
+	// Agents is the list of agents to inspect. defaultEnv() populates this
+	// from agent.Detect() (or both agents when none are detected).
+	Agents []*agent.Agent
+
+	// SettingsLoader returns the registered command strings (per event)
+	// for the given agent. Allows tests to inject fake settings without
+	// writing to disk. When nil, defaults to the on-disk loader.
+	SettingsLoader func(*agent.Agent) map[string][]string
 }
 
 func defaultEnv() Env {
-	home, _ := os.UserHomeDir()
+	agents := agent.Detect()
+	if len(agents) == 0 {
+		agents = agent.All()
+	}
 	return Env{
-		SettingsPath: install.SettingsPath(),
-		DataDir:      filepath.Join(home, ".claude"),
-		LookPath:     exec.LookPath,
-		BinaryName:   "hitl-metrics",
+		LookPath:   exec.LookPath,
+		BinaryName: "hitl-metrics",
+		Agents:     agents,
 	}
 }
 
-// Result aggregates the outcome of every check. HasFailure reports whether
-// any check failed (used to set the process exit code).
+// Result aggregates the outcome of every check.
 type Result struct {
-	Binary  CheckResult
-	DataDir CheckResult
-	Hooks   []HookCheck
+	Binary       CheckResult
+	AgentReports []AgentReport
 }
 
 // HasFailure is true when at least one check did not pass.
 func (r Result) HasFailure() bool {
-	if !r.Binary.OK || !r.DataDir.OK {
+	if !r.Binary.OK {
 		return true
 	}
-	for _, h := range r.Hooks {
-		if !h.OK {
+	for _, ar := range r.AgentReports {
+		if !ar.DataDir.OK {
 			return true
+		}
+		for _, h := range ar.Hooks {
+			if !h.OK && !h.Spec.Optional {
+				return true
+			}
 		}
 	}
 	return false
 }
 
+// AgentReport bundles the per-agent check results.
+type AgentReport struct {
+	Agent   *agent.Agent
+	DataDir CheckResult
+	Hooks   []HookCheck
+}
+
 // CheckResult is the result of a single binary/dir check.
 type CheckResult struct {
 	OK     bool
-	Detail string // path on success, error description on failure
+	Detail string
 }
 
 // HookCheck is the result of looking up one expected hook.
 type HookCheck struct {
-	Spec install.HookSpec
+	Spec setup.HookSpec
 	OK   bool
 }
 
@@ -98,23 +120,26 @@ func checkBinary(env Env) CheckResult {
 	return CheckResult{OK: true, Detail: path}
 }
 
-func checkDataDir(env Env) CheckResult {
-	info, err := os.Stat(env.DataDir)
+func checkDataDir(a *agent.Agent) CheckResult {
+	info, err := os.Stat(a.DataDir)
 	if err != nil {
-		return CheckResult{OK: false, Detail: fmt.Sprintf("missing: %s", env.DataDir)}
+		return CheckResult{OK: false, Detail: fmt.Sprintf("missing: %s", a.DataDir)}
 	}
 	if !info.IsDir() {
-		return CheckResult{OK: false, Detail: fmt.Sprintf("not a directory: %s", env.DataDir)}
+		return CheckResult{OK: false, Detail: fmt.Sprintf("not a directory: %s", a.DataDir)}
 	}
-	return CheckResult{OK: true, Detail: env.DataDir}
+	return CheckResult{OK: true, Detail: a.DataDir}
 }
 
-// checkHooks returns the per-spec registration status, in the canonical
-// HookSpecs order so the report is stable.
-func checkHooks(env Env) []HookCheck {
-	registered := loadRegisteredCommands(env.SettingsPath)
-	out := make([]HookCheck, 0, len(install.HookSpecs))
-	for _, spec := range install.HookSpecs {
+func checkHooks(env Env, a *agent.Agent) []HookCheck {
+	loader := env.SettingsLoader
+	if loader == nil {
+		loader = loadRegisteredCommandsForAgent
+	}
+	registered := loader(a)
+	specs := setup.HookSpecsFor(a.Name)
+	out := make([]HookCheck, 0, len(specs))
+	for _, spec := range specs {
 		out = append(out, HookCheck{
 			Spec: spec,
 			OK:   isRegistered(registered[spec.Event], spec.Subcommand),
@@ -123,10 +148,23 @@ func checkHooks(env Env) []HookCheck {
 	return out
 }
 
-// loadRegisteredCommands extracts, per event name, the command strings of
-// every registered hook entry. Missing/invalid files yield an empty map —
-// the caller treats that as "nothing registered" and emits warnings.
-func loadRegisteredCommands(path string) map[string][]string {
+// loadRegisteredCommandsForAgent dispatches to the agent's settings
+// loader. Claude reads ~/.claude/settings.json (JSON), Codex reads
+// ~/.codex/hooks.json (JSON) — config.toml is ignored for now because
+// adding a TOML dependency is heavyweight; users that prefer TOML can
+// also write hooks.json side-by-side.
+func loadRegisteredCommandsForAgent(a *agent.Agent) map[string][]string {
+	switch a.Name {
+	case agent.NameCodex:
+		return loadJSONHooks(setup.CodexHooksPath())
+	default:
+		return loadJSONHooks(setup.SettingsPath())
+	}
+}
+
+// loadJSONHooks returns the per-event command strings recorded under
+// the top-level `hooks` map in a settings/hooks JSON file.
+func loadJSONHooks(path string) map[string][]string {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil
@@ -152,9 +190,8 @@ func loadRegisteredCommands(path string) map[string][]string {
 	return out
 }
 
-// isRegistered reports whether any command string under the event references
-// the given hitl-metrics subcommand. Matcher / timeout / co-existence with
-// other hooks are deliberately ignored — only command substring matters.
+// isRegistered reports whether any command string under the event
+// references the given hitl-metrics subcommand.
 func isRegistered(commands []string, subcommand string) bool {
 	needle := "hook " + subcommand
 	for _, cmd := range commands {
@@ -179,37 +216,51 @@ func writeBinary(w io.Writer, c CheckResult) {
 	fmt.Fprintf(w, "%s binary: %s\n", markFail, c.Detail)
 }
 
-func writeDataDir(w io.Writer, c CheckResult) {
+func writeDataDir(w io.Writer, a *agent.Agent, c CheckResult) {
 	if c.OK {
-		fmt.Fprintf(w, "%s data dir at %s\n", markPass, c.Detail)
+		fmt.Fprintf(w, "%s [%s] data dir at %s\n", markPass, a.Name, c.Detail)
 		return
 	}
-	fmt.Fprintf(w, "%s data dir: %s\n", markFail, c.Detail)
+	fmt.Fprintf(w, "%s [%s] data dir: %s\n", markFail, a.Name, c.Detail)
 }
 
-func writeHooks(w io.Writer, env Env, checks []HookCheck) {
+func writeHooks(w io.Writer, a *agent.Agent, env Env, checks []HookCheck) {
 	allOK := true
 	for _, c := range checks {
-		if !c.OK {
+		if !c.OK && !c.Spec.Optional {
 			allOK = false
 			break
 		}
 	}
 
+	settingsPath := agentSettingsPath(a)
 	if allOK {
-		fmt.Fprintf(w, "%s hook registration:\n", markPass)
+		fmt.Fprintf(w, "%s [%s] hook registration:\n", markPass, a.Name)
 	} else {
-		fmt.Fprintf(w, "%s hook registration:\n", markWarn)
+		fmt.Fprintf(w, "%s [%s] hook registration:\n", markWarn, a.Name)
 	}
 	for _, c := range checks {
-		if c.OK {
+		switch {
+		case c.OK:
 			fmt.Fprintf(w, "  - %s: %s %s\n", c.Spec.Event, c.Spec.Subcommand, markPass)
-		} else {
+		case c.Spec.Optional:
+			fmt.Fprintf(w, "  - %s: %s %s (optional, not registered in %s)\n",
+				c.Spec.Event, c.Spec.Subcommand, markWarn, settingsPath)
+		default:
 			fmt.Fprintf(w, "  - %s: %s %s (not registered in %s)\n",
-				c.Spec.Event, c.Spec.Subcommand, markFail, env.SettingsPath)
+				c.Spec.Event, c.Spec.Subcommand, markFail, settingsPath)
 		}
 	}
 	if !allOK {
 		fmt.Fprintln(w, "  → register manually or via dotfiles (see docs/setup.md)")
+	}
+}
+
+func agentSettingsPath(a *agent.Agent) string {
+	switch a.Name {
+	case agent.NameCodex:
+		return setup.CodexHooksPath()
+	default:
+		return setup.SettingsPath()
 	}
 }

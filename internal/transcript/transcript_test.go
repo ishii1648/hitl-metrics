@@ -29,7 +29,7 @@ func TestParse_BasicStats(t *testing.T) {
 		`{"type":"assistant","message":{"model":"claude-opus-4-5","usage":{"input_tokens":200,"output_tokens":40,"cache_creation_input_tokens":60,"cache_read_input_tokens":800},"content":[{"type":"tool_use","name":"ask-user-question"}]}}`,
 	})
 
-	stats := Parse(p)
+	stats := ParseClaude(p)
 	if stats.ToolUseTotal != 3 {
 		t.Errorf("tool_use_total: got %d, want 3", stats.ToolUseTotal)
 	}
@@ -65,7 +65,7 @@ func TestParse_MissingUsage(t *testing.T) {
 		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read"}]}}`,
 	})
 
-	stats := Parse(p)
+	stats := ParseClaude(p)
 	if stats.InputTokens != 0 || stats.OutputTokens != 0 || stats.CacheWriteTokens != 0 || stats.CacheReadTokens != 0 {
 		t.Errorf("missing usage should produce zero token stats: %+v", stats)
 	}
@@ -80,7 +80,7 @@ func TestParse_GhostSession(t *testing.T) {
 		`{"type":"assistant","message":{"content":[{"type":"text","text":"hello"}]}}`,
 	})
 
-	stats := Parse(p)
+	stats := ParseClaude(p)
 	if !stats.IsGhost {
 		t.Error("should be ghost")
 	}
@@ -94,7 +94,7 @@ func TestParse_ExcludesToolResultOnly(t *testing.T) {
 		`{"type":"user","message":{"content":"real message"}}`,
 	})
 
-	stats := Parse(p)
+	stats := ParseClaude(p)
 	// tool_result-only message should not count as mid-session
 	if stats.MidSessionMsgs != 1 {
 		t.Errorf("mid_session_msgs: got %d, want 1 (tool_result excluded)", stats.MidSessionMsgs)
@@ -107,21 +107,21 @@ func TestParse_ExcludesLocalCommand(t *testing.T) {
 		`{"type":"user","message":{"content":"<local-command-foo>bar</local-command-foo>"}}`,
 	})
 
-	stats := Parse(p)
+	stats := ParseClaude(p)
 	if stats.MidSessionMsgs != 0 {
 		t.Errorf("mid_session_msgs: got %d, want 0 (local-command excluded)", stats.MidSessionMsgs)
 	}
 }
 
 func TestParse_NonExistentFile(t *testing.T) {
-	stats := Parse("/nonexistent/path/transcript.jsonl")
+	stats := ParseClaude("/nonexistent/path/transcript.jsonl")
 	if !stats.IsGhost {
 		t.Error("non-existent file should produce ghost stats")
 	}
 }
 
 func TestParse_EmptyPath(t *testing.T) {
-	stats := Parse("")
+	stats := ParseClaude("")
 	if !stats.IsGhost {
 		t.Error("empty path should produce ghost stats")
 	}

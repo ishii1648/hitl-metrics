@@ -273,10 +273,11 @@ func remarshalWithUpdate(raw json.RawMessage, key string, value any) (json.RawMe
 	for k := range m {
 		keys = append(keys, k)
 	}
-	// Preserve a stable, predictable order matching the original Python output.
-	// Use the order: timestamp, session_id, cwd, repo, branch, pr_urls, transcript,
-	// parent_session_id, backfill_checked, then any extras sorted.
+	// Stable field order. coding_agent / agent_version come first so that
+	// readers can identify the source agent without parsing the whole record.
 	order := map[string]int{
+		"coding_agent":      -2,
+		"agent_version":     -1,
 		"timestamp":         0,
 		"session_id":        1,
 		"cwd":               2,
@@ -285,10 +286,12 @@ func remarshalWithUpdate(raw json.RawMessage, key string, value any) (json.RawMe
 		"pr_urls":           5,
 		"transcript":        6,
 		"parent_session_id": 7,
-		"backfill_checked":  8,
-		"is_merged":         9,
-		"review_comments":   10,
-		"changes_requested": 11,
+		"ended_at":          8,
+		"end_reason":        9,
+		"backfill_checked":  10,
+		"is_merged":         11,
+		"review_comments":   12,
+		"changes_requested": 13,
 	}
 	sort.Slice(keys, func(i, j int) bool {
 		oi, oki := order[keys[i]]

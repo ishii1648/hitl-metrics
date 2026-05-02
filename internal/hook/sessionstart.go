@@ -9,27 +9,30 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/ishii1648/hitl-metrics/internal/agent"
 )
 
-// RunSessionStart handles the SessionStart hook event.
-// Records session metadata in ~/.claude/session-index.jsonl.
-func RunSessionStart(input *HookInput) error {
-	home, _ := os.UserHomeDir()
+// RunSessionStart handles the SessionStart hook event for the given agent.
+// Records session metadata in <agent.DataDir>/session-index.jsonl.
+func RunSessionStart(input *HookInput, a *agent.Agent) error {
+	if a == nil {
+		a = agent.Claude()
+	}
 
-	// Debug log
-	logDir := filepath.Join(home, ".claude", "logs")
+	logDir := a.LogDir()
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		return err
 	}
 	raw, _ := json.Marshal(input)
 	_ = appendFile(filepath.Join(logDir, "session-index-debug.log"), string(raw)+"\n")
 
-	// Extract git info
 	repo, branch := extractGitInfo(input.CWD)
 
-	// Build session entry
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	entry := map[string]interface{}{
+		"coding_agent":      a.Name,
+		"agent_version":     input.AgentVersion(a.Name),
 		"timestamp":         timestamp,
 		"session_id":        input.SessionID,
 		"cwd":               input.CWD,
@@ -45,8 +48,10 @@ func RunSessionStart(input *HookInput) error {
 		return err
 	}
 
-	indexFile := filepath.Join(home, ".claude", "session-index.jsonl")
-	return appendFile(indexFile, string(data)+"\n")
+	if err := os.MkdirAll(a.DataDir, 0755); err != nil {
+		return err
+	}
+	return appendFile(a.SessionIndexPath(), string(data)+"\n")
 }
 
 // extractGitInfo gets repo and branch from a directory's git context.
@@ -55,13 +60,11 @@ func extractGitInfo(cwd string) (repo, branch string) {
 		return "", ""
 	}
 
-	// Check if inside a git work tree
 	cmd := exec.Command("git", "-C", cwd, "rev-parse", "--is-inside-work-tree")
 	if err := cmd.Run(); err != nil {
 		return "", ""
 	}
 
-	// Get remote URL
 	cmd = exec.Command("git", "-C", cwd, "remote", "get-url", "origin")
 	if out, err := cmd.Output(); err == nil {
 		remoteURL := strings.TrimSpace(string(out))
@@ -71,7 +74,6 @@ func extractGitInfo(cwd string) (repo, branch string) {
 	}
 
 	if repo == "" {
-		// Fallback: ghq path structure ~/ghq/<host>/<org>/<repo>
 		cmd = exec.Command("git", "-C", cwd, "rev-parse", "--show-toplevel")
 		if out, err := cmd.Output(); err == nil {
 			toplevel := strings.TrimSpace(string(out))
@@ -79,7 +81,6 @@ func extractGitInfo(cwd string) (repo, branch string) {
 		}
 	}
 
-	// Get current branch
 	cmd = exec.Command("git", "-C", cwd, "branch", "--show-current")
 	if out, err := cmd.Output(); err == nil {
 		branch = strings.TrimSpace(string(out))

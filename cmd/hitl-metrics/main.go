@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ishii1648/hitl-metrics/internal/agent"
 	"github.com/ishii1648/hitl-metrics/internal/backfill"
 	"github.com/ishii1648/hitl-metrics/internal/doctor"
 	"github.com/ishii1648/hitl-metrics/internal/hook"
 	"github.com/ishii1648/hitl-metrics/internal/install"
 	"github.com/ishii1648/hitl-metrics/internal/sessionindex"
+	"github.com/ishii1648/hitl-metrics/internal/setup"
 	"github.com/ishii1648/hitl-metrics/internal/syncdb"
 )
 
@@ -24,13 +26,19 @@ func main() {
 	case "backfill":
 		runBackfill(os.Args[2:])
 	case "sync-db":
-		runSyncDB()
+		runSyncDB(os.Args[2:])
+	case "setup":
+		runSetup(os.Args[2:])
+	case "uninstall-hooks":
+		runUninstallHooks()
 	case "install":
-		runInstall(os.Args[2:])
+		runInstallAlias(os.Args[2:])
 	case "doctor":
 		runDoctor()
 	case "hook":
 		runHook(os.Args[2:])
+	case "version":
+		fmt.Println("hitl-metrics version unknown")
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		printUsage()
@@ -42,19 +50,45 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, `Usage: hitl-metrics <command> [args...]
 
 Commands:
-  update <session_id> <url>...           PR URL を追加
-  update --mark-checked <session_id>...  backfill_checked をセット
-  update --by-branch <repo> <branch> <url>  ブランチ全セッションに URL 追加
-  backfill [--recheck]                   PR URL の一括補完
-  sync-db                                JSONL/transcript → SQLite 変換
-  install                                セットアップ案内（hook 登録は dotfiles または手動で行う）
-  install --uninstall-hooks              旧 install で登録された hook を ~/.claude/settings.json から削除
-  doctor                                 binary / data dir / hook 登録の検証（自動修復はしない）
-  hook <event>                           Claude Code hook を実行
-    session-start                        セッションインデックスを記録
-    session-end                          セッション終了時刻を記録
+  setup [--agent <claude|codex>]         セットアップ案内を表示（hook 登録は dotfiles または手動）
+  uninstall-hooks                        旧 install で登録された hook を ~/.claude/settings.json から削除
+  doctor                                 検出された agent ごとに binary / data dir / hook 登録を検証（自動修復はしない）
+  backfill [--recheck] [--agent <a>]     検出された agent すべての pr_urls / is_merged / review_comments を補完
+  sync-db [--agent <a>]                  検出された agent すべての JSONL/transcript → SQLite 変換（毎回フル再構築）
+  update <session_id> <url>...           session-index.jsonl に PR URL を追加（重複排除）
+  update --mark-checked <session_id>...  backfill_checked フラグをセット
+  update --by-branch <repo> <branch> <url>  同一 repo+branch の全セッションに URL を追加
+  hook <event> [--agent <a>]             hook サブコマンド（settings.json / config.toml / hooks.json から呼ばれる）
+    session-start                        セッションメタデータを記録
+    session-end                          セッション終了時刻を記録（Claude のみ）
     stop                                 backfill + sync-db を実行
-    todo-cleanup                         完了タスクを CHANGELOG に移動`)
+    post-tool-use                        tool_response から PR URL を抽出（Codex 用）
+    pre-tool-use                         per-session tool 注釈を記録（Claude のみ）
+    permission-request                   permission ログを追記（Claude のみ）
+    todo-cleanup                         main ブランチで TODO.md の完了タスクを削除
+  install                                廃止予定 alias。setup を呼び出して同等の案内を表示
+  version                                version を表示
+
+Agent precedence: --agent → $HITL_METRICS_AGENT → autodetect (~/.claude / ~/.codex)`)
+}
+
+// extractAgentFlag pulls "--agent <name>" out of args, returning the name
+// and the remaining args. Order is preserved for non-flag arguments.
+func extractAgentFlag(args []string) (string, []string) {
+	out := args[:0:0]
+	name := ""
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "--agent" && i+1 < len(args):
+			name = args[i+1]
+			i++
+		case len(args[i]) > len("--agent=") && args[i][:len("--agent=")] == "--agent=":
+			name = args[i][len("--agent="):]
+		default:
+			out = append(out, args[i])
+		}
+	}
+	return name, out
 }
 
 func runUpdate(args []string) {
@@ -64,7 +98,6 @@ func runUpdate(args []string) {
 		return
 	}
 
-	// --mark-checked mode
 	if args[0] == "--mark-checked" {
 		sessionIDs := args[1:]
 		if len(sessionIDs) == 0 {
@@ -77,7 +110,6 @@ func runUpdate(args []string) {
 		return
 	}
 
-	// --by-branch mode
 	if args[0] == "--by-branch" {
 		if len(args) < 4 {
 			return
@@ -90,7 +122,6 @@ func runUpdate(args []string) {
 		return
 	}
 
-	// default mode: <session_id> <url>...
 	if len(args) < 2 {
 		return
 	}
@@ -103,26 +134,65 @@ func runUpdate(args []string) {
 }
 
 func runBackfill(args []string) {
+	agentName, args := extractAgentFlag(args)
 	recheck := false
 	for _, a := range args {
 		if a == "--recheck" {
 			recheck = true
 		}
 	}
-	if err := backfill.Run(sessionindex.IndexFile(), recheck); err != nil {
+	agents, err := agent.ResolveOrDetect(agentName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "backfill: %v\n", err)
+		os.Exit(1)
+	}
+	if err := backfill.RunForAgents(agents, recheck); err != nil {
 		fmt.Fprintf(os.Stderr, "backfill error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func runSyncDB() {
-	if err := syncdb.Run(); err != nil {
+func runSyncDB(args []string) {
+	agentName, _ := extractAgentFlag(args)
+	agents, err := agent.ResolveOrDetect(agentName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "sync-db: %v\n", err)
+		os.Exit(1)
+	}
+	if err := syncdb.RunForAgents(agents, syncdb.DBPath()); err != nil {
 		fmt.Fprintf(os.Stderr, "sync-db error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func runInstall(args []string) {
+func runSetup(args []string) {
+	agentName, _ := extractAgentFlag(args)
+	var a *agent.Agent
+	if agentName != "" {
+		var err error
+		a, err = agent.ByName(agentName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "setup: %v\n", err)
+			os.Exit(1)
+		}
+	}
+	if err := setup.Run(a); err != nil {
+		fmt.Fprintf(os.Stderr, "setup error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func runUninstallHooks() {
+	if err := setup.Uninstall(); err != nil {
+		fmt.Fprintf(os.Stderr, "uninstall-hooks error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+// runInstallAlias preserves the legacy `hitl-metrics install [--uninstall-hooks]`
+// surface for users still on the old invocation. New flows MUST use the
+// dedicated subcommands.
+func runInstallAlias(args []string) {
 	for _, a := range args {
 		if a == "--uninstall-hooks" {
 			if err := install.Uninstall(); err != nil {
@@ -151,56 +221,75 @@ func runDoctor() {
 
 func runHook(args []string) {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: hitl-metrics hook <event-name>")
+		fmt.Fprintln(os.Stderr, "usage: hitl-metrics hook <event-name> [--agent <claude|codex>]")
 		os.Exit(1)
 	}
 
-	var err error
-	switch args[0] {
+	eventName := args[0]
+	agentName, _ := extractAgentFlag(args[1:])
+	a, err := agent.Resolve(agentName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "hook: %v\n", err)
+		os.Exit(1)
+	}
+
+	var hookErr error
+	switch eventName {
 	case "session-start":
 		input, e := hook.ReadInput()
 		if e != nil {
 			fmt.Fprintf(os.Stderr, "hook input error: %v\n", e)
 			os.Exit(1)
 		}
-		err = hook.RunSessionStart(input)
+		hookErr = hook.RunSessionStart(input, a)
 	case "session-end":
 		input, e := hook.ReadInput()
 		if e != nil {
 			fmt.Fprintf(os.Stderr, "hook input error: %v\n", e)
 			os.Exit(1)
 		}
-		err = hook.RunSessionEnd(input)
+		hookErr = hook.RunSessionEnd(input, a)
 	case "permission-request":
 		input, e := hook.ReadInput()
 		if e != nil {
 			fmt.Fprintf(os.Stderr, "hook input error: %v\n", e)
 			os.Exit(1)
 		}
-		err = hook.RunPermissionRequest(input)
+		hookErr = hook.RunPermissionRequest(input)
 	case "pre-tool-use":
 		input, e := hook.ReadInput()
 		if e != nil {
 			fmt.Fprintf(os.Stderr, "hook input error: %v\n", e)
 			os.Exit(1)
 		}
-		err = hook.RunPreToolUse(input)
+		hookErr = hook.RunPreToolUse(input)
+	case "post-tool-use":
+		input, e := hook.ReadInput()
+		if e != nil {
+			fmt.Fprintf(os.Stderr, "hook input error: %v\n", e)
+			os.Exit(1)
+		}
+		hookErr = hook.RunPostToolUse(input, a)
 	case "stop":
-		err = hook.RunStop()
+		// Stop hook reads input only when needed (Codex updates ended_at)
+		// but Claude historically called stop with no stdin. Be tolerant
+		// of either: try to read but don't fail on EOF / empty stdin.
+		input, _ := hook.ReadInput()
+		hookErr = hook.RunStop(input, a)
 	case "todo-cleanup":
 		input, e := hook.ReadInput()
 		if e != nil {
 			fmt.Fprintf(os.Stderr, "hook input error: %v\n", e)
 			os.Exit(1)
 		}
-		err = hook.RunTodoCleanup(input)
+		hookErr = hook.RunTodoCleanup(input)
 	default:
-		fmt.Fprintf(os.Stderr, "unknown hook event: %s\n", args[0])
+		fmt.Fprintf(os.Stderr, "unknown hook event: %s\n", eventName)
 		os.Exit(1)
 	}
 
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "hook error: %v\n", err)
+	if hookErr != nil {
+		fmt.Fprintf(os.Stderr, "hook error: %v\n", hookErr)
 		os.Exit(1)
 	}
 }

@@ -10,7 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ishii1648/hitl-metrics/internal/agent"
 	"github.com/ishii1648/hitl-metrics/internal/sessionindex"
+	"github.com/ishii1648/hitl-metrics/internal/transcript"
 )
 
 type group struct {
@@ -50,12 +52,41 @@ const MetaCheckInterval = 1 * time.Hour
 // When statePath is non-empty, cursor-based incremental processing is used:
 // - Phase 1 only scans entries after last_backfill_offset
 // - Phase 2 only runs if MetaCheckInterval has elapsed since last_meta_check
+//
+// Deprecated: prefer RunForAgent which threads the agent identity through
+// to the Codex-specific ended_at backfill. Kept so callers that pre-date
+// the Codex work continue to work for Claude.
 func Run(indexPath string, recheck bool) error {
 	return RunWithState(indexPath, StatePath(), recheck)
 }
 
+// RunForAgent runs Phase 1 (URL backfill), Codex-only ended_at backfill,
+// and Phase 2 (PR meta refresh) for one agent. The state cursor lives at
+// the agent's StatePath().
+func RunForAgent(a *agent.Agent, recheck bool) error {
+	return runForAgent(a, a.SessionIndexPath(), a.StatePath(), recheck)
+}
+
+// RunForAgents iterates every supplied agent. Errors from one agent do
+// not abort the others — they are logged to stderr and the function
+// returns the last error seen.
+func RunForAgents(agents []*agent.Agent, recheck bool) error {
+	var lastErr error
+	for _, a := range agents {
+		if err := RunForAgent(a, recheck); err != nil {
+			fmt.Fprintf(os.Stderr, "backfill[%s]: %v\n", a.Name, err)
+			lastErr = err
+		}
+	}
+	return lastErr
+}
+
 // RunWithState is like Run but accepts an explicit state file path (for testing).
 func RunWithState(indexPath, statePath string, recheck bool) error {
+	return runForAgent(agent.Claude(), indexPath, statePath, recheck)
+}
+
+func runForAgent(a *agent.Agent, indexPath, statePath string, recheck bool) error {
 	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
 		return nil
 	}
@@ -81,6 +112,14 @@ func RunWithState(indexPath, statePath string, recheck bool) error {
 
 	if err := runURLBackfill(indexPath, target, recheck); err != nil {
 		return err
+	}
+
+	// Codex-only: backfill ended_at from rollout JSONL when the Stop hook
+	// missed the final tick (process killed, hook crashed, ...).
+	if a != nil && a.Name == agent.NameCodex {
+		if err := backfillCodexEndedAt(indexPath); err != nil {
+			fmt.Fprintf(os.Stderr, "backfill: ended_at補完: %v\n", err)
+		}
 	}
 
 	// Update cursor: advance to total session count
@@ -389,4 +428,36 @@ func countChangesRequested(reviews []reviewJSON) int {
 func isDir(path string) bool {
 	fi, err := os.Stat(path)
 	return err == nil && fi.IsDir()
+}
+
+// backfillCodexEndedAt reads each Codex session whose ended_at is empty
+// and fills it from the rollout JSONL's last event timestamp. This catches
+// the case where the Codex process was killed before the Stop hook fired.
+func backfillCodexEndedAt(indexPath string) error {
+	_, sessions, err := sessionindex.ReadAll(indexPath)
+	if err != nil {
+		return err
+	}
+	updated := 0
+	for _, s := range sessions {
+		if s.SessionID == "" || s.EndedAt != "" || s.Transcript == "" {
+			continue
+		}
+		_, _, lastTS, ok := transcript.ReadCodexMeta(s.Transcript)
+		if !ok || lastTS.IsZero() {
+			continue
+		}
+		endedAt := lastTS.Format("2006-01-02 15:04:05")
+		ok2, err := sessionindex.UpdateEnd(indexPath, s.SessionID, endedAt, "stop")
+		if err != nil {
+			return err
+		}
+		if ok2 {
+			updated++
+		}
+	}
+	if updated > 0 {
+		fmt.Printf("backfill-codex: ended_at を %d 件補完\n", updated)
+	}
+	return nil
 }

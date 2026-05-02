@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/ishii1648/hitl-metrics/internal/agent"
 )
 
 func TestRunWithPaths(t *testing.T) {
@@ -271,6 +273,119 @@ func TestRunWithPaths_DummyPRURL(t *testing.T) {
 	if prURL != "" {
 		t.Errorf("dummy PR URL should be empty, got: %s", prURL)
 	}
+}
+
+func TestRunForAgents_MixedClaudeAndCodex(t *testing.T) {
+	dir := t.TempDir()
+
+	// Claude transcript
+	claudeT := filepath.Join(dir, "claude.jsonl")
+	os.WriteFile(claudeT, []byte(
+		`{"type":"user","message":{"content":"hello"}}`+"\n"+
+			`{"type":"assistant","message":{"model":"claude-sonnet-4-5","usage":{"input_tokens":100,"output_tokens":20,"cache_creation_input_tokens":30,"cache_read_input_tokens":40},"content":[{"type":"tool_use","name":"Read"}]}}`+"\n",
+	), 0644)
+	claudeIdx := filepath.Join(dir, ".claude", "session-index.jsonl")
+	os.MkdirAll(filepath.Dir(claudeIdx), 0755)
+	os.WriteFile(claudeIdx, []byte(
+		`{"coding_agent":"claude","agent_version":"1.2.3","timestamp":"2026-03-01 10:00:00","ended_at":"2026-03-01 10:30:00","session_id":"c1","cwd":"/tmp","repo":"u/r","branch":"feat/x","pr_urls":["https://github.com/u/r/pull/1"],"transcript":"`+claudeT+`","parent_session_id":"","is_merged":true}`+"\n",
+	), 0644)
+
+	// Codex rollout (with reasoning + cached_input tokens)
+	codexT := filepath.Join(dir, "rollout.jsonl")
+	os.WriteFile(codexT, []byte(
+		`{"timestamp":"2026-03-02T10:00:00Z","type":"session_meta","payload":{"id":"x1","cli_version":"0.128.0"}}`+"\n"+
+			`{"timestamp":"2026-03-02T10:00:01Z","type":"turn_context","payload":{"model":"gpt-5.5"}}`+"\n"+
+			`{"timestamp":"2026-03-02T10:00:02Z","type":"event_msg","payload":{"type":"user_message","message":"hi"}}`+"\n"+
+			`{"timestamp":"2026-03-02T10:00:03Z","type":"response_item","payload":{"type":"function_call","name":"exec_command"}}`+"\n"+
+			`{"timestamp":"2026-03-02T10:00:04Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":500,"cached_input_tokens":200,"output_tokens":80,"reasoning_output_tokens":50,"total_tokens":830}}}}`+"\n",
+	), 0644)
+	codexIdx := filepath.Join(dir, ".codex", "session-index.jsonl")
+	os.MkdirAll(filepath.Dir(codexIdx), 0755)
+	os.WriteFile(codexIdx, []byte(
+		`{"coding_agent":"codex","agent_version":"0.128.0","timestamp":"2026-03-02 10:00:00","ended_at":"2026-03-02 10:05:00","session_id":"x1","cwd":"/tmp","repo":"u/r","branch":"feat/y","pr_urls":["https://github.com/u/r/pull/2"],"transcript":"`+codexT+`","parent_session_id":"","is_merged":true,"end_reason":"stop"}`+"\n",
+	), 0644)
+
+	dbPath := filepath.Join(dir, "hitl-metrics.db")
+	if err := runWithSources([]agentSource{
+		{Agent: mustAgent("claude", filepath.Dir(claudeIdx)), IndexPath: claudeIdx},
+		{Agent: mustAgent("codex", filepath.Dir(codexIdx)), IndexPath: codexIdx},
+	}, dbPath); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	// Sessions: 2 rows, one per agent
+	var n int
+	db.QueryRow("SELECT COUNT(*) FROM sessions").Scan(&n)
+	if n != 2 {
+		t.Errorf("sessions count = %d, want 2", n)
+	}
+
+	// Codex agent_version stored
+	var ver string
+	db.QueryRow("SELECT agent_version FROM sessions WHERE coding_agent='codex'").Scan(&ver)
+	if ver != "0.128.0" {
+		t.Errorf("codex agent_version = %q", ver)
+	}
+
+	// Codex transcript_stats has reasoning_tokens
+	var reasoning int64
+	db.QueryRow("SELECT reasoning_tokens FROM transcript_stats WHERE coding_agent='codex'").Scan(&reasoning)
+	if reasoning != 50 {
+		t.Errorf("codex reasoning_tokens = %d, want 50", reasoning)
+	}
+
+	// pr_metrics groups by (pr_url, coding_agent) — 2 distinct rows
+	db.QueryRow("SELECT COUNT(*) FROM pr_metrics").Scan(&n)
+	if n != 2 {
+		t.Errorf("pr_metrics rows = %d, want 2", n)
+	}
+
+	// Codex pr total_tokens includes reasoning
+	var total int64
+	db.QueryRow("SELECT total_tokens FROM pr_metrics WHERE coding_agent='codex'").Scan(&total)
+	wantTotal := int64(500 + 80 + 200 + 50) // input + output + cache_read + reasoning
+	if total != wantTotal {
+		t.Errorf("codex total_tokens = %d, want %d", total, wantTotal)
+	}
+}
+
+func TestRunForAgents_SessionIDCollisionAcrossAgents(t *testing.T) {
+	// Same session_id in both agents must coexist (composite PK).
+	dir := t.TempDir()
+	claudeIdx := filepath.Join(dir, "claude.jsonl")
+	os.WriteFile(claudeIdx, []byte(
+		`{"coding_agent":"claude","timestamp":"2026-03-01 10:00:00","session_id":"shared","cwd":"/tmp","repo":"u/r","branch":"main","pr_urls":[],"transcript":"","parent_session_id":""}`+"\n",
+	), 0644)
+	codexIdx := filepath.Join(dir, "codex.jsonl")
+	os.WriteFile(codexIdx, []byte(
+		`{"coding_agent":"codex","timestamp":"2026-03-02 10:00:00","session_id":"shared","cwd":"/tmp","repo":"u/r","branch":"main","pr_urls":[],"transcript":"","parent_session_id":""}`+"\n",
+	), 0644)
+	dbPath := filepath.Join(dir, "hitl-metrics.db")
+	err := runWithSources([]agentSource{
+		{Agent: mustAgent("claude", dir), IndexPath: claudeIdx},
+		{Agent: mustAgent("codex", dir), IndexPath: codexIdx},
+	}, dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	db, _ := sql.Open("sqlite", dbPath)
+	defer db.Close()
+	var n int
+	db.QueryRow("SELECT COUNT(*) FROM sessions WHERE session_id='shared'").Scan(&n)
+	if n != 2 {
+		t.Errorf("collision: got %d rows, want 2", n)
+	}
+}
+
+func mustAgent(name, dir string) *agent.Agent {
+	return &agent.Agent{Name: name, DataDir: dir}
 }
 
 func TestExtractTaskType(t *testing.T) {
