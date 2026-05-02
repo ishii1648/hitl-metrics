@@ -85,7 +85,7 @@
     {
       "id": 25,
       "title": "total tokens",
-      "description": "期間内の総 token 消費（input + output + cache write + cache read）",
+      "description": "期間内の総 token 消費（input + output + cache write + cache read）。単位: K=千、Mil=100万、Bil=10億",
       "type": "stat",
       "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
@@ -154,7 +154,7 @@
     {
       "id": 9,
       "title": "週別 token 消費",
-      "description": "週単位の総 tokens（コスト推移）",
+      "description": "週単位の総 tokens（コスト推移）。単位: K=千、Mil=100万、Bil=10億",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 8, "x": 0, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
@@ -250,7 +250,7 @@
     {
       "id": 21,
       "title": "週別 tokens / session",
-      "description": "1 セッションあたり token 消費の推移",
+      "description": "1 セッションあたり token 消費の推移。単位: K=千、Mil=100万、Bil=10億",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
@@ -468,7 +468,7 @@
           { "selected": false, "text": "codex", "value": "codex" }
         ],
         "includeAll": true,
-        "allValue": "claude','codex",
+        "allValue": "'claude','codex'",
         "multi": true,
         "hide": 0
       }
