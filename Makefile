@@ -1,4 +1,21 @@
-.PHONY: grafana-fixtures grafana-up grafana-down grafana-screenshot lint-dashboard worktree-create worktree-list worktree-remove
+.PHONY: build install uninstall grafana-fixtures grafana-up grafana-down grafana-screenshot lint-dashboard worktree-create worktree-list worktree-remove
+
+PREFIX ?= $(HOME)/.local
+BIN_DIR := $(PREFIX)/bin
+BIN_NAME := hitl-metrics
+
+build:
+	CGO_ENABLED=0 go build -o bin/$(BIN_NAME) ./cmd/hitl-metrics/
+
+install:
+	@mkdir -p "$(BIN_DIR)"
+	CGO_ENABLED=0 go build -o "$(BIN_DIR)/$(BIN_NAME)" ./cmd/hitl-metrics/
+	@echo "Installed: $(BIN_DIR)/$(BIN_NAME)"
+	@case ":$$PATH:" in *":$(BIN_DIR):"*) ;; *) echo "Warning: $(BIN_DIR) is not in PATH";; esac
+
+uninstall:
+	rm -f "$(BIN_DIR)/$(BIN_NAME)"
+	@echo "Removed: $(BIN_DIR)/$(BIN_NAME)"
 
 grafana-fixtures:
 	CGO_ENABLED=0 GOTOOLCHAIN=local go test -run TestGenTestDB -v ./e2e/
