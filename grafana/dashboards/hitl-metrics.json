@@ -160,7 +160,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', week_start) AS time, coding_agent AS metric, SUM(total_tokens) AS total_tokens FROM weekly_session_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') GROUP BY week_start, coding_agent ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', week_start, '+3 days', '+12 hours') AS time, coding_agent AS metric, SUM(total_tokens) AS total_tokens FROM weekly_session_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}', '-7 days') AND date('${__to:date:iso}') GROUP BY week_start, coding_agent ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }
@@ -192,7 +192,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', week_start) AS time, coding_agent AS metric, SUM(merged_pr_count) AS merged_pr_count FROM weekly_pr_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') GROUP BY week_start, coding_agent ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', week_start, '+3 days', '+12 hours') AS time, coding_agent AS metric, SUM(merged_pr_count) AS merged_pr_count FROM weekly_pr_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}', '-7 days') AND date('${__to:date:iso}') GROUP BY week_start, coding_agent ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }
@@ -224,7 +224,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', wpr.week_start) AS time, wpr.coding_agent AS metric, ROUND(wpr.merged_pr_count * 1000000.0 / NULLIF(wsm.total_tokens, 0), 2) AS pr_per_million_tokens FROM weekly_pr_metrics wpr JOIN weekly_session_metrics wsm ON wpr.week_start = wsm.week_start AND wpr.coding_agent = wsm.coding_agent WHERE wpr.coding_agent IN (${coding_agent:singlequote}) AND wpr.week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', wpr.week_start, '+3 days', '+12 hours') AS time, wpr.coding_agent AS metric, ROUND(wpr.merged_pr_count * 1000000.0 / NULLIF(wsm.total_tokens, 0), 2) AS pr_per_million_tokens FROM weekly_pr_metrics wpr JOIN weekly_session_metrics wsm ON wpr.week_start = wsm.week_start AND wpr.coding_agent = wsm.coding_agent WHERE wpr.coding_agent IN (${coding_agent:singlequote}) AND wpr.week_start BETWEEN date('${__from:date:iso}', '-7 days') AND date('${__to:date:iso}') ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }
@@ -256,7 +256,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', week_start) AS time, coding_agent AS metric, tokens_per_session FROM weekly_session_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', week_start, '+3 days', '+12 hours') AS time, coding_agent AS metric, tokens_per_session FROM weekly_session_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}', '-7 days') AND date('${__to:date:iso}') ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }
@@ -288,7 +288,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT strftime('%s', week_start) AS time, coding_agent AS metric, changes_requested_rate FROM weekly_pr_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}') ORDER BY time",
+          "rawQueryText": "SELECT strftime('%s', week_start, '+3 days', '+12 hours') AS time, coding_agent AS metric, changes_requested_rate FROM weekly_pr_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}', '-7 days') AND date('${__to:date:iso}') ORDER BY time",
           "refId": "A",
           "timeColumns": ["time"]
         }

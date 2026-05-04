@@ -270,6 +270,12 @@ ClickHouse / Loki も候補だが、個人利用規模では SQLite で十分。
 
 ダッシュボード JSON の datasource は `uid: hitl-metrics` で固定し、Grafana provisioning が解決しない `${DS_*}` テンプレート変数は使わない。`__inputs` セクションも持たない。
 
+### 週別 time series のプロット位置
+
+週別パネルの SQL では `time = strftime('%s', week_start, '+3 days', '+12 hours')` を返し、データポイントを **週の中央（木曜 12:00 UTC = JST 木曜 21:00）** にプロットする。`week_start` 自身（月曜 00:00 UTC = JST 月曜 09:00）をそのまま `time` に使うと、Grafana の time range（例: Last 7 days）の `__from` に対して JST 月曜の朝が境界より前に位置し、X 軸範囲外で描画されない週が出てしまう。中央プロットなら通常の time range で確実に範囲内に入り、また「週の代表値」としても直感的。
+
+合わせて WHERE 句は `week_start BETWEEN date('${__from:date:iso}', '-7 days') AND date('${__to:date:iso}')` と `__from` を 7 日緩める。データポイント時刻が `__from` ～ `__to` に入る週でも `week_start` は最大 6 日前になりうるため。
+
 ### E2E スクリーンショット
 
 `make grafana-screenshot` が Docker Compose で Grafana + Image Renderer を起動し、Render API でパネルごとに PNG を取得する。Playwright 等のブラウザ自動操作は採用しない（Go プロジェクトに異質な依存を持ち込まないため、また Image Renderer で十分なため）。
