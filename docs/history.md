@@ -65,6 +65,23 @@ ADR から spec/design/history へ移行した直後は CHANGELOG.md と history
 
 [ADR-005](archive/adr/005-session-index-pr-url-backfill-on-stop.md) → [ADR-006](archive/adr/006-session-index-pr-url-backfill-cron-batch.md) → [ADR-019](archive/adr/019-backfill-stop-hook-migration.md)
 
+### 8. リポジトリ名変更 — hitl-metrics → agent-telemetry（2026-05-04）
+
+「HITL（Human-In-The-Loop）」は ML / ロボティクス由来の抽象用語で、Claude Code / Codex CLI といった coding agent 領域に焦点を絞れていない。本ツールが観測する 6 観察軸（token 効率・キャッシュ・推論・ライフサイクル・対話の摩擦・同時実行）のうち、HITL に直結するのは「対話の摩擦」のみで、残りはエージェントそのものの振る舞いを測る指標である。さらに Claude Code の auto mode 普及により、HITL を前提とした "Loop" の感覚自体が薄れた。
+
+実態は **coding agent の telemetry / profiler** であり、Grafana エコシステムとも整合する `agent-telemetry` を新名称として採用する。本リネームに合わせて、外部公開していない個人ツールという特性を活かし、後方互換のための名残を残さずに破壊的変更を一度で済ませる方針とする。
+
+主な決定事項:
+
+| # | 決定 | 理由 |
+|---|---|---|
+| D1 | メトリクス名プレフィックス: `hitl_*` → `agent_*` | 外部公開なしの個人ツールであり、命名規約を変えるなら破壊的変更を許容できる今のうちに実施する。現状の SQL VIEW / カラム名はそもそもプレフィックスを持たないため、新規メトリクス追加時の命名規約として `agent_*` を採用する |
+| D2 | CLI バイナリ名: `agent-telemetry`（フル形） | 短縮形 `at` は 2 文字すぎて他コマンドや POSIX 標準の `at(1)` と衝突する。フル形なら検索性も保たれる |
+| D3 | DB ファイル名: `~/.claude/agent-telemetry.db`、自動マイグレーションを提供 | 既存ユーザー環境（自分自身）の DB を破壊しないため、`scripts/migrate-db-name.sh` 同様のリネームスクリプトを同梱する |
+| D4 | Go モジュールパス: `github.com/ishii1648/agent-telemetry`（import 全置換） | GitHub の自動リダイレクトに依存すると import パスと実態が乖離し続ける。リダイレクトに頼らず一括置換することで、エディタ補完・grep の挙動も新名称で揃う |
+
+実作業の段取りは `TODO.md` の「リポジトリリネーム — agent-telemetry」を参照。
+
 ---
 
 ## ADR 索引
