@@ -8,8 +8,8 @@
 
 ## 概要
 
-hitl-metrics は **Claude Code および Codex CLI** の **PR 単位のトークン消費効率** を追跡・可視化する計測ツールである。
-各エージェントの hook が記録したセッションイベントとトランスクリプトを SQLite に変換し、Grafana ダッシュボードで PR ごとの token 消費・効率を表示する。
+hitl-metrics は **Claude Code および Codex CLI** の **PR 単位のトークン消費効率** を計測するデータ収集ツールである。
+各エージェントの hook が記録したセッションイベントとトランスクリプトを SQLite に変換し、収集したメトリクスを SQL から参照可能にする。可視化はユーザの任意とし、リポジトリ同梱の Grafana ダッシュボードはあくまで参考実装である。
 
 データフロー:
 
@@ -18,7 +18,6 @@ Claude Code hooks → ~/.claude/session-index.jsonl + transcript JSONL ┐
                                                                      ├→ hitl-metrics backfill / sync-db
 Codex CLI hooks   → ~/.codex/session-index.jsonl  + rollout JSONL    ┘
                                                                      → ~/.claude/hitl-metrics.db (SQLite)
-                                                                     → Grafana
 ```
 
 DB は単一の `~/.claude/hitl-metrics.db` に集約する。後方互換のためファイル位置は変更せず、`sessions.coding_agent` カラムで `claude` / `codex` を区別する。
@@ -98,7 +97,7 @@ agent ごとに収集元を分離し、SQLite DB は単一に集約する。
 | `~/.codex/session-index.jsonl` | JSON Lines | Codex CLI セッション単位のメタデータ |
 | `~/.codex/hitl-metrics-state.json` | JSON | Codex CLI 用 backfill の cursor |
 | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl[.zst]` | JSON Lines (任意で zstd 圧縮) | Codex CLI rollout transcript |
-| `~/.claude/hitl-metrics.db` | SQLite | sync-db が生成する集計 DB（両 agent を集約）。毎回 DROP & CREATE で再構築 |
+| `~/.claude/hitl-metrics.db` | SQLite | sync-db が生成・更新する集計 DB（両 agent を集約）。実行ごとに最新の JSONL/transcript を `sessions` / `transcript_stats` に upsert する |
 | `~/.claude/logs/session-index-debug.log` | テキスト | hook のデバッグログ（agent を問わず共通） |
 
 `session-index.jsonl` の形式は agent 共通。`hitl-metrics-state.json` の cursor も agent ごとに独立して管理する。
@@ -137,7 +136,7 @@ agent ごとに収集元を分離し、SQLite DB は単一に集約する。
 
 ## SQLite データモデル
 
-`sync-db` は毎回 DROP & CREATE でフル再構築する。マイグレーションは存在しない。
+`sync-db` は実行ごとに `sessions` / `transcript_stats` を `INSERT OR REPLACE` で upsert する。スキーマ DDL は埋め込みハッシュと DB 内 `schema_meta` テーブルのハッシュを比較し、不一致時のみフル再構築する（実装詳細は `docs/design.md`）。明示的なマイグレーションコマンドは持たない。
 
 ### `sessions` テーブル
 
@@ -208,7 +207,7 @@ PR 単位の集約ビュー。次のフィルタ条件を適用する。
 
 GROUP BY は (`pr_url`, `coding_agent`)。同一 PR が複数 agent から触られた場合は agent ごとに別行になる（実運用上ほぼ発生しないが意味的に分離する）。
 
-`total_tokens` は input / output / cache write / cache read / reasoning token の合計。`fresh_tokens` は `cache_read_tokens` を除いた合計（input / output / cache write / reasoning）。長時間セッションで `cache_read_tokens` が支配的になり「重さ」の体感と乖離する場面の代替指標。`pr_per_million_tokens` は 100 万 token あたりに完了した PR 数。
+`total_tokens` は input / output / cache write / cache read / reasoning token の合計。`fresh_tokens` は `cache_read_tokens` を除いた合計（input / output / cache write / reasoning）で、長時間セッションで `cache_read_tokens` が支配的になり「重さ」の体感と乖離する問題に対する代替指標。`pr_per_million_tokens` は 100 万 token あたりに完了した PR 数。
 
 ### `session_concurrency_daily` / `session_concurrency_weekly` VIEW
 
@@ -218,25 +217,7 @@ GROUP BY は (`pr_url`, `coding_agent`)。同一 PR が複数 agent から触ら
 
 ---
 
-## ダッシュボード
-
-データソース: SQLite（`hitl-metrics.db`）+ [frser-sqlite-datasource](https://github.com/fr-ser/grafana-sqlite-datasource)
-ダッシュボード JSON: `grafana/dashboards/hitl-metrics.json`
-
-### パネル構成
-
-ダッシュボード全体に `coding_agent` テンプレート変数（`All` / `claude` / `codex`）を持たせ、各クエリで `WHERE coding_agent IN ($coding_agent)` を適用する。
-
-| パネル | 種別 | 内容 |
-|---|---|---|
-| ヘッドライン | Stat | merged PR 数、total tokens、avg tokens / PR、PR / 1M tokens、changes requested |
-| 週別 token 消費 | Time series | total_tokens と merged PR 数の推移（agent 別シリーズ） |
-| 週別 PR / 1M tokens | Time series | token 効率の推移（agent 別シリーズ） |
-| 週別 concurrent sessions | Time series | トップレベルセッションの平均・最大同時実行数（agent 別シリーズ） |
-| PR 別スコアカード | Table | pr_url, coding_agent, model, total_tokens, tokens_per_session, tokens_per_tool_use, pr_per_million_tokens, token 内訳（reasoning 含む）, session_count, tool_use_total, mid_session_msgs, ask_user_question, review_comments, changes_requested。詳細展開時に `sessions.agent_version` も表示 |
-| PR 別 session_count 分布 | Bar chart | 多セッション PR の外れ値検出 |
-| PR 別 tokens / tool_use | Bar chart | 1 tool_use あたりの token 消費が大きい PR |
-| Agent 別比較 | Stat | claude / codex の avg tokens / PR と PR / 1M tokens の対比 |
+これらのカラム/VIEW を OpenMetrics 名でどう参照するか、何を観察したいか・どう解釈すべきかは `docs/metrics.md` を参照する。
 
 ---
 
@@ -244,7 +225,6 @@ GROUP BY は (`pr_url`, `coding_agent`)。同一 PR が複数 agent から触ら
 
 | 変数 | 説明 |
 |---|---|
-| `GRAFANA_PORT` | E2E スクリーンショット時の Grafana ポート。未指定なら `13000` |
 | `HITL_METRICS_AGENT` | hook / CLI のデフォルト agent（`claude` / `codex`）。`--agent` が省略され、かつ自動検出を行わない経路で参照する |
 | `CODEX_HOME` | Codex CLI のホームディレクトリ。未指定なら `~/.codex`。Codex 標準と同じ |
 
@@ -255,4 +235,4 @@ GROUP BY は (`pr_url`, `coding_agent`)。同一 PR が複数 agent から触ら
 - 個別の API 課金額の算出（モデルごとの単価変動が大きいため、token 量のみを記録する）
 - permission UI 表示回数や `perm_rate` の計測（Claude Code の auto mode 進化で改善対象としての価値が低いと判断したため廃止）
 - 未マージ PR や PR なしセッションの効率指標（`pr_metrics` のスコープ外）
-- マイグレーション機能（`sync-db` が毎回フル再構築するため）
+- 明示的なマイグレーションコマンド（スキーマ変更は `sync-db` がハッシュ比較で透過的に再構築する）

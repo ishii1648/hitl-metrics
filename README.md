@@ -61,7 +61,8 @@ Codex CLI hooks   → ~/.codex/session-index.jsonl  + rollout JSONL    ┘
 
 | ファイル | 内容 |
 |---|---|
-| [docs/spec.md](docs/spec.md) | 外部契約（CLI・hook 仕様・データモデル・ダッシュボード） |
+| [docs/spec.md](docs/spec.md) | 外部契約（CLI・hook 仕様・データモデル） |
+| [docs/metrics.md](docs/metrics.md) | 計測フレームワーク（観察軸・解釈・OpenMetrics カタログ） |
 | [docs/design.md](docs/design.md) | 実装方針と設計判断 |
 | [docs/history.md](docs/history.md) | 過去の経緯と廃止された設計 |
 | [docs/setup.md](docs/setup.md) | セットアップ手順 |
