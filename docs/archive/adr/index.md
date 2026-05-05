@@ -1,6 +1,6 @@
 # ADR 一覧
 
-hitl-metrics の設計判断を記録する ADR（Architecture Decision Record）の一覧。
+agent-telemetry（旧 hitl-metrics）の設計判断を記録する ADR（Architecture Decision Record）の一覧。タイトルは作成当時の表記を保持する（歴史記録のため）。
 
 ## サマリ
 

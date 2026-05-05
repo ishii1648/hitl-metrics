@@ -9,6 +9,7 @@ import (
 	"github.com/ishii1648/agent-telemetry/internal/backfill"
 	"github.com/ishii1648/agent-telemetry/internal/doctor"
 	"github.com/ishii1648/agent-telemetry/internal/hook"
+	"github.com/ishii1648/agent-telemetry/internal/legacy"
 	"github.com/ishii1648/agent-telemetry/internal/sessionindex"
 	"github.com/ishii1648/agent-telemetry/internal/setup"
 	"github.com/ishii1648/agent-telemetry/internal/syncdb"
@@ -160,6 +161,7 @@ func runUpdate(args []string) {
 }
 
 func runBackfill(args []string) {
+	migrateLegacy()
 	agentName, args := extractAgentFlag(args)
 	recheck := false
 	for _, a := range args {
@@ -179,6 +181,7 @@ func runBackfill(args []string) {
 }
 
 func runSyncDB(args []string) {
+	migrateLegacy()
 	agentName, _ := extractAgentFlag(args)
 	agents, err := agent.ResolveOrDetect(agentName)
 	if err != nil {
@@ -189,6 +192,15 @@ func runSyncDB(args []string) {
 		fmt.Fprintf(os.Stderr, "sync-db error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// migrateLegacy renames any hitl-metrics-era files left over in
+// ~/.claude / ~/.codex to their agent-telemetry counterparts. Runs
+// before commands that read or write these paths so users on the old
+// layout don't have to perform a manual migration.
+func migrateLegacy() {
+	moved, errs := legacy.Migrate()
+	legacy.Report(os.Stderr, moved, errs)
 }
 
 func runSetup(args []string) {

@@ -20,7 +20,7 @@
       "description": "期間内のトップレベル Claude Code セッション数（subagent / ghost / dotfiles repo を除く）",
       "type": "stat",
       "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "agent-telemetry" },
       "targets": [
         {
           "rawQueryText": "SELECT COUNT(DISTINCT s.session_id) AS 'sessions' FROM sessions s LEFT JOIN transcript_stats ts ON s.session_id = ts.session_id AND s.coding_agent = ts.coding_agent WHERE s.is_subagent = 0 AND COALESCE(ts.is_ghost, 0) = 0 AND s.repo NOT IN ('ishii1648/dotfiles') AND s.coding_agent IN (${coding_agent:singlequote}) AND s.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}'",
@@ -54,7 +54,7 @@
       "description": "期間内に merge された PR 数（merge 時刻は session 群の最終 timestamp で近似）",
       "type": "stat",
       "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "agent-telemetry" },
       "targets": [
         {
           "rawQueryText": "SELECT COUNT(*) AS 'merged PRs' FROM pr_merged_at_approx WHERE coding_agent IN (${coding_agent:singlequote}) AND merged_at_approx BETWEEN '${__from:date:iso}' AND '${__to:date:iso}'",
@@ -88,7 +88,7 @@
       "description": "期間内の総 token 消費（input + output + cache write + cache read）。単位: K=千、Mil=100万、Bil=10億",
       "type": "stat",
       "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "agent-telemetry" },
       "targets": [
         {
           "rawQueryText": "SELECT COALESCE(SUM(ts.input_tokens + ts.output_tokens + ts.cache_write_tokens + ts.cache_read_tokens + ts.reasoning_tokens), 0) AS 'total tokens' FROM sessions s LEFT JOIN transcript_stats ts ON s.session_id = ts.session_id AND s.coding_agent = ts.coding_agent WHERE s.is_subagent = 0 AND COALESCE(ts.is_ghost, 0) = 0 AND s.repo NOT IN ('ishii1648/dotfiles') AND s.coding_agent IN (${coding_agent:singlequote}) AND s.timestamp BETWEEN '${__from:date:iso}' AND '${__to:date:iso}'",
@@ -123,7 +123,7 @@
       "description": "期間内の最大同時実行セッション数（並列度のピーク）",
       "type": "stat",
       "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "agent-telemetry" },
       "targets": [
         {
           "rawQueryText": "SELECT COALESCE(MAX(peak_concurrent_sessions), 0) AS 'peak concurrent' FROM session_concurrency_daily WHERE coding_agent IN (${coding_agent:singlequote}) AND day BETWEEN date('${__from:date:iso}') AND date('${__to:date:iso}')",
@@ -157,7 +157,7 @@
       "description": "週単位の総 tokens（コスト推移）。単位: K=千、Mil=100万、Bil=10億",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "agent-telemetry" },
       "targets": [
         {
           "rawQueryText": "SELECT strftime('%s', week_start, '+3 days', '+12 hours') AS time, coding_agent AS metric, SUM(total_tokens) AS total_tokens FROM weekly_session_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}', '-7 days') AND date('${__to:date:iso}') GROUP BY week_start, coding_agent ORDER BY time",
@@ -189,7 +189,7 @@
       "description": "週ごとのスループット推移",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "agent-telemetry" },
       "targets": [
         {
           "rawQueryText": "SELECT strftime('%s', week_start, '+3 days', '+12 hours') AS time, coding_agent AS metric, SUM(merged_pr_count) AS merged_pr_count FROM weekly_pr_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}', '-7 days') AND date('${__to:date:iso}') GROUP BY week_start, coding_agent ORDER BY time",
@@ -221,7 +221,7 @@
       "description": "期間集計の効率指標。PR 単位ではなく週内で平均化されているため複雑度差は均される",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "agent-telemetry" },
       "targets": [
         {
           "rawQueryText": "SELECT strftime('%s', wpr.week_start, '+3 days', '+12 hours') AS time, wpr.coding_agent AS metric, ROUND(wpr.merged_pr_count * 1000000.0 / NULLIF(wsm.total_tokens, 0), 2) AS pr_per_million_tokens FROM weekly_pr_metrics wpr JOIN weekly_session_metrics wsm ON wpr.week_start = wsm.week_start AND wpr.coding_agent = wsm.coding_agent WHERE wpr.coding_agent IN (${coding_agent:singlequote}) AND wpr.week_start BETWEEN date('${__from:date:iso}', '-7 days') AND date('${__to:date:iso}') ORDER BY time",
@@ -253,7 +253,7 @@
       "description": "1 セッションあたり token 消費の推移。単位: K=千、Mil=100万、Bil=10億",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "agent-telemetry" },
       "targets": [
         {
           "rawQueryText": "SELECT strftime('%s', week_start, '+3 days', '+12 hours') AS time, coding_agent AS metric, tokens_per_session FROM weekly_session_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}', '-7 days') AND date('${__to:date:iso}') ORDER BY time",
@@ -293,7 +293,7 @@
       "description": "merged PR ごとの token 消費・効率・品質指標一覧。複雑度の異なる PR を比較するのではなく、外れ値を発見しドリルダウンする用途",
       "type": "table",
       "gridPos": { "h": 16, "w": 16, "x": 0, "y": 23 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "agent-telemetry" },
       "targets": [
         {
           "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, coding_agent, model, total_tokens, fresh_tokens, tokens_per_tool_use, session_count, mid_session_msgs, ask_user_question, pr_url FROM pr_metrics WHERE total_tokens > 0 AND coding_agent IN (${coding_agent:singlequote}) ORDER BY fresh_tokens DESC",
@@ -345,7 +345,7 @@
       "description": "多セッション PR の外れ値検出。脱線・やり直しの兆候。上位 5 件のみ",
       "type": "barchart",
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 23 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "agent-telemetry" },
       "targets": [
         {
           "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, session_count FROM pr_metrics WHERE coding_agent IN (${coding_agent:singlequote}) ORDER BY session_count DESC, pr_url LIMIT 5",
@@ -375,7 +375,7 @@
       "description": "1 tool_use あたりの token 消費が大きい PR。ファイル肥大・無駄な再読みの兆候。上位 5 件のみ",
       "type": "barchart",
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 31 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "agent-telemetry" },
       "targets": [
         {
           "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, tokens_per_tool_use FROM pr_metrics WHERE tokens_per_tool_use IS NOT NULL AND coding_agent IN (${coding_agent:singlequote}) ORDER BY tokens_per_tool_use DESC, pr_url LIMIT 5",
@@ -401,7 +401,7 @@
     }
   ],
   "schemaVersion": 39,
-  "tags": ["hitl-metrics"],
+  "tags": ["agent-telemetry"],
   "templating": {
     "list": [
       {
@@ -426,6 +426,6 @@
   "timepicker": {},
   "timezone": "Asia/Tokyo",
   "title": "Coding agent token 効率ダッシュボード",
-  "uid": "hitl-metrics",
+  "uid": "agent-telemetry",
   "version": 2
 }

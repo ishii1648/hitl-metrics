@@ -32,7 +32,7 @@ declare -a PANELS=(
 for entry in "${PANELS[@]}"; do
   IFS=: read -r ID NAME W H <<< "$entry"
   OUTFILE="${OUTDIR}/panel-${ID}-${NAME}.png"
-  URL="${BASE}/render/d-solo/hitl-metrics/hitl-metrics?panelId=${ID}&from=${FROM}&to=${TO}&width=${W}&height=${H}&scale=${SCALE}&tz=${TZ}"
+  URL="${BASE}/render/d-solo/agent-telemetry/agent-telemetry?panelId=${ID}&from=${FROM}&to=${TO}&width=${W}&height=${H}&scale=${SCALE}&tz=${TZ}"
   echo "Capturing panel ${ID} (${NAME})..."
   curl -sf -o "$OUTFILE" "$URL"
   echo "  → ${OUTFILE}"
@@ -41,7 +41,7 @@ done
 # Capture full dashboard for README
 FULL="${OUTDIR}/dashboard-full.png"
 echo "Capturing full dashboard..."
-curl -sf -o "$FULL" "${BASE}/render/d/hitl-metrics/hitl-metrics?from=${FROM}&to=${TO}&width=1800&height=1500&scale=${SCALE}&tz=${TZ}&kiosk"
+curl -sf -o "$FULL" "${BASE}/render/d/agent-telemetry/agent-telemetry?from=${FROM}&to=${TO}&width=1800&height=1500&scale=${SCALE}&tz=${TZ}&kiosk"
 echo "  → ${FULL}"
 
 # Also export key panels for README docs

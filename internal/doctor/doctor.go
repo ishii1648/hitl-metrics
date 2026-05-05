@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/ishii1648/agent-telemetry/internal/agent"
+	"github.com/ishii1648/agent-telemetry/internal/legacy"
 	"github.com/ishii1648/agent-telemetry/internal/setup"
 )
 
@@ -38,6 +39,10 @@ func RunWith(w io.Writer, env Env) (Result, error) {
 
 		r.AgentReports = append(r.AgentReports, ar)
 	}
+
+	r.Legacy = checkLegacy(env)
+	writeLegacy(w, r.Legacy)
+
 	return r, nil
 }
 
@@ -55,6 +60,10 @@ type Env struct {
 	// for the given agent. Allows tests to inject fake settings without
 	// writing to disk. When nil, defaults to the on-disk loader.
 	SettingsLoader func(*agent.Agent) map[string][]string
+
+	// LegacyPaths returns paths from the hitl-metrics era that still exist
+	// on disk. When nil, defaults to legacy.PresentLegacyPaths.
+	LegacyPaths func() []string
 }
 
 func defaultEnv() Env {
@@ -73,9 +82,12 @@ func defaultEnv() Env {
 type Result struct {
 	Binary       CheckResult
 	AgentReports []AgentReport
+	Legacy       LegacyReport
 }
 
-// HasFailure is true when at least one check did not pass.
+// HasFailure is true when at least one check did not pass. Legacy
+// artifacts are reported as warnings (not failures) — they don't block
+// the user, they just nudge them to clean up.
 func (r Result) HasFailure() bool {
 	if !r.Binary.OK {
 		return true
@@ -110,6 +122,21 @@ type CheckResult struct {
 type HookCheck struct {
 	Spec setup.HookSpec
 	OK   bool
+}
+
+// LegacyReport lists hitl-metrics era files that still exist on disk
+// and legacy hook command strings still registered in settings.
+type LegacyReport struct {
+	Paths []string
+	Hooks []LegacyHook
+}
+
+// LegacyHook is a hook command string that still references the
+// hitl-metrics binary name.
+type LegacyHook struct {
+	Agent   string
+	Event   string
+	Command string
 }
 
 func checkBinary(env Env) CheckResult {
@@ -195,7 +222,8 @@ func loadJSONHooks(path string) map[string][]string {
 //
 // Matches both the new "agent-telemetry" and the legacy "hitl-metrics"
 // binary names so doctor still detects unmigrated environments after
-// the rename. Phase 5 will surface the legacy match as a warning.
+// the rename. checkLegacy collects the legacy matches separately so a
+// dedicated warning section can list them.
 func isRegistered(commands []string, subcommand string) bool {
 	needle := "hook " + subcommand
 	for _, cmd := range commands {
@@ -207,6 +235,33 @@ func isRegistered(commands []string, subcommand string) bool {
 		}
 	}
 	return false
+}
+
+// checkLegacy collects every hitl-metrics-era artifact still present:
+// renamed-but-not-migrated files on disk, plus settings entries that
+// still call the old binary name.
+func checkLegacy(env Env) LegacyReport {
+	paths := env.LegacyPaths
+	if paths == nil {
+		paths = legacy.PresentLegacyPaths
+	}
+	r := LegacyReport{Paths: paths()}
+
+	loader := env.SettingsLoader
+	if loader == nil {
+		loader = loadRegisteredCommandsForAgent
+	}
+	for _, a := range env.Agents {
+		registered := loader(a)
+		for event, cmds := range registered {
+			for _, cmd := range cmds {
+				if strings.Contains(cmd, "hitl-metrics") && !strings.Contains(cmd, "agent-telemetry") {
+					r.Hooks = append(r.Hooks, LegacyHook{Agent: a.Name, Event: event, Command: cmd})
+				}
+			}
+		}
+	}
+	return r
 }
 
 const (
@@ -269,5 +324,21 @@ func agentSettingsPath(a *agent.Agent) string {
 		return setup.CodexHooksPath()
 	default:
 		return setup.SettingsPath()
+	}
+}
+
+func writeLegacy(w io.Writer, r LegacyReport) {
+	if len(r.Paths) == 0 && len(r.Hooks) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "%s legacy hitl-metrics artifacts detected:\n", markWarn)
+	for _, p := range r.Paths {
+		fmt.Fprintf(w, "  - file: %s (will be auto-renamed by next backfill / sync-db run)\n", p)
+	}
+	for _, h := range r.Hooks {
+		fmt.Fprintf(w, "  - hook [%s/%s]: %s\n", h.Agent, h.Event, h.Command)
+	}
+	if len(r.Hooks) > 0 {
+		fmt.Fprintln(w, "  → update settings.json / hooks.json to call `agent-telemetry hook ...` (see docs/setup.md)")
 	}
 }

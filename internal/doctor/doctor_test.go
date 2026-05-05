@@ -30,6 +30,7 @@ func envWith(t *testing.T, agents []*agent.Agent, lookOK bool, settings map[stri
 		BinaryName:     "agent-telemetry",
 		Agents:         agents,
 		SettingsLoader: fakeLoader(settings),
+		LegacyPaths:    func() []string { return nil },
 	}
 }
 
@@ -124,6 +125,44 @@ func TestRun_BinaryMissing(t *testing.T) {
 	}
 	if !r.HasFailure() {
 		t.Fatal("expected failure when binary missing")
+	}
+}
+
+func TestRun_LegacyArtifactsSurfacedAsWarning(t *testing.T) {
+	dir := t.TempDir()
+	a := &agent.Agent{Name: agent.NameClaude, DataDir: dir}
+
+	env := envWith(t, []*agent.Agent{a}, true, map[string]map[string][]string{
+		agent.NameClaude: {
+			"SessionStart": {
+				"hitl-metrics hook session-start",
+				"agent-telemetry hook todo-cleanup",
+			},
+			"SessionEnd": {"agent-telemetry hook session-end"},
+			"Stop":       {"agent-telemetry hook stop"},
+		},
+	})
+	env.LegacyPaths = func() []string {
+		return []string{"/home/user/.claude/hitl-metrics.db"}
+	}
+
+	var buf bytes.Buffer
+	r, err := RunWith(&buf, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.HasFailure() {
+		t.Fatalf("legacy artifacts must not fail doctor: %s", buf.String())
+	}
+	out := buf.String()
+	for _, want := range []string{
+		"legacy hitl-metrics artifacts detected",
+		"hitl-metrics.db",
+		"hitl-metrics hook session-start",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q\n%s", want, out)
+		}
 	}
 }
 

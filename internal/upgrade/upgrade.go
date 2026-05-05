@@ -18,6 +18,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -120,7 +121,20 @@ func Run(opts Options) error {
 	}
 
 	fmt.Fprintf(opts.Out, "upgraded %s → %s (%s)\n", displayVersion(opts.CurrentVersion), rel.TagName, binPath)
+	warnLegacyBinary(opts.Out, exec.LookPath)
 	return nil
+}
+
+// warnLegacyBinary surfaces a hitl-metrics binary still on PATH so the
+// user knows to remove it. Auto-deleting risks clobbering files in
+// /usr/local/bin owned by root or installs outside the user's
+// expectation, so we only warn.
+func warnLegacyBinary(w io.Writer, lookPath func(string) (string, error)) {
+	path, err := lookPath("hitl-metrics")
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(w, "warning: legacy hitl-metrics binary found at %s — remove it (rm %s) so PATH only resolves to agent-telemetry\n", path, path)
 }
 
 func pickURLs(assets []releaseAsset, assetName string) (string, string) {

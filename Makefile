@@ -5,7 +5,7 @@ BIN_DIR := $(PREFIX)/bin
 BIN_NAME := agent-telemetry
 
 # 実データ表示用 DB パス（grafana-up が参照）。上書き可。
-HITL_METRICS_DB ?= $(HOME)/.claude/agent-telemetry.db
+AGENT_TELEMETRY_DB ?= $(HOME)/.claude/agent-telemetry.db
 
 build:
 	CGO_ENABLED=0 go build -o bin/$(BIN_NAME) ./cmd/agent-telemetry/
@@ -24,17 +24,17 @@ grafana-fixtures:
 	CGO_ENABLED=0 GOTOOLCHAIN=local go test -run TestGenTestDB -v ./e2e/
 
 grafana-up:
-	@if [ ! -f "$(HITL_METRICS_DB)" ]; then \
-		echo "DB not found: $(HITL_METRICS_DB)"; \
-		echo "Run 'agent-telemetry sync-db' first, or override: make grafana-up HITL_METRICS_DB=/path/to/db"; \
+	@if [ ! -f "$(AGENT_TELEMETRY_DB)" ]; then \
+		echo "DB not found: $(AGENT_TELEMETRY_DB)"; \
+		echo "Run 'agent-telemetry sync-db' first, or override: make grafana-up AGENT_TELEMETRY_DB=/path/to/db"; \
 		exit 1; \
 	fi
-	HITL_METRICS_DB=$(HITL_METRICS_DB) docker compose up -d
+	AGENT_TELEMETRY_DB=$(AGENT_TELEMETRY_DB) docker compose up -d
 	@echo "Waiting for Grafana to be ready..."
 	@for i in $$(seq 1 60); do \
 		if curl -sf http://localhost:$${GRAFANA_PORT:-13000}/api/health > /dev/null 2>&1; then \
 			echo "Grafana is ready at http://localhost:$${GRAFANA_PORT:-13000}"; \
-			echo "Showing data from: $(HITL_METRICS_DB)"; \
+			echo "Showing data from: $(AGENT_TELEMETRY_DB)"; \
 			exit 0; \
 		fi; \
 		sleep 1; \
@@ -42,7 +42,7 @@ grafana-up:
 	echo "Grafana failed to start within 60s"; exit 1
 
 grafana-up-e2e: grafana-fixtures
-	HITL_METRICS_DB=$(CURDIR)/e2e/testdata/agent-telemetry.db docker compose up -d
+	AGENT_TELEMETRY_DB=$(CURDIR)/e2e/testdata/agent-telemetry.db docker compose up -d
 	@echo "Waiting for Grafana to be ready..."
 	@for i in $$(seq 1 60); do \
 		if curl -sf http://localhost:$${GRAFANA_PORT:-13000}/api/health > /dev/null 2>&1; then \
@@ -60,7 +60,7 @@ grafana-screenshot: grafana-up-e2e
 	bash e2e/screenshot.sh .outputs/grafana-screenshots
 
 lint-dashboard:
-	go run github.com/grafana/dashboard-linter@latest lint --strict --config grafana/dashboards/.lint grafana/dashboards/hitl-metrics.json
+	go run github.com/grafana/dashboard-linter@latest lint --strict --config grafana/dashboards/.lint grafana/dashboards/agent-telemetry.json
 
 # Worktree management (usage: make worktree-create BRANCH=feat/atomic-write)
 # Path convention: <repo_root>@<branch_dir_name> (gw_add と同じ @ 区切り)

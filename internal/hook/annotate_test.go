@@ -65,7 +65,7 @@ func TestAnnotateTool(t *testing.T) {
 		{
 			name:      "Edit internal file",
 			toolName:  "Edit",
-			toolInput: `{"file_path": "/home/user/project/grafana/dashboards/hitl-metrics.json"}`,
+			toolInput: `{"file_path": "/home/user/project/grafana/dashboards/agent-telemetry.json"}`,
 			cwd:       "/home/user/project",
 			want:      "Edit(grafana/dashboards)",
 		},

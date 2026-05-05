@@ -1,4 +1,4 @@
-# hitl-metrics 経緯
+# agent-telemetry 経緯
 
 この文書は過去の実装・判断の背景を記録する。
 現在の外部契約は `docs/spec.md`、実装設計は `docs/design.md` を参照する。
@@ -81,6 +81,16 @@ ADR から spec/design/history へ移行した直後は CHANGELOG.md と history
 | D4 | Go モジュールパス: `github.com/ishii1648/agent-telemetry`（import 全置換） | GitHub の自動リダイレクトに依存すると import パスと実態が乖離し続ける。リダイレクトに頼らず一括置換することで、エディタ補完・grep の挙動も新名称で揃う |
 
 実作業の段取りは `TODO.md` の「リポジトリリネーム — agent-telemetry」を参照。
+
+#### **BREAKING CHANGE** — 利用者向けのインパクト
+
+旧 `hitl-metrics` 環境からアップグレードする際は以下の操作が必要。詳細手順は `docs/setup.md` の「5. hitl-metrics（旧名）からの移行」。
+
+- バイナリ名: `hitl-metrics` → `agent-telemetry`。旧バイナリは PATH から削除する（`agent-telemetry upgrade` が残存を warning で通知）
+- DB / state ファイル名: `~/.claude/hitl-metrics.db` / `*-state.json` は `agent-telemetry sync-db` / `backfill` 実行時に自動でリネームされる（`scripts/migrate-db-name.sh` でも同等処理可能）
+- hook 登録: `settings.json` / `hooks.json` の command 文字列を `hitl-metrics hook ...` から `agent-telemetry hook ...` に書き換える（`agent-telemetry doctor` が旧 command を warning として表示）
+- Grafana: ダッシュボード / datasource の `uid` を `hitl-metrics` → `agent-telemetry` に変更。旧ダッシュボードは Grafana UI から手動削除
+- 環境変数: `HITL_METRICS_DB` → `AGENT_TELEMETRY_DB`、`HITL_METRICS_AGENT` → `AGENT_TELEMETRY_AGENT`
 
 ---
 

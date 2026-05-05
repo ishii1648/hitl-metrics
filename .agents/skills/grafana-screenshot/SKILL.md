@@ -14,7 +14,7 @@ Grafana ダッシュボードのスクリーンショットを取得し、パネ
 1. Docker 起動確認（未起動なら `make grafana-up-e2e`）
 2. `bash e2e/screenshot.sh .outputs/grafana-screenshots` でスクリーンショット取得
 3. `.outputs/grafana-screenshots/panel-*.png` を Read ツールで読み込み分析
-4. 問題があれば `grafana/dashboards/hitl-metrics.json` を修正
+4. 問題があれば `grafana/dashboards/agent-telemetry.json` を修正
 5. 5秒待ち（`updateIntervalSeconds: 5` で Grafana が自動リロード）→ 再キャプチャ
 6. 最大 3 回ループ
 
@@ -41,7 +41,7 @@ bash e2e/screenshot.sh .outputs/grafana-screenshots
 
 ### 4. 修正 → 再取得
 
-`grafana/dashboards/hitl-metrics.json` を Edit ツールで修正後、5秒待ってから再キャプチャ。
+`grafana/dashboards/agent-telemetry.json` を Edit ツールで修正後、5秒待ってから再キャプチャ。
 Grafana の `updateIntervalSeconds: 5` により、ファイル変更が自動反映される。
 
 ## パネル一覧（全11枚）

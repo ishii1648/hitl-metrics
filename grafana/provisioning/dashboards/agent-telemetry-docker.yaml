@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: hitl-metrics
+  - name: agent-telemetry
     orgId: 1
-    folder: hitl-metrics
+    folder: agent-telemetry
     type: file
     disableDeletion: false
     editable: true

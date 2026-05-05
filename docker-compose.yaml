@@ -10,10 +10,10 @@ services:
       - GF_RENDERING_SERVER_URL=http://renderer:8081/render
       - GF_RENDERING_CALLBACK_URL=http://grafana:3000/
     volumes:
-      - ./grafana/provisioning/datasources/hitl-metrics-docker.yaml:/etc/grafana/provisioning/datasources/hitl-metrics.yaml
-      - ./grafana/provisioning/dashboards/hitl-metrics-docker.yaml:/etc/grafana/provisioning/dashboards/hitl-metrics.yaml
+      - ./grafana/provisioning/datasources/agent-telemetry-docker.yaml:/etc/grafana/provisioning/datasources/agent-telemetry.yaml
+      - ./grafana/provisioning/dashboards/agent-telemetry-docker.yaml:/etc/grafana/provisioning/dashboards/agent-telemetry.yaml
       - ./grafana/dashboards:/var/lib/grafana/dashboards
-      - ${HITL_METRICS_DB:-./e2e/testdata/hitl-metrics.db}:/var/lib/grafana/hitl-metrics.db
+      - ${AGENT_TELEMETRY_DB:-./e2e/testdata/agent-telemetry.db}:/var/lib/grafana/agent-telemetry.db
     depends_on:
       - renderer
     healthcheck:
