@@ -86,7 +86,7 @@ func migrateAll(plans []Migration, rename func(string, string) error, exists fun
 			errs = append(errs, fmt.Errorf("legacy migration: rename %s → %s: %w", p.From, p.To, err))
 			continue
 		}
-		moved = append(moved, MigratedPath{From: p.From, To: p.To})
+		moved = append(moved, MigratedPath(p))
 	}
 	return moved, errs
 }
