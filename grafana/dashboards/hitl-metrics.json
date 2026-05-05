@@ -156,7 +156,7 @@
       "title": "週別 token 消費",
       "description": "週単位の総 tokens（コスト推移）。単位: K=千、Mil=100万、Bil=10億",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 6 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
@@ -188,7 +188,7 @@
       "title": "週別 merged PR 数",
       "description": "週ごとのスループット推移",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 6 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
@@ -220,7 +220,7 @@
       "title": "週別 PR / 1M tokens",
       "description": "期間集計の効率指標。PR 単位ではなく週内で平均化されているため複雑度差は均される",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
@@ -252,7 +252,7 @@
       "title": "週別 tokens / session",
       "description": "1 セッションあたり token 消費の推移。単位: K=千、Mil=100万、Bil=10億",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
@@ -265,38 +265,6 @@
         "defaults": {
           "color": { "fixedColor": "#16a34a", "mode": "fixed" },
           "unit": "short",
-          "decimals": 1,
-          "custom": {
-            "lineWidth": 2,
-            "pointSize": 5,
-            "showPoints": "always"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "tooltip": { "mode": "single" }
-      }
-    },
-    {
-      "id": 22,
-      "title": "週別 changes_requested 発生率",
-      "description": "リワーク傾向の推移",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
-      "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
-      "targets": [
-        {
-          "rawQueryText": "SELECT strftime('%s', week_start, '+3 days', '+12 hours') AS time, coding_agent AS metric, changes_requested_rate FROM weekly_pr_metrics WHERE coding_agent IN (${coding_agent:singlequote}) AND week_start BETWEEN date('${__from:date:iso}', '-7 days') AND date('${__to:date:iso}') ORDER BY time",
-          "refId": "A",
-          "timeColumns": ["time"]
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "fixedColor": "#dc2626", "mode": "fixed" },
-          "unit": "percentunit",
           "decimals": 1,
           "custom": {
             "lineWidth": 2,
@@ -328,7 +296,7 @@
       "datasource": { "type": "frser-sqlite-datasource", "uid": "hitl-metrics" },
       "targets": [
         {
-          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, coding_agent, model, total_tokens, tokens_per_tool_use, pr_per_million_tokens, session_count, mid_session_msgs, ask_user_question, reasoning_tokens, changes_requested, pr_url FROM pr_metrics WHERE total_tokens > 0 AND coding_agent IN (${coding_agent:singlequote}) ORDER BY total_tokens DESC",
+          "rawQueryText": "SELECT replace(replace(pr_url, 'https://github.com/', ''), '/pull/', '#') AS pr, coding_agent, model, total_tokens, fresh_tokens, tokens_per_tool_use, session_count, mid_session_msgs, ask_user_question, pr_url FROM pr_metrics WHERE total_tokens > 0 AND coding_agent IN (${coding_agent:singlequote}) ORDER BY fresh_tokens DESC",
           "refId": "A"
         }
       ],
@@ -349,31 +317,11 @@
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "total_tokens" },
+            "matcher": { "id": "byRegexp", "options": "/^(total_tokens|fresh_tokens)$/" },
             "properties": [
               { "id": "unit", "value": "short" },
               { "id": "decimals", "value": 1 },
               { "id": "custom.width", "value": 120 }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "changes_requested" },
-            "properties": [
-              {
-                "id": "custom.cellOptions",
-                "value": { "type": "color-background", "mode": "basic" }
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    { "color": "transparent", "value": null },
-                    { "color": "orange", "value": 1 },
-                    { "color": "red", "value": 3 }
-                  ]
-                }
-              }
             ]
           },
           {
@@ -388,7 +336,7 @@
       "options": {
         "showHeader": true,
         "cellHeight": "lg",
-        "sortBy": [{ "displayName": "total_tokens", "desc": true }]
+        "sortBy": [{ "displayName": "fresh_tokens", "desc": true }]
       }
     },
     {

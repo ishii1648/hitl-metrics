@@ -110,6 +110,7 @@ CREATE VIEW pr_metrics AS
 SELECT
     pm.*,
     (pm.input_tokens + pm.output_tokens + pm.cache_write_tokens + pm.cache_read_tokens + pm.reasoning_tokens) AS total_tokens,
+    (pm.input_tokens + pm.output_tokens + pm.cache_write_tokens + pm.reasoning_tokens) AS fresh_tokens,
     CASE WHEN pm.session_count > 0
          THEN ROUND((pm.input_tokens + pm.output_tokens + pm.cache_write_tokens + pm.cache_read_tokens + pm.reasoning_tokens) * 1.0 / pm.session_count, 1)
          ELSE NULL END AS tokens_per_session,

@@ -24,7 +24,6 @@ declare -a PANELS=(
   "20:weekly-merged-prs:${WIDTH}:${HEIGHT}"
   "12:weekly-pr-per-million-tokens:${WIDTH}:${HEIGHT}"
   "21:weekly-tokens-per-session:${WIDTH}:${HEIGHT}"
-  "22:weekly-changes-requested-rate:${WIDTH}:${HEIGHT}"
   "2:pr-scorecard:${WIDTH}:900"
   "14:session-count:${WIDTH}:${HEIGHT}"
   "15:tokens-per-tool-use:${WIDTH}:${HEIGHT}"
