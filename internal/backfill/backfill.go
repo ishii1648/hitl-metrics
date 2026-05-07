@@ -164,9 +164,14 @@ func runForAgent(a *agent.Agent, indexPath, statePath string, recheck bool) erro
 }
 
 func runURLBackfill(indexPath string, sessions []sessionindex.Session, recheck bool) error {
-	// Collect entries with empty pr_urls
+	// Collect entries with empty pr_urls. Pinned sessions are excluded
+	// unconditionally — their pr_urls is authoritative (Stop hook bound
+	// it via gh pr view) and we must not re-resolve via (repo, branch).
 	var entries []sessionindex.Session
 	for _, s := range sessions {
+		if s.PRPinned {
+			continue
+		}
 		if len(s.PRURLs) == 0 && (!s.BackfillChecked || recheck) {
 			entries = append(entries, s)
 		}

@@ -32,6 +32,10 @@ func appendUniqueURLs(existing, add []string) (merged []string, added bool) {
 
 // Update adds new PR URLs to the session identified by sessionID.
 // Returns true if the file was modified.
+//
+// Sessions with pr_pinned=true are intentionally skipped: their pr_urls
+// has been authoritatively bound by the Stop hook (PinPR) and must not
+// be polluted by stray PR URLs scraped from PostToolUse / backfill.
 func Update(indexPath string, sessionID string, newURLs []string) (bool, error) {
 	if sessionID == "" || len(newURLs) == 0 {
 		return false, nil
@@ -50,6 +54,9 @@ func Update(indexPath string, sessionID string, newURLs []string) (bool, error) 
 		if s.SessionID != sessionID {
 			continue
 		}
+		if s.PRPinned {
+			continue
+		}
 		merged, added := appendUniqueURLs(s.PRURLs, newURLs)
 		if !added {
 			continue
@@ -57,6 +64,57 @@ func Update(indexPath string, sessionID string, newURLs []string) (bool, error) 
 		s.PRURLs = merged
 		sessions[i] = s
 		raw, err := remarshalWithUpdate(raws[i], "pr_urls", merged)
+		if err != nil {
+			return false, err
+		}
+		raws[i] = raw
+		updated = true
+	}
+
+	if updated {
+		return true, WriteAll(indexPath, raws)
+	}
+	return false, nil
+}
+
+// PinPR authoritatively binds the given session to a single PR URL and
+// sets pr_pinned=true so subsequent Update / UpdateByBranch / backfill
+// passes leave the entry alone. Called from the Stop hook once `gh pr view`
+// has resolved the branch's PR. Returns true if the file was modified.
+//
+// pr_urls is replaced (not appended) with [prURL] — the pinned URL is the
+// source of truth, and any pre-existing entries are assumed to be polluted
+// regex matches from PostToolUse.
+func PinPR(indexPath string, sessionID string, prURL string) (bool, error) {
+	if sessionID == "" || prURL == "" {
+		return false, nil
+	}
+	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+		return false, nil
+	}
+
+	raws, sessions, err := ReadAll(indexPath)
+	if err != nil {
+		return false, err
+	}
+
+	updated := false
+	for i, s := range sessions {
+		if s.SessionID != sessionID {
+			continue
+		}
+		alreadyPinned := s.PRPinned &&
+			len(s.PRURLs) == 1 &&
+			s.PRURLs[0] == prURL
+		if alreadyPinned {
+			continue
+		}
+		raw := raws[i]
+		raw, err = remarshalWithUpdate(raw, "pr_urls", []string{prURL})
+		if err != nil {
+			return false, err
+		}
+		raw, err = remarshalWithUpdate(raw, "pr_pinned", true)
 		if err != nil {
 			return false, err
 		}
@@ -135,6 +193,9 @@ func UpdateByBranch(indexPath string, targetRepo, targetBranch, newURL string) (
 			continue
 		}
 		if s.Branch != targetBranch {
+			continue
+		}
+		if s.PRPinned {
 			continue
 		}
 		merged, added := appendUniqueURLs(s.PRURLs, []string{newURL})
@@ -292,15 +353,16 @@ func remarshalWithUpdate(raw json.RawMessage, key string, value any) (json.RawMe
 		"repo":              3,
 		"branch":            4,
 		"pr_urls":           5,
-		"pr_title":          6,
-		"transcript":        7,
-		"parent_session_id": 8,
-		"ended_at":          9,
-		"end_reason":        10,
-		"backfill_checked":  11,
-		"is_merged":         12,
-		"review_comments":   13,
-		"changes_requested": 14,
+		"pr_pinned":         6,
+		"pr_title":          7,
+		"transcript":        8,
+		"parent_session_id": 9,
+		"ended_at":          10,
+		"end_reason":        11,
+		"backfill_checked":  12,
+		"is_merged":         13,
+		"review_comments":   14,
+		"changes_requested": 15,
 	}
 	sort.Slice(keys, func(i, j int) bool {
 		oi, oki := order[keys[i]]

@@ -18,6 +18,7 @@ type Session struct {
 	Repo             string   `json:"repo"`
 	Branch           string   `json:"branch"`
 	PRURLs           []string `json:"pr_urls"`
+	PRPinned         bool     `json:"pr_pinned,omitempty"`
 	PRTitle          string   `json:"pr_title,omitempty"`
 	Transcript       string   `json:"transcript"`
 	ParentSessionID  string   `json:"parent_session_id"`

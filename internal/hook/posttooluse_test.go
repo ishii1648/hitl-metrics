@@ -85,6 +85,44 @@ func TestRunPostToolUse_NoURLIsNoOp(t *testing.T) {
 	}
 }
 
+// TestRunPostToolUse_SkipsPinnedSession verifies the core fix: once a
+// session is pinned, regex-extracted PR URLs from tool output (e.g. a
+// `gh pr view 999` for someone else's PR) must not pollute pr_urls.
+func TestRunPostToolUse_SkipsPinnedSession(t *testing.T) {
+	dir := t.TempDir()
+	a := &agent.Agent{Name: agent.NameCodex, DataDir: dir}
+	idx := a.SessionIndexPath()
+
+	original := `{"coding_agent":"codex","session_id":"s1","cwd":"/tmp","repo":"u/r","branch":"feat","pr_urls":["https://github.com/u/r/pull/42"],"pr_pinned":true,"transcript":"","parent_session_id":""}` + "\n"
+	if err := os.WriteFile(idx, []byte(original), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Tool output references a totally unrelated PR — exactly the
+	// scenario where the old code mis-attributed pr_urls.
+	input := &HookInput{
+		SessionID:    "s1",
+		ToolResponse: json.RawMessage(`{"stdout":"viewed https://github.com/other/repo/pull/999"}`),
+	}
+	if err := RunPostToolUse(input, a); err != nil {
+		t.Fatal(err)
+	}
+
+	_, sessions, err := sessionindex.ReadAll(idx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("expected 1 session, got %d", len(sessions))
+	}
+	if len(sessions[0].PRURLs) != 1 || sessions[0].PRURLs[0] != "https://github.com/u/r/pull/42" {
+		t.Fatalf("pr_urls leaked stray URL into pinned session: %v", sessions[0].PRURLs)
+	}
+	if !sessions[0].PRPinned {
+		t.Fatal("pr_pinned must remain true")
+	}
+}
+
 // SessionStart should land in the agent's data dir, not under ~/.claude.
 func TestRunSessionStart_WritesToAgentDir(t *testing.T) {
 	dir := t.TempDir()

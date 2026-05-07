@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ishii1648/agent-telemetry/internal/sessionindex"
 )
 
 func writeTestIndex(t *testing.T, dir string, lines []string) string {
@@ -239,6 +241,55 @@ func readBackForTest(path string) ([]struct{}, []testSession, error) {
 		out = append(out, s)
 	}
 	return nil, out, nil
+}
+
+// TestRunURLBackfill_SkipsPinnedSession verifies that a pinned session is
+// not re-resolved by the (repo, branch) grouping path. Even if the entry
+// satisfied the "empty pr_urls" filter (which it shouldn't, since pinned
+// sessions always have one URL), pr_pinned is the canonical exclusion
+// signal — no `gh pr list` should fire for these.
+func TestRunURLBackfill_SkipsPinnedSession(t *testing.T) {
+	dir := t.TempDir()
+	// Pinned session with a placeholder pr_urls entry to make the test
+	// also exercise the case where the URL list is non-empty (so the
+	// existing pr_urls!=nil filter alone does NOT skip it). pr_pinned is
+	// the load-bearing flag.
+	indexPath := writeTestIndex(t, dir, []string{
+		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/nonexistent/path/abc","repo":"user/repo","branch":"feat-pinned","pr_urls":["https://github.com/user/repo/pull/42"],"pr_pinned":true,"transcript":"","parent_session_id":"","backfill_checked":false}`,
+	})
+
+	_, sessions, err := sessionindex.ReadAll(indexPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Force the pr_urls slice to be empty in our local copy so the
+	// existing `len(s.PRURLs) == 0` filter would otherwise pick it up.
+	// pr_pinned is the load-bearing flag that must skip the entry.
+	for i := range sessions {
+		sessions[i].PRURLs = nil
+	}
+
+	if err := runURLBackfill(indexPath, sessions, false); err != nil {
+		t.Fatal(err)
+	}
+
+	// File must remain untouched: pinned session was never grouped, so
+	// no Update / MarkChecked call could have fired. Verify pr_pinned
+	// and pr_urls survive intact.
+	_, after, err := sessionindex.ReadAll(indexPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !after[0].PRPinned {
+		t.Fatal("pr_pinned should remain true after backfill")
+	}
+	if len(after[0].PRURLs) != 1 || after[0].PRURLs[0] != "https://github.com/user/repo/pull/42" {
+		t.Fatalf("pr_urls altered: %v", after[0].PRURLs)
+	}
+	if after[0].BackfillChecked {
+		t.Fatal("backfill_checked must NOT be set on pinned session (no API call should have fired)")
+	}
 }
 
 func TestParsePRList_ChangesRequested(t *testing.T) {

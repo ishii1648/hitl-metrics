@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -278,6 +279,136 @@ func TestUpdateEnd(t *testing.T) {
 	}
 	if sessions[0].EndReason != "prompt_input_exit" {
 		t.Fatalf("end_reason = %q", sessions[0].EndReason)
+	}
+}
+
+func TestPinPR_BindsAndReplacesPRURLs(t *testing.T) {
+	// Existing pr_urls is a polluted set (PostToolUse regex grabbed two
+	// unrelated PR URLs). Pin must REPLACE — not append — so the polluted
+	// entries are dropped, and pr_pinned=true must be persisted.
+	p := writeTempJSONL(t, []string{
+		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat","pr_urls":["https://github.com/user/repo/pull/9","https://github.com/user/other/pull/1"],"transcript":"","parent_session_id":"","backfill_checked":false}`,
+	})
+
+	updated, err := PinPR(p, "s1", "https://github.com/user/repo/pull/42")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated {
+		t.Fatal("expected updated=true")
+	}
+
+	sessions := readSessions(t, p)
+	if len(sessions[0].PRURLs) != 1 || sessions[0].PRURLs[0] != "https://github.com/user/repo/pull/42" {
+		t.Fatalf("pr_urls = %v, want [pull/42]", sessions[0].PRURLs)
+	}
+	if !sessions[0].PRPinned {
+		t.Fatal("pr_pinned should be true")
+	}
+}
+
+func TestPinPR_IsIdempotent(t *testing.T) {
+	p := writeTempJSONL(t, []string{
+		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat","pr_urls":["https://github.com/user/repo/pull/42"],"pr_pinned":true,"transcript":"","parent_session_id":"","backfill_checked":false}`,
+	})
+
+	updated, err := PinPR(p, "s1", "https://github.com/user/repo/pull/42")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated {
+		t.Fatal("expected updated=false (already pinned to same URL)")
+	}
+}
+
+func TestPinPR_OverwritesDifferentURL(t *testing.T) {
+	// If somehow pinned to a stale URL (e.g. PR was closed and a new one
+	// reopened), re-pinning to the current URL must succeed.
+	p := writeTempJSONL(t, []string{
+		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat","pr_urls":["https://github.com/user/repo/pull/1"],"pr_pinned":true,"transcript":"","parent_session_id":"","backfill_checked":false}`,
+	})
+
+	updated, err := PinPR(p, "s1", "https://github.com/user/repo/pull/2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated {
+		t.Fatal("expected updated=true (URL changed)")
+	}
+	sessions := readSessions(t, p)
+	if sessions[0].PRURLs[0] != "https://github.com/user/repo/pull/2" {
+		t.Fatalf("pr_urls[0] = %q, want pull/2", sessions[0].PRURLs[0])
+	}
+}
+
+func TestUpdate_SkipsPinnedSession(t *testing.T) {
+	// Once a session is pinned, regex-scraped URLs from PostToolUse must
+	// NOT pollute pr_urls. This is the core bug we're fixing.
+	p := writeTempJSONL(t, []string{
+		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat","pr_urls":["https://github.com/user/repo/pull/42"],"pr_pinned":true,"transcript":"","parent_session_id":"","backfill_checked":false}`,
+	})
+
+	updated, err := Update(p, "s1", []string{"https://github.com/user/other/pull/999"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated {
+		t.Fatal("expected updated=false on pinned session")
+	}
+	sessions := readSessions(t, p)
+	if len(sessions[0].PRURLs) != 1 || sessions[0].PRURLs[0] != "https://github.com/user/repo/pull/42" {
+		t.Fatalf("pr_urls leaked update on pinned session: %v", sessions[0].PRURLs)
+	}
+}
+
+func TestUpdateByBranch_SkipsPinnedSession(t *testing.T) {
+	// Branch reuse scenario: a new PR was created on the same branch,
+	// but the pinned session stays bound to its original PR.
+	p := writeTempJSONL(t, []string{
+		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat","pr_urls":["https://github.com/user/repo/pull/42"],"pr_pinned":true,"transcript":"","parent_session_id":"","backfill_checked":false}`,
+		`{"timestamp":"2026-03-01 11:00:00","session_id":"s2","cwd":"/tmp","repo":"user/repo","branch":"feat","pr_urls":[],"transcript":"","parent_session_id":"","backfill_checked":false}`,
+	})
+
+	updated, err := UpdateByBranch(p, "user/repo", "feat", "https://github.com/user/repo/pull/100")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated {
+		t.Fatal("expected updated=true (s2 should accept the URL)")
+	}
+	sessions := readSessions(t, p)
+	if sessions[0].PRURLs[0] != "https://github.com/user/repo/pull/42" {
+		t.Fatalf("s1 (pinned) pr_urls changed: %v", sessions[0].PRURLs)
+	}
+	if len(sessions[1].PRURLs) != 1 || sessions[1].PRURLs[0] != "https://github.com/user/repo/pull/100" {
+		t.Fatalf("s2 (unpinned) pr_urls = %v, want [pull/100]", sessions[1].PRURLs)
+	}
+}
+
+func TestPinPR_PreservesFieldOrder(t *testing.T) {
+	// pr_pinned must be serialized between pr_urls and pr_title to match
+	// remarshalWithUpdate's order map. This guards against accidentally
+	// putting pr_pinned at the end of the JSON object on round-trip.
+	p := writeTempJSONL(t, []string{
+		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"user/repo","branch":"feat","pr_urls":[],"transcript":"","parent_session_id":"","backfill_checked":false}`,
+	})
+	if _, err := PinPR(p, "s1", "https://github.com/user/repo/pull/42"); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := string(data)
+	urlsIdx := strings.Index(line, `"pr_urls"`)
+	pinnedIdx := strings.Index(line, `"pr_pinned"`)
+	transcriptIdx := strings.Index(line, `"transcript"`)
+	if urlsIdx < 0 || pinnedIdx < 0 || transcriptIdx < 0 {
+		t.Fatalf("missing field in serialized line: %q", line)
+	}
+	if !(urlsIdx < pinnedIdx && pinnedIdx < transcriptIdx) {
+		t.Errorf("field order broken: pr_urls=%d pr_pinned=%d transcript=%d in %q",
+			urlsIdx, pinnedIdx, transcriptIdx, line)
 	}
 }
 

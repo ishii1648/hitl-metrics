@@ -92,6 +92,31 @@ ADR から spec/design/history へ移行した直後は CHANGELOG.md と history
 - Grafana: ダッシュボード / datasource の `uid` を `hitl-metrics` → `agent-telemetry` に変更。旧ダッシュボードは Grafana UI から手動削除
 - 環境変数: `HITL_METRICS_DB` → `AGENT_TELEMETRY_DB`、`HITL_METRICS_AGENT` → `AGENT_TELEMETRY_AGENT`
 
+### 9. PR resolve を Stop hook の early binding に切替（2026-05-07）
+
+それまで PR と session の紐づけは「`(repo, branch)` キーで `gh pr list --head <branch>` を late binding し、`pr_urls` 末尾を採用する」モデルだった。これに 2 つの構造的欠陥があった:
+
+1. **PostToolUse 正規表現の汚染** — `internal/hook/posttooluse.go` が tool_response から PR URL を無差別に正規表現抽出して `pr_urls` に append する。`gh pr view 999` で他人の PR を見ただけ、または Bash で URL を貼っただけで、無関係な PR が末尾に追加される。`sync-db` は末尾を採用するため誤接続が発生していた。
+2. **ブランチ再利用での誤接続** — 同一ブランチを別 PR で使い回す運用で、後から作られた PR の URL が古いセッションに紐づく。
+
+検討案:
+
+| 案 | 内容 | 採否 |
+|---|---|---|
+| A | `pr_urls` 末尾採用を「先頭採用」に変更 | 却下。PostToolUse の append 順を逆にしただけで、汚染元は塞がらない |
+| B | PostToolUse の URL 抽出条件を絞る（自分の `gh pr create` 経路のみ拾う等） | 補助的。pin で根本解決するため今回は実装しない |
+| C | Stop hook で `gh pr list --head <branch>` を 1 回叩いて pin する | **採用**。両欠陥を同時に塞げる |
+| D | session_id と PR の HEAD SHA を連結して結合する | 将来の選択肢として記録。現状 overkill |
+
+採用案 (C) の要点:
+
+- `Stop` hook 時点で branch 単位の PR 解決を 1 回だけ実行し、`pr_pinned: true` で session に束縛する
+- pinned セッションは PostToolUse / `update` / `backfill` の URL append をすべて no-op にする
+- pin 失敗（PR 未作成 / `gh` エラー / cwd 消滅）は backfill のフォールバックに委ねる。late binding を完全に廃止するわけではなく、責務を「PR 未作成セッションのリトライ専用」に絞る
+- `Phase 2` の meta 取得は pinned セッションも引き続き対象にする（`is_merged` / `review_comments` の継続更新は必要）
+
+これにより `pr_urls` は通常 1 件で確定し、`sync-db` の「末尾採用」ルールが順序依存しなくなる。`docs/design.md` の `pr_urls` 採用ルール節も合わせて更新済み。
+
 ---
 
 ## ADR 索引
