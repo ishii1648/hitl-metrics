@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	_ "modernc.org/sqlite"
 
@@ -502,6 +503,58 @@ CREATE TABLE permission_events (id INTEGER PRIMARY KEY);
 	db.QueryRow("SELECT COUNT(*) FROM sessions").Scan(&sessionRows)
 	if sessionRows != 1 {
 		t.Errorf("sessions row count: got %d, want 1", sessionRows)
+	}
+}
+
+// TestRunWithPaths_BusyTimeoutWaitsForWriter verifies that a concurrent
+// sync-db invocation waits for an in-flight writer instead of failing
+// immediately with SQLITE_BUSY. Without busy_timeout configured on the
+// DSN, the goroutine below would error out the moment it hit the locked DB.
+func TestRunWithPaths_BusyTimeoutWaitsForWriter(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "agent-telemetry.db")
+	indexPath := filepath.Join(dir, "session-index.jsonl")
+	os.WriteFile(indexPath, []byte(
+		`{"timestamp":"2026-03-01 10:00:00","session_id":"s1","cwd":"/tmp","repo":"u/r","branch":"main","pr_urls":[],"transcript":"","parent_session_id":""}`+"\n",
+	), 0644)
+	// Bootstrap schema + WAL so the lock holder doesn't race with ensureSchema.
+	if err := RunWithPaths(indexPath, dbPath); err != nil {
+		t.Fatalf("bootstrap run: %v", err)
+	}
+
+	// Hold a write lock from a separate connection.
+	blocker, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer blocker.Close()
+	tx, err := blocker.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(
+		`INSERT OR REPLACE INTO sessions (session_id, coding_agent, agent_version, timestamp, cwd, repo, branch, pr_url, pr_title, transcript, parent_session_id, ended_at, end_reason, is_subagent, backfill_checked, is_merged, task_type, review_comments, changes_requested)
+		VALUES ('lock','claude','','','','','','','','','','','',0,0,0,'',0,0)`,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- RunWithPaths(indexPath, dbPath) }()
+
+	// Give the goroutine time to hit the writer lock.
+	time.Sleep(200 * time.Millisecond)
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("concurrent RunWithPaths failed: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("concurrent RunWithPaths timed out — busy_timeout not honored?")
 	}
 }
 
