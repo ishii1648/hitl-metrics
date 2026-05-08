@@ -75,7 +75,6 @@ Commands:
     post-tool-use                        tool_response から PR URL を抽出（Codex 用）
     pre-tool-use                         per-session tool 注釈を記録（Claude のみ）
     permission-request                   permission ログを追記（Claude のみ）
-    todo-cleanup                         main ブランチで TODO.md の完了タスクを削除
   install                                廃止予定 alias。setup を呼び出して同等の案内を表示
   upgrade [--check]                      GitHub Releases から最新版を取得して自身を置き換える（--check は確認のみ）
   version                                version を表示
@@ -341,13 +340,6 @@ func runHook(args []string) {
 		// of either: try to read but don't fail on EOF / empty stdin.
 		input, _ := hook.ReadInput()
 		hookErr = hook.RunStop(input, a)
-	case "todo-cleanup":
-		input, e := hook.ReadInput()
-		if e != nil {
-			fmt.Fprintf(os.Stderr, "hook input error: %v\n", e)
-			os.Exit(1)
-		}
-		hookErr = hook.RunTodoCleanup(input)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown hook event: %s\n", eventName)
 		os.Exit(1)

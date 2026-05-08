@@ -117,6 +117,44 @@ ADR から spec/design/history へ移行した直後は CHANGELOG.md と history
 
 これにより `pr_urls` は通常 1 件で確定し、`sync-db` の「末尾採用」ルールが順序依存しなくなる。`docs/design.md` の `pr_urls` 採用ルール節も合わせて更新済み。
 
+### 10. TODO.md の廃止 — issues/ への一本化（2026-05-08）
+
+`TODO.md` を削除し、開発タスク管理を `issues/` ディレクトリ（per-issue Markdown + `SEQUENCE` 採番）に一本化した。背景は `issues/` 体制を導入した時点で `TODO.md` が CLAUDE.md / AGENTS.md の 3 本柱（spec / design / history）の外側にある orphan になっていたこと。tmux-sidebar の同種リファクタ（[ishii1648/tmux-sidebar#49](https://github.com/ishii1648/tmux-sidebar/pull/49)）を参考に同じ整理を当て、計測ツール側でも採番済みの per-issue ファイルでタスクを扱う形に揃えた。
+
+**移行内容:**
+
+- `TODO.md` の `## 実装タスク`（受け入れ条件あり、すぐ着手可能）→ `issues/<NNNN>-<cat>-<slug>.md` として open
+  - `issues/0003-feat-grafana-agent-comparison-panel.md`
+  - `issues/0004-chore-goreleaser-release-verification.md`
+- `TODO.md` の `## 検討中`（仕様未確定）→ `issues/pending/<NNNN>-design-<slug>.md` として保留
+  - `issues/pending/0005-design-stop-hook-path-independence.md`
+  - `issues/pending/0006-design-local-env-ci-reproducibility.md`
+  - `issues/pending/0007-design-bash-context-monitoring.md`
+  - `issues/pending/0008-design-retro-pr-integration.md`
+- `issues/SEQUENCE` を `9` に bump
+
+**廃止に伴うコード/設定変更:**
+
+- `internal/hook/todocleanup.go` と関連テストを削除（main ブランチで `TODO.md` の完了タスクを自動削除する hook）
+- `agent-telemetry hook todo-cleanup` サブコマンドを `cmd/agent-telemetry/main.go` から削除
+- `setup.ClaudeHookSpecs` から `todo-cleanup` を除去。既存ユーザの `~/.claude/settings.json` から `agent-telemetry uninstall-hooks` で取り除けるよう `LegacyClaudeSubcommands = []string{"todo-cleanup"}` を追加
+- `docs/spec.md` / `docs/usage.md` の hook 表から `todo-cleanup` 行を削除
+- 旧 project-local hook（`.claude/settings.json` と `.codex/hooks.json` で `bash hooks/todo-cleanup-check.sh` を呼んでいた）を削除（参照先スクリプトは既に存在しなかった）
+
+**impl skill の入力ソース変更:**
+
+`.claude/skills/impl/SKILL.md` と `.agents/skills/impl/SKILL.md` を `TODO.md` パースから `issues/*.md`（`closed/` と `pending/` を除外）の列挙に書き換えた。受け入れ条件は `## 受け入れ条件` セクションの `- [ ]` 行から抽出する。Claude Code 用 / Codex 用の SKILL.md は別ファイルのまま個別に保持する。
+
+**採用しなかった代替:**
+
+- `TODO.md` を archive として残す: 中身は完了タスク + history と重複する rationale だけになっており、リンク切れと混乱の温床になる
+- `todo-cleanup` hook を `issues/closed/` の整理に転用する: `issues/` のライフサイクルは `git mv` ベースの手動運用が前提（AGENTS.md 参照）。自動削除が要件と噛み合わない
+- ADR 形式へ戻す: 既に `docs/archive/adr/` に保存されている過去 23 件で十分。新規判断は `docs/design.md` + Contextual Commits + 必要なら history.md という現行ルールを維持する
+
+**残課題:**
+
+なし。3 本柱（spec / design / history）+ `issues/` の体制に収束した。
+
 ---
 
 ## ADR 索引

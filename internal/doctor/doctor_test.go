@@ -40,7 +40,7 @@ func TestRun_ClaudeAllChecksPass(t *testing.T) {
 
 	env := envWith(t, []*agent.Agent{a}, true, map[string]map[string][]string{
 		agent.NameClaude: {
-			"SessionStart": {"agent-telemetry hook session-start", "agent-telemetry hook todo-cleanup"},
+			"SessionStart": {"agent-telemetry hook session-start"},
 			"SessionEnd":   {"agent-telemetry hook session-end"},
 			"Stop":         {"agent-telemetry hook stop"},
 		},
@@ -136,7 +136,6 @@ func TestRun_LegacyArtifactsSurfacedAsWarning(t *testing.T) {
 		agent.NameClaude: {
 			"SessionStart": {
 				"hitl-metrics hook session-start",
-				"agent-telemetry hook todo-cleanup",
 			},
 			"SessionEnd": {"agent-telemetry hook session-end"},
 			"Stop":       {"agent-telemetry hook stop"},
