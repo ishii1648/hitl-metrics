@@ -155,6 +155,27 @@ ADR から spec/design/history へ移行した直後は CHANGELOG.md と history
 
 なし。3 本柱（spec / design / history）+ `issues/` の体制に収束した。
 
+### 11. user 識別子の導入 — マルチユーザー集約への布石（2026-05-08）
+
+ローカル単独利用前提（手元 `~/.claude/agent-telemetry.db` に閉じる）から、サーバ側で複数ユーザーのデータを集約する構成（issue 0009）に向けた前提整備として、`session-index.jsonl` と `sessions` テーブルに `user_id` フィールドを導入した。サーバ集約のないローカル単独利用では `unknown` のままでも従来通り動作する。
+
+**主な設計判断:**
+
+- **取得順序**: `AGENT_TELEMETRY_USER` 環境変数 → `~/.claude/agent-telemetry.toml` の `user` キー → `git config --global user.email` → `unknown`。`git config --local` は **意図的に見ない**（cwd 依存で人物が分裂するのを避け、マシン跨ぎで同一人物を束ねる本来目的に合わせる）
+- **形式は任意の文字列**: メール / pseudonym / UUID どれでも可。ハッシュ化はしない（ハッシュ化は join 不可で複数マシンからの集約に困る、PII 分離が必要なら TOML に pseudonym を入れる運用で十分）
+- **欠損時は `unknown`**: hook を失敗させない。サーバ送信時のゲート判定は 0009 の責務として分離
+- **既存レコードへの埋め戻し**: `sync-db` 実行時に `user_id` 欠落レコードを現在の解決値で埋め、JSONL に書き戻す。マイグレーションコマンドは追加しない
+- **`pr_metrics` VIEW の集約軸に追加**: GROUP BY を `(pr_url, coding_agent, user_id)` に拡張し、pair coding で同一 PR を複数人が触った場合に意味的に正しく分離する。単独利用時の集計結果は変わらない
+- **`session_concurrency_*` VIEW は未変更**: 既存互換維持のため。user 別の同時実行数は将来必要になったら別 VIEW として追加する
+
+**採用しなかった代替:**
+
+- `git config --local` を最優先: リポジトリごとに別 email を設定する運用（OSS と業務でメールを分ける）で同一人物が分裂し、user attribution の本来目的と逆方向になるため不採用
+- メールアドレス固定（ハッシュ化なし）: 表示と保存を分離するために `user_display` 列を追加する案もあったが、TOML に pseudonym を書くだけで同等の運用ができるため、列追加はしない（YAGNI）
+- 0009 のサーバ仕様を待つ: AuthN/AuthZ は user 識別子の表現が決まらないと割れるため、0010 を先行確定して 0009 を進めやすくする
+
+依存: issue 0009（サーバ側転送）。0010 単独でも実害はないが、価値が顕在化するのは 0009 が動いてから。
+
 ---
 
 ## ADR 索引

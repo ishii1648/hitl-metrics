@@ -12,6 +12,7 @@ import (
 type Session struct {
 	CodingAgent      string   `json:"coding_agent"`
 	AgentVersion     string   `json:"agent_version"`
+	UserID           string   `json:"user_id,omitempty"`
 	Timestamp        string   `json:"timestamp"`
 	SessionID        string   `json:"session_id"`
 	CWD              string   `json:"cwd"`
@@ -37,6 +38,15 @@ func (s Session) AgentName() string {
 		return "claude"
 	}
 	return s.CodingAgent
+}
+
+// User returns the user_id, defaulting to "unknown" when the field is empty
+// (legacy entries written before user attribution).
+func (s Session) User() string {
+	if s.UserID == "" {
+		return "unknown"
+	}
+	return s.UserID
 }
 
 // IndexFile returns the default path to ~/.claude/session-index.jsonl.

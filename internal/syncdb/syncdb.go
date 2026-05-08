@@ -12,6 +12,7 @@ import (
 	"github.com/ishii1648/agent-telemetry/internal/agent"
 	"github.com/ishii1648/agent-telemetry/internal/sessionindex"
 	"github.com/ishii1648/agent-telemetry/internal/transcript"
+	"github.com/ishii1648/agent-telemetry/internal/userid"
 )
 
 const dummyPRURL = "https://github.com/org/repo/pull/123"
@@ -108,8 +109,8 @@ func runWithSources(sources []agentSource, dbPath string) error {
 	defer tx.Rollback()
 
 	sessionStmt, err := tx.Prepare(`INSERT OR REPLACE INTO sessions
-		(session_id, coding_agent, agent_version, timestamp, cwd, repo, branch, pr_url, pr_title, transcript, parent_session_id, ended_at, end_reason, is_subagent, backfill_checked, is_merged, task_type, review_comments, changes_requested)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		(session_id, coding_agent, agent_version, user_id, timestamp, cwd, repo, branch, pr_url, pr_title, transcript, parent_session_id, ended_at, end_reason, is_subagent, backfill_checked, is_merged, task_type, review_comments, changes_requested)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return err
 	}
@@ -123,11 +124,40 @@ func runWithSources(sources []agentSource, dbPath string) error {
 	}
 	defer statsStmt.Close()
 
+	// Resolve once per sync — cheap (one git invocation worst case) and
+	// avoids redundant work when many sessions need backfilling.
+	resolvedUser, _ := userid.Resolve()
+
 	totalSessions, totalStats := 0, 0
 	for _, src := range sources {
-		_, sessions, err := sessionindex.ReadAll(src.IndexPath)
+		raws, sessions, err := sessionindex.ReadAll(src.IndexPath)
 		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("read %s sessions: %w", src.Agent.Name, err)
+		}
+
+		// Backfill missing user_id directly into the JSONL so the file remains
+		// the source of truth. We rewrite atomically only when at least one
+		// row needs updating, to keep no-op syncs side-effect free.
+		dirty := false
+		for i := range sessions {
+			if sessions[i].SessionID == "" {
+				continue
+			}
+			if sessions[i].UserID != "" {
+				continue
+			}
+			sessions[i].UserID = resolvedUser
+			updated, err := sessionindex.MarshalSession(sessions[i])
+			if err != nil {
+				return fmt.Errorf("marshal session %s: %w", sessions[i].SessionID, err)
+			}
+			raws[i] = updated
+			dirty = true
+		}
+		if dirty {
+			if err := sessionindex.WriteAll(src.IndexPath, raws); err != nil {
+				return fmt.Errorf("write %s sessions: %w", src.Agent.Name, err)
+			}
 		}
 
 		// Deduplicate by session_id within a single agent (last wins).
@@ -172,7 +202,7 @@ func runWithSources(sources []agentSource, dbPath string) error {
 			}
 
 			if _, err := sessionStmt.Exec(
-				s.SessionID, codingAgent, s.AgentVersion, s.Timestamp, s.CWD, s.Repo, s.Branch,
+				s.SessionID, codingAgent, s.AgentVersion, s.User(), s.Timestamp, s.CWD, s.Repo, s.Branch,
 				prURL, prTitle, s.Transcript, s.ParentSessionID, s.EndedAt, s.EndReason,
 				isSubagent, backfillChecked, isMerged, taskType, s.ReviewComments, s.ChangesRequested,
 			); err != nil {

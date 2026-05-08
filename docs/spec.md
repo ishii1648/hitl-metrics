@@ -92,6 +92,7 @@ agent ごとに収集元を分離し、SQLite DB は単一に集約する。
 |---|---|---|
 | `~/.claude/session-index.jsonl` | JSON Lines | Claude Code セッション単位のメタデータ |
 | `~/.claude/agent-telemetry-state.json` | JSON | Claude Code 用 backfill の cursor |
+| `~/.claude/agent-telemetry.toml` | TOML | user 識別子などのユーザ設定。両 agent で共通（後述「ユーザ設定ファイル」） |
 | `~/.claude/projects/**/<session-id>.jsonl` | JSON Lines | Claude Code transcript |
 | `~/.codex/session-index.jsonl` | JSON Lines | Codex CLI セッション単位のメタデータ |
 | `~/.codex/agent-telemetry-state.json` | JSON | Codex CLI 用 backfill の cursor |
@@ -107,6 +108,7 @@ agent ごとに収集元を分離し、SQLite DB は単一に集約する。
 {
   "coding_agent": "claude",
   "agent_version": "1.2.3",
+  "user_id": "ishii1492@gmail.com",
   "timestamp": "2026-02-27 12:34:56",
   "session_id": "xxx-yyy-zzz",
   "cwd": "/path/to/project",
@@ -128,12 +130,27 @@ agent ごとに収集元を分離し、SQLite DB は単一に集約する。
 
 - `coding_agent` は `claude` または `codex`。欠落時は `claude` として扱う（後方互換）。
 - `agent_version` は agent 自身が報告するバージョン文字列（取得不能なら空文字列）。バージョン跨ぎでの効率比較に使う。
+- `user_id` はセッションを記録したユーザの識別子。SessionStart hook が後述の優先順位で解決して埋める。欠落時は `unknown` として扱う（後方互換）。`sync-db` は欠落レコードに対して現在の解決値で埋め戻し、JSONL にも書き戻す。
 - `pr_urls` は PostToolUse / Stop / `update` / `backfill` から重複排除しつつ追記される。`sync-db` は配列の最後の 1 件を採用する。
 - `pr_pinned: true` は Stop hook が `gh pr list --head <branch>` で確定した PR にセッションが束縛されたことを示す。pinned レコードに対しては PostToolUse / `update` / `backfill` の URL 追記は **すべて no-op** になる（誤接続防止）。欠落時は `false` として扱う（後方互換）。
 - `pr_title` は backfill が `gh pr view --json title` で取得する PR タイトル。欠落時 / 取得失敗時は空文字列として扱う（後方互換）。
 - `backfill_checked: true` のレコードは backfill で再 API 呼び出しされない。PR が存在しないブランチで永続スキップされる。
 - Codex の場合: `end_reason` は Stop hook の最終発火を記録するため `stop` 固定。`transcript` は `~/.codex/sessions/.../rollout-*.jsonl[.zst]` のフルパス。
-- 後方互換: 古いレコードに新フィールドが欠けていても扱える（欠落値は 0 / false / 空文字列）。
+- 後方互換: 古いレコードに新フィールドが欠けていても扱える（欠落値は 0 / false / 空文字列、`user_id` のみ `unknown`）。
+
+### `agent-telemetry.toml`（ユーザ設定ファイル）
+
+`~/.claude/agent-telemetry.toml` に以下のキーを置ける。両 agent から共通参照される。
+
+```toml
+user = "ishii1492@gmail.com"
+```
+
+| キー | 型 | 説明 |
+|---|---|---|
+| `user` | string | `session-index.jsonl` の `user_id` フィールドに焼き付ける識別子。形式は任意（メールアドレス / pseudonym / UUID 等）。複数マシンで同一人物として束ねたい場合はマシン間で同じ値を揃える運用 |
+
+ファイルが存在しない・キーが欠落・パース不能の場合は無視して次の優先順位にフォールバックする（hook を失敗させない）。
 
 ---
 
@@ -148,6 +165,7 @@ agent ごとに収集元を分離し、SQLite DB は単一に集約する。
 | `session_id` | TEXT | エージェント発行のセッション ID |
 | `coding_agent` | TEXT | `claude` または `codex` |
 | `agent_version` | TEXT | agent 自身が報告するバージョン文字列（取得不能なら空） |
+| `user_id` | TEXT | セッションを記録したユーザの識別子。`session-index.jsonl` の `user_id` から sync 時に転写。欠落時は `unknown` |
 | `timestamp` | TEXT | セッション開始時刻（ISO8601） |
 | `cwd` | TEXT | 作業ディレクトリ |
 | `repo` | TEXT | リポジトリ（`org/repo` 形式） |
@@ -205,13 +223,13 @@ PR 単位の集約ビュー。次のフィルタ条件を適用する。
 | `is_ghost = 0` | ゴーストセッションを除外 |
 | `repo NOT IN ('ishii1648/dotfiles')` | dotfiles リポジトリを除外 |
 
-集約カラム: `pr_url`, `pr_title`, `coding_agent`, `model`, `session_count`, `tool_use_total`, `mid_session_msgs`, `ask_user_question`, `input_tokens`, `output_tokens`, `cache_write_tokens`, `cache_read_tokens`, `reasoning_tokens`, `review_comments`, `changes_requested`, `total_tokens`, `fresh_tokens`, `tokens_per_session`, `tokens_per_tool_use`, `pr_per_million_tokens`
+集約カラム: `pr_url`, `pr_title`, `coding_agent`, `user_id`, `model`, `session_count`, `tool_use_total`, `mid_session_msgs`, `ask_user_question`, `input_tokens`, `output_tokens`, `cache_write_tokens`, `cache_read_tokens`, `reasoning_tokens`, `review_comments`, `changes_requested`, `total_tokens`, `fresh_tokens`, `tokens_per_session`, `tokens_per_tool_use`, `pr_per_million_tokens`
 
 `pr_title` は同一 PR に紐づく全セッションで等しい想定だが、安全のため `MAX(s.pr_title)` で集約する（未取得セッションが空文字列を返しても、取得済みセッションのタイトルが採用される）。
 
 `task_type` は集約軸から外れている（ADR-024 で「定量指標は task_type を集計軸に使わない」方針が採用されたため）。`sessions.task_type` カラム自体は後方互換と任意フィルタの余地として残す。
 
-GROUP BY は (`pr_url`, `coding_agent`)。同一 PR が複数 agent から触られた場合は agent ごとに別行になる（実運用上ほぼ発生しないが意味的に分離する）。
+GROUP BY は (`pr_url`, `coding_agent`, `user_id`)。同一 PR が複数 agent / 複数ユーザから触られた場合はそれぞれ別行になる（実運用上ほぼ発生しないが意味的に分離する。pair coding で人物が分かれた場合の集計を正しく扱うため）。
 
 `total_tokens` は input / output / cache write / cache read / reasoning token の合計。`fresh_tokens` は `cache_read_tokens` を除いた合計（input / output / cache write / reasoning）で、長時間セッションで `cache_read_tokens` が支配的になり「重さ」の体感と乖離する問題に対する代替指標。`pr_per_million_tokens` は 100 万 token あたりに完了した PR 数。
 
@@ -232,6 +250,7 @@ GROUP BY は (`pr_url`, `coding_agent`)。同一 PR が複数 agent から触ら
 | 変数 | 説明 |
 |---|---|
 | `AGENT_TELEMETRY_AGENT` | hook / CLI のデフォルト agent（`claude` / `codex`）。`--agent` が省略され、かつ自動検出を行わない経路で参照する |
+| `AGENT_TELEMETRY_USER` | `session-index.jsonl` の `user_id` を上書きする。CI / コンテナで決定的に設定したい場合に使う。最優先のソース（`agent-telemetry.toml` や git config より優先される） |
 | `CODEX_HOME` | Codex CLI のホームディレクトリ。未指定なら `~/.codex`。Codex 標準と同じ |
 
 ---
