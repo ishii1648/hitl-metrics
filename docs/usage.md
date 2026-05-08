@@ -104,6 +104,17 @@ make grafana-screenshot  # 全パネルの PNG を取得
 make grafana-down        # コンテナ停止
 ```
 
+## 自動化サンプル
+
+agent-telemetry 本体の責務は外れ値 PR の示唆まで。その先で「外れ値 PR を coding agent に分析させる」「結果を Issue / Slack に流す」といった自動化を組みたい場合のリファレンス実装を [`examples/`](../examples/) に同梱している。
+
+- [`examples/skills/analyze-pr/`](../examples/skills/analyze-pr/SKILL.md) — 外れ値 PR の transcript を読み、token 消費の外れ値要因と改善仮説を Markdown で stdout に出す Claude Code skill
+- Claude Action（GitHub Actions）/ Claude Web Routine から呼ぶ例は [`examples/README.md`](../examples/README.md) を参照
+
+`examples/` は **best-effort** 扱い。CI で検証しておらず、`make grafana-screenshot` のような必須作業からも外れる。コピーして自分の環境用に書き換える前提のサンプルとして扱う。
+
+> ⚠️ transcript には機密情報（プロンプト全文・コード断片・ローカルパス等）が含まれる可能性がある。skill / script の出力を外部に送信する前に必ずスコープを確認すること。詳細は [`examples/README.md`](../examples/README.md#privacy-注意) を参照。
+
 ## トラブルシューティング
 
 ### hook が動作しない
