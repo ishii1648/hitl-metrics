@@ -27,9 +27,15 @@ type HookSpec struct {
 // ClaudeHookSpecs lists the canonical hooks for Claude Code.
 var ClaudeHookSpecs = []HookSpec{
 	{CodingAgent: agent.NameClaude, Event: "SessionStart", Subcommand: "session-start"},
-	{CodingAgent: agent.NameClaude, Event: "SessionStart", Subcommand: "todo-cleanup"},
 	{CodingAgent: agent.NameClaude, Event: "SessionEnd", Subcommand: "session-end"},
 	{CodingAgent: agent.NameClaude, Event: "Stop", Subcommand: "stop"},
+}
+
+// LegacyClaudeSubcommands は ClaudeHookSpecs から外したが既存ユーザの
+// settings.json から uninstall-hooks で取り除きたいサブコマンドのリスト。
+// agent-telemetry のリリースで廃止された hook 名を入れる。
+var LegacyClaudeSubcommands = []string{
+	"todo-cleanup", // TODO.md 廃止に伴い 2026-05-08 に削除
 }
 
 // CodexHookSpecs lists the canonical hooks for Codex CLI. PostToolUse is
@@ -113,8 +119,7 @@ func printClaude(w io.Writer) {
 	fmt.Fprintln(w, "  {")
 	fmt.Fprintln(w, "    \"hooks\": {")
 	fmt.Fprintln(w, "      \"SessionStart\": [")
-	fmt.Fprintln(w, "        {\"matcher\": \"\", \"hooks\": [{\"type\": \"command\", \"command\": \"agent-telemetry hook session-start --agent claude\"}]},")
-	fmt.Fprintln(w, "        {\"matcher\": \"\", \"hooks\": [{\"type\": \"command\", \"command\": \"agent-telemetry hook todo-cleanup\"}]}")
+	fmt.Fprintln(w, "        {\"matcher\": \"\", \"hooks\": [{\"type\": \"command\", \"command\": \"agent-telemetry hook session-start --agent claude\"}]}")
 	fmt.Fprintln(w, "      ],")
 	fmt.Fprintln(w, "      \"SessionEnd\": [")
 	fmt.Fprintln(w, "        {\"matcher\": \"\", \"hooks\": [{\"type\": \"command\", \"command\": \"agent-telemetry hook session-end --agent claude\", \"timeout\": 10}]}")

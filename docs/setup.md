@@ -51,8 +51,7 @@ agent-telemetry setup --agent codex
 {
   "hooks": {
     "SessionStart": [
-      {"matcher": "", "hooks": [{"type": "command", "command": "agent-telemetry hook session-start --agent claude"}]},
-      {"matcher": "", "hooks": [{"type": "command", "command": "agent-telemetry hook todo-cleanup"}]}
+      {"matcher": "", "hooks": [{"type": "command", "command": "agent-telemetry hook session-start --agent claude"}]}
     ],
     "SessionEnd": [
       {"matcher": "", "hooks": [{"type": "command", "command": "agent-telemetry hook session-end --agent claude", "timeout": 10}]}

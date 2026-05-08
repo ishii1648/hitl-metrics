@@ -49,20 +49,20 @@ func Uninstall() error {
 	}
 
 	removed := 0
-	for _, spec := range ClaudeHookSpecs {
-		raw, ok := hooks[spec.Event]
+	cleanEvent := func(event, subcommand string) error {
+		raw, ok := hooks[event]
 		if !ok {
-			continue
+			return nil
 		}
 		var entries []hookEntry
 		if err := json.Unmarshal(raw, &entries); err != nil {
-			return fmt.Errorf("parse hooks.%s: %w", spec.Event, err)
+			return fmt.Errorf("parse hooks.%s: %w", event, err)
 		}
 
 		filtered := entries[:0]
 		for _, e := range entries {
-			if isHitlOnlyEntry(e, spec.Subcommand) {
-				fmt.Printf("uninstall: %s (%s) — 削除\n", spec.Event, spec.Subcommand)
+			if isHitlOnlyEntry(e, subcommand) {
+				fmt.Printf("uninstall: %s (%s) — 削除\n", event, subcommand)
 				removed++
 				continue
 			}
@@ -70,14 +70,34 @@ func Uninstall() error {
 		}
 
 		if len(filtered) == 0 {
-			delete(hooks, spec.Event)
-			continue
+			delete(hooks, event)
+			return nil
 		}
 		out, err := json.Marshal(filtered)
 		if err != nil {
 			return err
 		}
-		hooks[spec.Event] = json.RawMessage(out)
+		hooks[event] = json.RawMessage(out)
+		return nil
+	}
+
+	for _, spec := range ClaudeHookSpecs {
+		if err := cleanEvent(spec.Event, spec.Subcommand); err != nil {
+			return err
+		}
+	}
+	// 廃止済みサブコマンド（過去の install で書き込まれた可能性のあるもの）
+	// は SessionStart に残ることが多い。全イベントを舐めて取り除く。
+	for _, sub := range LegacyClaudeSubcommands {
+		events := make([]string, 0, len(hooks))
+		for event := range hooks {
+			events = append(events, event)
+		}
+		for _, event := range events {
+			if err := cleanEvent(event, sub); err != nil {
+				return err
+			}
+		}
 	}
 
 	if removed == 0 {
