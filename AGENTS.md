@@ -81,7 +81,6 @@ issues/
 # <タイトル>
 
 Created: YYYY-MM-DD
-Model: <model-name> <version>
 
 ## 概要
 

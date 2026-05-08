@@ -1,7 +1,6 @@
 # PR ↔ session 紐づけが PostToolUse 正規表現で汚染される
 
 Created: 2026-05-07
-Model: Opus 4.7
 
 ## 概要
 
