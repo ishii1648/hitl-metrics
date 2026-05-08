@@ -84,7 +84,10 @@ func ensureSchema(db *sql.DB) error {
 }
 
 func runWithSources(sources []agentSource, dbPath string) error {
-	db, err := sql.Open("sqlite", dbPath)
+	// _pragma=busy_timeout は新規コネクションごとに適用される。サブエージェント
+	// 終了などで Stop hook が並行発火して sync-db プロセスが多重起動された際、
+	// 後続プロセスがライタロック解放を待てるようにして SQLITE_BUSY 即時失敗を防ぐ。
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(30000)")
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}
