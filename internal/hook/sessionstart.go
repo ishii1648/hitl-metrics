@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ishii1648/agent-telemetry/internal/agent"
+	"github.com/ishii1648/agent-telemetry/internal/userid"
 )
 
 // RunSessionStart handles the SessionStart hook event for the given agent.
@@ -29,10 +30,13 @@ func RunSessionStart(input *HookInput, a *agent.Agent) error {
 
 	repo, branch := extractGitInfo(input.CWD)
 
+	resolvedUser, _ := userid.Resolve()
+
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	entry := map[string]interface{}{
 		"coding_agent":      a.Name,
 		"agent_version":     input.AgentVersion(a.Name),
+		"user_id":           resolvedUser,
 		"timestamp":         timestamp,
 		"session_id":        input.SessionID,
 		"cwd":               input.CWD,

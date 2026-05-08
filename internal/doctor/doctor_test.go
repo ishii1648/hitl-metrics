@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ishii1648/agent-telemetry/internal/agent"
+	"github.com/ishii1648/agent-telemetry/internal/userid"
 )
 
 // fakeLoader returns a SettingsLoader that yields the given commands per
@@ -31,6 +32,7 @@ func envWith(t *testing.T, agents []*agent.Agent, lookOK bool, settings map[stri
 		Agents:         agents,
 		SettingsLoader: fakeLoader(settings),
 		LegacyPaths:    func() []string { return nil },
+		UserResolver:   func() (string, userid.Source) { return "alice@example.com", userid.SourceConfig },
 	}
 }
 
@@ -162,6 +164,58 @@ func TestRun_LegacyArtifactsSurfacedAsWarning(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q\n%s", want, out)
 		}
+	}
+}
+
+func TestRun_UserIDResolved(t *testing.T) {
+	dir := t.TempDir()
+	a := &agent.Agent{Name: agent.NameClaude, DataDir: dir}
+
+	env := envWith(t, []*agent.Agent{a}, true, map[string]map[string][]string{
+		agent.NameClaude: {
+			"SessionStart": {"agent-telemetry hook session-start"},
+			"SessionEnd":   {"agent-telemetry hook session-end"},
+			"Stop":         {"agent-telemetry hook stop"},
+		},
+	})
+
+	var buf bytes.Buffer
+	r, err := RunWith(&buf, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.HasFailure() {
+		t.Fatalf("user_id check should not cause failure: %s", buf.String())
+	}
+	out := buf.String()
+	if !strings.Contains(out, "user_id: alice@example.com") || !strings.Contains(out, "source: config") {
+		t.Errorf("user_id line missing/wrong:\n%s", out)
+	}
+}
+
+func TestRun_UserIDUnknownSurfacedAsWarning(t *testing.T) {
+	dir := t.TempDir()
+	a := &agent.Agent{Name: agent.NameClaude, DataDir: dir}
+
+	env := envWith(t, []*agent.Agent{a}, true, map[string]map[string][]string{
+		agent.NameClaude: {
+			"SessionStart": {"agent-telemetry hook session-start"},
+			"SessionEnd":   {"agent-telemetry hook session-end"},
+			"Stop":         {"agent-telemetry hook stop"},
+		},
+	})
+	env.UserResolver = func() (string, userid.Source) { return userid.Unknown, userid.SourceUnknown }
+
+	var buf bytes.Buffer
+	r, err := RunWith(&buf, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.HasFailure() {
+		t.Fatalf("unknown user_id is a warning, not a failure: %s", buf.String())
+	}
+	if !strings.Contains(buf.String(), "user_id: unknown") {
+		t.Errorf("expected unknown warning:\n%s", buf.String())
 	}
 }
 

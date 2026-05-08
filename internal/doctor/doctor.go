@@ -13,6 +13,7 @@ import (
 	"github.com/ishii1648/agent-telemetry/internal/agent"
 	"github.com/ishii1648/agent-telemetry/internal/legacy"
 	"github.com/ishii1648/agent-telemetry/internal/setup"
+	"github.com/ishii1648/agent-telemetry/internal/userid"
 )
 
 // Run executes all checks against the real filesystem and writes a report
@@ -28,6 +29,9 @@ func RunWith(w io.Writer, env Env) (Result, error) {
 
 	r.Binary = checkBinary(env)
 	writeBinary(w, r.Binary)
+
+	r.User = checkUser(env)
+	writeUser(w, r.User)
 
 	for _, a := range env.Agents {
 		ar := AgentReport{Agent: a}
@@ -64,6 +68,10 @@ type Env struct {
 	// LegacyPaths returns paths from the hitl-metrics era that still exist
 	// on disk. When nil, defaults to legacy.PresentLegacyPaths.
 	LegacyPaths func() []string
+
+	// UserResolver returns the resolved user_id and the source tier that
+	// produced it. When nil, defaults to userid.Resolve.
+	UserResolver func() (string, userid.Source)
 }
 
 func defaultEnv() Env {
@@ -81,8 +89,17 @@ func defaultEnv() Env {
 // Result aggregates the outcome of every check.
 type Result struct {
 	Binary       CheckResult
+	User         UserCheck
 	AgentReports []AgentReport
 	Legacy       LegacyReport
+}
+
+// UserCheck reports the resolved user_id and which precedence tier produced it.
+// `unknown` is surfaced as a warning (not a failure) — sessions still record,
+// they're just attributed to the shared `unknown` bucket.
+type UserCheck struct {
+	UserID string
+	Source userid.Source
 }
 
 // HasFailure is true when at least one check did not pass. Legacy
@@ -137,6 +154,15 @@ type LegacyHook struct {
 	Agent   string
 	Event   string
 	Command string
+}
+
+func checkUser(env Env) UserCheck {
+	resolver := env.UserResolver
+	if resolver == nil {
+		resolver = userid.Resolve
+	}
+	id, src := resolver()
+	return UserCheck{UserID: id, Source: src}
 }
 
 func checkBinary(env Env) CheckResult {
@@ -269,6 +295,15 @@ const (
 	markFail = "✗"
 	markWarn = "⚠"
 )
+
+func writeUser(w io.Writer, c UserCheck) {
+	if c.Source == userid.SourceUnknown {
+		fmt.Fprintf(w, "%s user_id: %s (no source — set %s, ~/.claude/agent-telemetry.toml, or `git config --global user.email`)\n",
+			markWarn, c.UserID, userid.EnvVar)
+		return
+	}
+	fmt.Fprintf(w, "%s user_id: %s (source: %s)\n", markPass, c.UserID, c.Source)
+}
 
 func writeBinary(w io.Writer, c CheckResult) {
 	if c.OK {

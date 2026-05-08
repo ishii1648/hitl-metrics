@@ -19,6 +19,7 @@ CREATE TABLE sessions (
     session_id        TEXT NOT NULL,
     coding_agent      TEXT NOT NULL DEFAULT 'claude',
     agent_version     TEXT NOT NULL DEFAULT '',
+    user_id           TEXT NOT NULL DEFAULT 'unknown',
     timestamp         TEXT NOT NULL,
     cwd               TEXT NOT NULL DEFAULT '',
     repo              TEXT NOT NULL DEFAULT '',
@@ -57,6 +58,7 @@ CREATE TABLE transcript_stats (
 CREATE INDEX idx_sessions_pr_url ON sessions(pr_url);
 CREATE INDEX idx_sessions_repo ON sessions(repo);
 CREATE INDEX idx_sessions_coding_agent ON sessions(coding_agent);
+CREATE INDEX idx_sessions_user_id ON sessions(user_id);
 
 CREATE VIEW session_intervals AS
 SELECT
@@ -126,6 +128,7 @@ FROM (
         s.pr_url,
         MAX(s.pr_title) AS pr_title,
         s.coding_agent,
+        s.user_id,
         MAX(s.task_type) AS task_type,
         MAX(ts.model) AS model,
         COUNT(DISTINCT s.session_id) AS session_count,
@@ -147,22 +150,24 @@ FROM (
       AND s.is_merged = 1
       AND COALESCE(ts.is_ghost, 0) = 0
       AND s.repo NOT IN ('ishii1648/dotfiles')
-    GROUP BY s.pr_url, s.coding_agent
+    GROUP BY s.pr_url, s.coding_agent, s.user_id
 ) pm;
 
 -- merge 時刻が schema に無いため、PR に紐づくセッション群の最後のタイムスタンプを近似値として使う
 -- ended_at が空のセッション（hook 未実装・abort・強制終了）でも timestamp で代替して拾う
+-- user_id を集約軸に含めることで pr_metrics と 1:1 で JOIN できる（pair coding 時の行膨張を防ぐ）
 CREATE VIEW pr_merged_at_approx AS
 SELECT
     pr_url,
     coding_agent,
+    user_id,
     MAX(COALESCE(NULLIF(ended_at, ''), timestamp)) AS merged_at_approx
 FROM sessions
 WHERE pr_url != ''
   AND is_merged = 1
   AND is_subagent = 0
   AND repo NOT IN ('ishii1648/dotfiles')
-GROUP BY pr_url, coding_agent;
+GROUP BY pr_url, coding_agent, user_id;
 
 CREATE VIEW weekly_pr_metrics AS
 SELECT
@@ -174,7 +179,7 @@ SELECT
     ROUND(SUM(CASE WHEN pm.changes_requested > 0 THEN 1.0 ELSE 0 END) / COUNT(DISTINCT p.pr_url), 3) AS changes_requested_rate
 FROM pr_merged_at_approx p
 JOIN pr_metrics pm
-    ON pm.pr_url = p.pr_url AND pm.coding_agent = p.coding_agent
+    ON pm.pr_url = p.pr_url AND pm.coding_agent = p.coding_agent AND pm.user_id = p.user_id
 GROUP BY date(p.merged_at_approx, 'weekday 0', '-6 days'), p.coding_agent;
 
 CREATE VIEW weekly_session_metrics AS

@@ -1,4 +1,5 @@
 .outputs/
+.cache/
 e2e/testdata/agent-telemetry.db
 e2e/testdata/agent-telemetry.db-shm
 e2e/testdata/agent-telemetry.db-wal
