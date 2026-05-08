@@ -224,7 +224,7 @@ GROUP BY は (`pr_url`, `coding_agent`)。同一 PR が複数 agent から触ら
 
 ---
 
-これらのカラム/VIEW を OpenMetrics 名でどう参照するか、何を観察したいか・どう解釈すべきかは `docs/metrics.md` を参照する。
+これらのカラム/VIEW のメトリクス名・型・ラベル一覧、および何を観察したいか・どう解釈すべきかは `docs/metrics.md` を参照する。
 
 ---
 
