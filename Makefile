@@ -71,5 +71,19 @@ grafana-down:
 grafana-screenshot: grafana-up-e2e
 	GRAFANA_PORT=$(GRAFANA_E2E_PORT) bash e2e/screenshot.sh .outputs/grafana-screenshots
 
-lint-dashboard:
-	go run github.com/grafana/dashboard-linter@latest lint --strict --config grafana/dashboards/.lint grafana/dashboards/agent-telemetry.json
+DASHBOARD_LINTER_VERSION ?= v0.1.0
+DASHBOARD_LINTER_DIR     := .cache/dashboard-linter
+DASHBOARD_LINTER_BIN     := $(DASHBOARD_LINTER_DIR)/dashboard-linter
+
+# v0.1.0 の go.mod に replace directive が含まれており、Go 1.25 以降の `go run pkg@version`
+# / `go install pkg@version` ではビルド不能 (replace を持つ依存はメインモジュールでのみ
+# 解釈される)。ソースを直接 clone してビルドし、生成バイナリを呼ぶ方式に切り替える。
+$(DASHBOARD_LINTER_BIN):
+	@mkdir -p $(DASHBOARD_LINTER_DIR)
+	rm -rf $(DASHBOARD_LINTER_DIR)/src
+	git clone --depth=1 --branch $(DASHBOARD_LINTER_VERSION) \
+	    https://github.com/grafana/dashboard-linter $(DASHBOARD_LINTER_DIR)/src
+	cd $(DASHBOARD_LINTER_DIR)/src && go build -o ../dashboard-linter ./
+
+lint-dashboard: $(DASHBOARD_LINTER_BIN)
+	$(DASHBOARD_LINTER_BIN) lint --strict --config grafana/dashboards/.lint grafana/dashboards/agent-telemetry.json
