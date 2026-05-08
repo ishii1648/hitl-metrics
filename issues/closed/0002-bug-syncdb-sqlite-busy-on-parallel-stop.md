@@ -1,7 +1,6 @@
 # Stop hook 多重発火時の sync-db が SQLITE_BUSY で失敗する
 
 Created: 2026-05-08
-Model: Opus 4.7
 
 ## 概要
 
