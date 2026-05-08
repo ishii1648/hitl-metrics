@@ -51,3 +51,13 @@ db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(30000)")
 | D: 3000+ 件の `INSERT OR REPLACE` を差分同期に分割 | 中長期の改善案。ロック保持時間そのものを短縮する根本対処だが、本 issue のスコープ外 |
 
 C / D は将来必要になれば別 issue で扱う。
+
+Completed: 2026-05-08
+
+## 解決方法
+
+- `internal/syncdb/syncdb.go` の `runWithSources` で SQLite を開く DSN に `?_pragma=busy_timeout(30000)` を付与。`modernc.org/sqlite` ドライバはこの query string を新規コネクションごとに `PRAGMA busy_timeout=30000` として実行するため、`database/sql` のコネクションプールから払い出されるすべてのコネクションに 30 秒の待機が効く
+- 回帰テスト `TestRunWithPaths_BusyTimeoutWaitsForWriter` を追加。書き込みロックを別コネクションで保持した状態で goroutine から `RunWithPaths` を起動し、ロック解放後に成功することを確認する。修正なしでは同じテストが `database is locked (5) (SQLITE_BUSY)` で FAIL することを再現確認済み
+- 関連 PR: #34
+
+`go test ./...` 全 pass。`busy_timeout` は SQLITE_BUSY を「即時失敗」から「最大 30 秒待機」に変えるだけで、根本的なロック保持時間そのものは短縮しない。3000+ 件の `INSERT OR REPLACE` の差分同期化（D 案）や flock による排他化（C 案）は将来必要になった時点で別 issue として扱う。
