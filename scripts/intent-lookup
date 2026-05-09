@@ -1,0 +1,213 @@
+#!/usr/bin/env bash
+# intent-lookup — code path から構造化された意図記録を逆引きする。
+#
+# issues/<id>-*.md / issues/closed/*.md / issues/pending/*.md の frontmatter から
+# affected_paths が overlap する issue を一覧し、併せて `git log --follow` の
+# Contextual Commits 行（intent: / decision: / rejected: / constraint: / learned:）
+# を抽出してマージ表示する。
+#
+# Usage:
+#   scripts/intent-lookup <path> [--format=markdown|json]
+#
+# Dependencies: yq (mikefarah), jq, git.
+set -euo pipefail
+
+usage() {
+    cat >&2 <<'EOF'
+Usage: intent-lookup <path> [--format=markdown|json]
+
+issues/ frontmatter と git log Contextual Commits 行から、指定 path に effect を
+持つ過去の意思決定を逆引きする。
+
+Options:
+  --format=markdown   default; 人が読みやすい markdown 出力
+  --format=json       機械可読 JSON 出力（Claude / 将来の build パイプライン用）
+  -h, --help          show this help
+
+Dependencies: yq (mikefarah), jq, git.
+EOF
+}
+
+format=markdown
+target=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --format=*) format="${1#--format=}" ;;
+        --format)
+            shift
+            [ $# -gt 0 ] || { echo "--format requires a value" >&2; exit 2; }
+            format="$1"
+            ;;
+        -h|--help) usage; exit 0 ;;
+        --) shift; [ $# -gt 0 ] && target="$1"; break ;;
+        -*) echo "unknown option: $1" >&2; usage; exit 2 ;;
+        *)
+            if [ -z "$target" ]; then
+                target="$1"
+            else
+                echo "unexpected argument: $1" >&2; usage; exit 2
+            fi
+            ;;
+    esac
+    shift
+done
+
+if [ -z "$target" ]; then
+    usage; exit 2
+fi
+
+case "$format" in
+    markdown|json) ;;
+    *) echo "unknown format: $format (expected markdown|json)" >&2; exit 2 ;;
+esac
+
+for tool in yq jq git awk; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "missing dependency: $tool" >&2
+        exit 1
+    fi
+done
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$repo_root" ]; then
+    echo "not inside a git repository" >&2
+    exit 1
+fi
+cd "$repo_root"
+
+# normalize: strip leading ./ and trailing /
+target_norm="${target#./}"
+target_norm="${target_norm%/}"
+
+# extract YAML frontmatter (between first --- and second ---)
+extract_frontmatter() {
+    awk 'BEGIN{c=0} /^---$/{c++; if(c==2)exit; next} c==1' "$1"
+}
+
+# bidirectional prefix overlap (entry ⊆ query  OR  query ⊆ entry)
+paths_overlap() {
+    local entry="$1" query="$2"
+    entry="${entry%/}"
+    query="${query%/}"
+    [ "$entry" = "$query" ] && return 0
+    case "$query" in "$entry"/*) return 0 ;; esac
+    case "$entry" in "$query"/*) return 0 ;; esac
+    return 1
+}
+
+# ---------- collect issues ----------
+issues_json='[]'
+shopt -s nullglob
+for f in issues/*.md issues/closed/*.md issues/pending/*.md; do
+    fm="$(extract_frontmatter "$f")"
+    [ -n "$fm" ] || continue
+    fm_json="$(printf '%s\n' "$fm" | yq -o=json '.' 2>/dev/null || echo 'null')"
+    [ "$fm_json" = "null" ] && continue
+    [ -z "$fm_json" ] && continue
+
+    matched=0
+    while IFS= read -r p; do
+        [ -n "$p" ] || continue
+        if paths_overlap "$p" "$target_norm"; then
+            matched=1
+            break
+        fi
+    done < <(printf '%s' "$fm_json" | jq -r '(.affected_paths // []) | .[]' 2>/dev/null || true)
+
+    [ "$matched" -eq 1 ] || continue
+
+    case "$f" in
+        issues/closed/*) status=closed ;;
+        issues/pending/*) status=pending ;;
+        *) status=open ;;
+    esac
+
+    title="$(awk '/^# /{sub(/^# /,""); print; exit}' "$f")"
+    id_with_slug="$(basename "$f" .md)"
+    id="${id_with_slug%%-*}"
+
+    issues_json="$(jq --arg path "$f" \
+                       --arg status "$status" \
+                       --arg title "$title" \
+                       --arg id "$id" \
+                       --argjson fm "$fm_json" \
+                       '. + [{id: $id, status: $status, title: $title, path: $path, frontmatter: $fm}]' \
+                       <<<"$issues_json")"
+done
+shopt -u nullglob
+
+# stable sort by id
+issues_json="$(jq 'sort_by(.id)' <<<"$issues_json")"
+
+# ---------- collect git log action lines ----------
+commits_json='[]'
+if git log --follow --format='%H' -- "$target_norm" >/dev/null 2>&1; then
+    while IFS= read -r sha; do
+        [ -n "$sha" ] || continue
+        meta="$(git log -1 --format='%h%x1f%aI%x1f%s' "$sha" 2>/dev/null || true)"
+        [ -n "$meta" ] || continue
+        short="${meta%%$'\x1f'*}"
+        rest="${meta#*$'\x1f'}"
+        date="${rest%%$'\x1f'*}"
+        subject="${rest#*$'\x1f'}"
+
+        body="$(git log -1 --format='%b' "$sha" 2>/dev/null || true)"
+        actions="$(printf '%s\n' "$body" | awk '/^[[:space:]]*(intent|decision|rejected|constraint|learned):/{print}')"
+        [ -z "$actions" ] && continue
+
+        commits_json="$(jq --arg sha "$sha" \
+                           --arg short "$short" \
+                           --arg date "$date" \
+                           --arg subject "$subject" \
+                           --arg actions "$actions" \
+                           '. + [{sha: $sha, short: $short, date: $date, subject: $subject, actions: ($actions | rtrimstr("\n") | split("\n"))}]' \
+                           <<<"$commits_json")"
+    done < <(git log --follow --format='%H' -- "$target_norm" 2>/dev/null || true)
+fi
+
+# ---------- output ----------
+if [ "$format" = "json" ]; then
+    jq -n --arg path "$target_norm" \
+          --argjson issues "$issues_json" \
+          --argjson commits "$commits_json" \
+          '{path: $path, issues: $issues, commits: $commits}'
+    exit 0
+fi
+
+# markdown output
+issue_count="$(jq 'length' <<<"$issues_json")"
+commit_count="$(jq 'length' <<<"$commits_json")"
+
+printf '# Intent for `%s`\n\n' "$target_norm"
+printf '_%d issue(s), %d commit(s) with action lines._\n\n' "$issue_count" "$commit_count"
+
+if [ "$issue_count" -gt 0 ]; then
+    printf '## Issues\n\n'
+    jq -r '.[] |
+        "### #\(.id) [\(.status)] — \(.title)\n" +
+        "- file: `\(.path)`\n" +
+        "- decision_type: `\(.frontmatter.decision_type // "—")`\n" +
+        (if (.frontmatter.affected_paths // []) | length > 0 then
+            "- affected_paths:\n" + ((.frontmatter.affected_paths // []) | map("    - `\(.)`") | join("\n")) + "\n"
+         else "" end) +
+        (if (.frontmatter.tags // []) | length > 0 then
+            "- tags: " + ((.frontmatter.tags // []) | map("`\(.)`") | join(", ")) + "\n"
+         else "" end) +
+        (if (.frontmatter.supersedes // []) | length > 0 then
+            "- supersedes: " + ((.frontmatter.supersedes // []) | map("#\(.)") | join(", ")) + "\n"
+         else "" end) +
+        (if .frontmatter.closed_at then "- closed_at: \(.frontmatter.closed_at)\n" else "" end)
+    ' <<<"$issues_json"
+fi
+
+if [ "$commit_count" -gt 0 ]; then
+    printf '## Commits (Contextual Commits action lines)\n\n'
+    jq -r '.[] |
+        "### \(.short) \(.date[0:10]) — \(.subject)\n" +
+        (.actions | map("- " + .) | join("\n")) + "\n"
+    ' <<<"$commits_json"
+fi
+
+if [ "$issue_count" -eq 0 ] && [ "$commit_count" -eq 0 ]; then
+    printf '_No structured intent found for this path._\n'
+fi
