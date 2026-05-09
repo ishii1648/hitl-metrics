@@ -1,0 +1,106 @@
+# 構造化された意図蓄積 — issues/ への frontmatter 導入と path 逆引き
+
+Created: 2026-05-09
+
+## 概要
+
+`issues/<NNNN>-*.md` の意味を「タスク」から「**タスク兼意思決定記録**」に拡張する。issue に frontmatter（`decision_type` / `affected_paths` / `supersedes` / `tags` / `closed_at`）を追加し、意思決定の構造化された primary store とする。コードを編集している場所から関連する過去の意図を逆引きできる CLI を提供する。
+
+## 根拠
+
+agentic engineering で最も参照される情報は「なぜその仕様・設計・実装にしたのか」。これはコード・spec・design いずれにも登場せず、将来の実装変更やバグ修正の際に決定的に重要となる。
+
+現状の意図は 4 箇所に分散している（`docs/history.md` / `docs/archive/adr/` / Contextual Commits の action 行 / `issues/closed/*.md` の `## 解決方法`）が、以下の構造的な弱点を抱える：
+
+1. **`history.md` は事後編集**で「これは history に書くべき」という判断漏れで永久に欠落する。capture が optional なので decay する
+2. **粒度が大方針に偏る**。history.md は 11 件の pivot しか拾えず、API 命名・retry 戦略・フィールド追加の根拠・フラグ既定値の根拠などの micro decision は commit body にしか残らない
+3. **コードからの逆引きが存在しない**。`internal/agent/codex/parser.go` を編集する時に、その場所に effect を持つ過去の意思決定を引くインターフェースがない（`git blame` → commit body → 隣接 issue を辿る職人芸でしか辿れない）
+
+issues/ への移行で得られた基盤（**永続化された連番** / **ライフサイクル** / **closed の `## 解決方法`**）を活用すれば、上記 3 点を構造的に解決できる。
+
+## 問題
+
+- frontmatter 規約が未定義（書き手によってバラバラになる）
+- 既存の open / closed / pending issues に frontmatter が入っていない（retrofit が必要）
+- code path から intent を逆引きするインターフェースがない
+- `AGENTS.md` の「issues について」が「タスクの記録」前提のまま（拡張された意味論が未反映）
+- `CLAUDE.md` の「意思決定の記録方針」が history.md / commit / spec / design の 4 分類のままで、issue が意思決定 store として位置づけられていない
+
+## 対応方針
+
+意思決定の primary store を **issues/** に集約する。段階 1 が前提、段階 3 まで終われば「コードを触る Claude が当該箇所の過去の意思決定を取れる」状態になる。
+
+### 段階 1: frontmatter 規約
+
+`AGENTS.md` の「issue ファイルの構造」セクションに以下の frontmatter を追記する：
+
+```yaml
+---
+decision_type: spec | design | implementation | process
+affected_paths:
+  - internal/agent/codex/
+  - cmd/agent-telemetry/setup.go
+supersedes: [0023]
+tags: [hooks, multi-agent, packaging]
+closed_at: YYYY-MM-DD
+---
+```
+
+セマンティクス:
+
+- `decision_type` — 意思決定の層（`spec`=外部契約 / `design`=内部設計 / `implementation`=実装 detail / `process`=開発プロセス）
+- `affected_paths` — path snapshot。rename は `git log --follow` で逆引き側が吸収するため path 自体は更新しない
+- `supersedes` — 過去 issue 番号の配列。supersededBy への双方向参照は索引側で生成
+- `tags` — free-form。当面は明示的なタグ語彙統制を置かず、出現頻度から事後に整理する
+- `closed_at` — close 時に確定。open / pending では省略可
+
+合意済みの線引き: **「複数コミット or 後続が参照しそうな決定」**を issue 化する。1 コミットで完結する判断は Contextual Commits の action 行で十分（既存規約のまま）。
+
+### 段階 2: 既存 issue の retrofit
+
+- `issues/closed/*.md` (0001, 0002, 0010) に frontmatter を埋める
+- `issues/<id>-*.md` (0003, 0004, 0009) に open 用の最小 frontmatter を入れる（`closed_at` 省略）
+- `issues/pending/*.md` (0005-0008) にも同様
+- `docs/history.md` の 11 件は本 issue では触らない。retro 化（過去判断を遡って issue として起こすか、history.md に残置するか）は別 issue で扱う
+
+### 段階 3: path 逆引き CLI
+
+`agent-telemetry intent --path <p>` を新設：
+
+- 入力 path に対し `affected_paths` が前方一致する open/closed/pending issues を一覧
+- 併せて `git log --follow -- <path>` で commit body から `intent:` / `decision:` / `rejected:` / `constraint:` / `learned:` 行を抽出してマージ表示
+- 既定出力は markdown（人も Claude も読める）
+- `--format=json` で機械可読出力（Claude が context として読み込みやすくする）
+
+### 段階 4 (本 issue の対象外): HTML view
+
+`make intent-index` で人間用俯瞰 view (timeline / supersedes グラフ / by-path 辞書) を生成する案は別 issue に切り出す。Claude は frontmatter の markdown を直接読むため、本 issue の段階 3 までで agentic 編集サイクルの要求は満たされる。
+
+### `docs/history.md` の位置付け変更
+
+段階 3 完了後の history.md は「**書く場所**」ではなく「**人間が大方針を筋立てたナラティブ要約**」に役割を絞る。新規エントリは原則 issue 側に書き、history.md には issue へのリンクと一文要約のみ追記する形が望ましい。これは段階 2 完了後に CLAUDE.md の「意思決定の記録方針」を更新する形で明文化する。
+
+## 受け入れ条件
+
+- [ ] `AGENTS.md` の「issue ファイルの構造」に frontmatter 仕様を追記し、各フィールドの語彙とセマンティクスを文書化
+- [ ] `AGENTS.md` の「issues について」冒頭で issue が「タスク兼意思決定記録」であることを明記
+- [ ] `CLAUDE.md` の「意思決定の記録方針」を更新し、micro decision の線引き（「複数コミット or 後続が参照しそうな決定」）と issue が primary store である旨を明記
+- [ ] 既存 closed issues 3 件 (0001, 0002, 0010) に frontmatter を retrofit
+- [ ] 既存 open issues 3 件 (0003, 0004, 0009) と pending issues 4 件 (0005-0008) にも最小 frontmatter を追加
+- [ ] `agent-telemetry intent --path <p>` を実装（frontmatter 走査 + `git log --follow` の Contextual Commits 行抽出をマージ）
+- [ ] `--format=json` / 既定 markdown 出力の両方をサポート
+- [ ] CLI のテスト（fixture issue + git log で逆引きが期待通り返ることを検証）
+- [ ] 段階 4（HTML view 生成）は本 issue に含めず、別 issue として切り出す
+
+## 進行方針・PR 分割
+
+- 段階 1（規約）+ 段階 2（retrofit）は同 PR に含めて良い（規約と適用例がセットで意味を持つため）
+- 段階 3（CLI）は別 PR に分ける
+- close 時に frontmatter 必須化する hook / lint は本 issue では入れない（運用後に必要性が出たら別 issue）
+
+## 影響を受ける既存仕様
+
+- `AGENTS.md` の「issues について」セクション
+- `CLAUDE.md` の「意思決定の記録方針」セクション
+- `issues/<id>-*.md` のファイル形式（frontmatter 追加）
+- `cmd/agent-telemetry` (新サブコマンド `intent` の追加)
