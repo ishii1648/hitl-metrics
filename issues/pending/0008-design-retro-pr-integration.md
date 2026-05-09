@@ -1,3 +1,10 @@
+---
+decision_type: design
+affected_paths:
+  - examples/
+tags: [retro-pr, integration, automation]
+---
+
 # retro-pr との連携
 
 Created: 2026-05-08

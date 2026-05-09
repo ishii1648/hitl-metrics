@@ -1,3 +1,11 @@
+---
+decision_type: design
+affected_paths:
+  - internal/hook/
+  - cmd/agent-telemetry/setup.go
+tags: [hooks, path-resolution, packaging]
+---
+
 # Stop hook の agent-telemetry PATH 依存をなくす
 
 Created: 2026-05-08

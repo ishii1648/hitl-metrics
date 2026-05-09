@@ -1,3 +1,12 @@
+---
+decision_type: design
+affected_paths:
+  - site/
+  - docs/
+  - .github/workflows/
+tags: [docs, hugo, gh-pages, site]
+---
+
 # 仕組み解説 docs の Hugo 化と gh-pages 公開
 
 Created: 2026-05-09
