@@ -72,9 +72,11 @@ closed_at: YYYY-MM-DD
 - 既定出力は markdown（人も Claude も読める）
 - `--format=json` で機械可読出力（Claude が context として読み込みやすくする）
 
-### 段階 4 (本 issue の対象外): HTML view
+### 段階 4 (本 issue の対象外): 人間用俯瞰 view
 
-`make intent-index` で人間用俯瞰 view (timeline / supersedes グラフ / by-path 辞書) を生成する案は別 issue に切り出す。Claude は frontmatter の markdown を直接読むため、本 issue の段階 3 までで agentic 編集サイクルの要求は満たされる。
+人間用俯瞰 view（timeline / supersedes グラフ / tag filter / 全文検索）の提供は別 issue として切り出す。**0012 (Hugo docs site) を前提**とし、`site/content/intent/` 配下に issues/ の frontmatter から生成する形で実装する（hand-rolled HTML は採用しない — 機能追加ごとに JS ライブラリを足す負債化を避けるため）。
+
+Claude は引き続き `issues/<id>-*.md` の frontmatter / 本文を直接読むため、段階 3 までで agentic 編集サイクルの要求は満たされる。段階 4 は人間用 view 限定の付加価値。
 
 ### `docs/history.md` の位置付け変更
 
