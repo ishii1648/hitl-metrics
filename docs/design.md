@@ -519,7 +519,7 @@ ingest ハンドラの責務:
 
 `internal/syncdb/schema.sql` をサーバ binary にも埋め込み、起動時に `schema_meta` ハッシュ比較で DDL 再構築する仕組みはクライアントと同じ。**集計ロジック（transcript パース等）はサーバ側に存在しない**。
 
-サーバの SQLite は Grafana datasource として読み込まれる。**ローカル運用と同じ `docker-compose.yaml` を流用し、`AGENT_TELEMETRY_DB` env でサーバ DB ファイルを指すだけで、datasource provisioning / dashboard JSON / Image Renderer 設定がそのまま動く**（`uid: agent-telemetry` を踏襲、`make grafana-up AGENT_TELEMETRY_DB=<server_data>/agent-telemetry.db` で OK）。サーバ専用の Grafana スタックを別ファイルで持たない。
+サーバの SQLite は Grafana datasource として読み込まれる。本番形態は k8s pod を想定し、Grafana の **設定資産**（`grafana/dashboards/agent-telemetry.json` と `grafana/provisioning/datasources/*.yaml`）はローカル `docker-compose.yaml` の volume mount と k8s ConfigMap mount の **両方から同じファイルを参照** する。これによりダッシュボード変更が両環境に同時反映され、二重メンテナンスを避ける。datasource の `uid: agent-telemetry` を踏襲することでクエリ JSON もそのまま動く。配布手段（docker-compose / k8s）自体は揃えず、それぞれの環境ネイティブな形を取る。
 
 ### スキーマバージョン整合性と新メトリクス追加
 
@@ -535,14 +535,17 @@ ingest ハンドラの責務:
 
 複数マシンの同一ユーザで session_id が衝突する確率は UUID として実用上ゼロ。物理コピーされた DB を別マシンから再 push したケースだけが実際の衝突源になる。サーバは `(session_id, coding_agent)` PK で `INSERT OR REPLACE` する（最後に届いたものが勝つ）。衝突検出時は `<server_data>/collisions.log` に記録する。
 
-### 配布形態 — Go binary + Docker overlay
+### 配布形態 — Go binary + Docker image + k8s manifest
 
 | 形態 | 提供物 | 想定 |
 |---|---|---|
-| Go binary | `cmd/agent-telemetry-server/`（goreleaser で配布） | Linux VPS で systemd unit 経由起動。`contrib/systemd/agent-telemetry-server.service` を同梱 |
-| Docker overlay | `Dockerfile.server` + `docker-compose.server.yml` | 既存 `docker-compose.yaml`（Grafana + Image Renderer）を base に、`agent-telemetry-server` サービスのみ追加する **overlay**。`docker compose -f docker-compose.yaml -f docker-compose.server.yml up` で server + Grafana 同居起動できる。Grafana / datasource / dashboard 設定はローカル運用と完全共通 |
+| Go binary | `cmd/agent-telemetry-server/`（goreleaser で配布） | Linux VPS / bare metal で systemd unit 経由起動。`contrib/systemd/agent-telemetry-server.service` を同梱 |
+| Docker image | `Dockerfile.server`（GitHub Container Registry `ghcr.io/ishii1648/agent-telemetry-server` で配布、main push と tag push で自動更新） | k8s pod が pull する正本イメージ。ローカル動作確認時は `docker run` でも使える |
+| k8s manifest | `deploy/k8s/`（Kustomize: base + overlays/local + overlays/production） | 本番デプロイの正本。Deployment（server / Grafana）、Service、ConfigMap（dashboard JSON / datasource provisioning）、PVC（共有 SQLite）、Secret（API key）を提供 |
 
-両者は同一 Go binary をビルドするため、メンテナンスコストはほぼゼロ。**Grafana スタックをサーバ用に複製しない**ことで、ダッシュボード JSON や provisioning 設定の二重メンテナンスも避ける。
+`docker-compose.server.yml` は **作らない**。本番が k8s 想定なので二重メンテナンスを避ける。ローカル動作確認は `kind` / `minikube` で同じ manifest を回せばよい。
+
+Grafana の設定資産（dashboard JSON / datasource provisioning yaml）はローカル `docker-compose.yaml` と k8s ConfigMap の両方から参照される 1 セットで、変更は両環境に同時反映される。
 
 ### 送信量とストレージ
 
