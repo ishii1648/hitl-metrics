@@ -54,19 +54,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned to commit SHAs (with the corresponding tag in a
+      # comment) — version tags are mutable, and a compromised maintainer
+      # account could move v3 → malicious commit. Dependabot can still bump
+      # these when it sees the version comment.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
 
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130  # v3.7.0
         with:
           # arm64 emulation only — amd64 is the host arch on ubuntu-latest.
           platforms: arm64
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
 
       # Login is skipped on PRs — we don't push, so the registry credential
       # isn't needed and skipping it lets fork PRs run without secrets.
       - if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -77,7 +81,7 @@ jobs:
       #   - main branch push        → :latest, :sha-<short>
       #   - tag push (vX.Y.Z)       → :vX.Y.Z, :vX.Y, :vX, :latest
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -93,7 +97,7 @@ jobs:
             org.opencontainers.image.licenses=MIT
 
       - id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
         with:
           context: .
           file: Dockerfile.server
@@ -116,7 +120,7 @@ jobs:
       # consumers verify with `gh attestation verify` or `cosign verify-attestation`.
       # Skipped on PRs — there's no pushed digest to attest.
       - if: github.event_name != 'pull_request'
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be  # v2.4.0
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.build.outputs.digest }}
