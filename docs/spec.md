@@ -1,7 +1,7 @@
 # agent-telemetry 仕様
 
 この文書は agent-telemetry の外部契約を記述する。
-実装方法や設計判断は `docs/design.md`、過去の経緯は `docs/history.md` に分離する。
+実装方法や設計判断は `docs/design.md`、過去の意思決定の経緯は `issues/closed/` の retro issue に分離する。
 セットアップ手順と日常運用は `docs/setup.md` と `docs/usage.md` を参照する。
 
 ---

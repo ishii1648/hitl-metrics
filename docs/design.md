@@ -2,7 +2,7 @@
 
 この文書は `docs/spec.md` の振る舞いをどう実現するかを記述する。
 ユーザ視点の外部契約（CLI・データモデル・hook 仕様）は `docs/spec.md` を正とする。
-過去の実装の経緯と廃止された設計は `docs/history.md` に分離する。
+過去の実装の経緯と廃止された設計は `issues/closed/` の retro issue に分離する。
 
 ---
 
@@ -130,7 +130,7 @@ hook はすべて `agent-telemetry hook <event> [--agent <claude|codex>]` の Go
 - マージ判定の Phase 2 は `last_meta_check` から一定時間（1 時間）経過した場合のみ走る
 - 各グループの `gh pr` 呼び出しは goroutine で 8 並列、1 件あたり 8 秒タイムアウト
 
-過去には fire-and-forget や launchd cron も試みたが、launchd は Claude Code 外の唯一の手作業になり UX が悪化していた。詳細は `docs/history.md` を参照。
+過去には fire-and-forget や launchd cron も試みたが、launchd は Claude Code 外の唯一の手作業になり UX が悪化していた。詳細は [issues/closed/0020-design-backfill-evolution-to-stop-hook.md](../issues/closed/0020-design-backfill-evolution-to-stop-hook.md) を参照。
 
 ### PR の確定は Stop hook で early binding
 
