@@ -1,0 +1,24 @@
+name: actionlint
+
+# CI 自身の壊れ方（workflow YAML の syntax error / shell injection / 存在しない
+# action 入力など）を CI で検出する。lint 自体が落ちれば PR で気付ける。
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - ".github/actionlint*"
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      # download-actionlint.bash と actionlint binary version の両方を pin する。
+      # script URL は commit SHA、binary version は引数の v1.7.12 で固定。
+      - name: Run actionlint
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/914e7df21a07ef503a81201c76d2b11c789d3fca/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color

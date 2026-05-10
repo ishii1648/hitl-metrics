@@ -1,0 +1,43 @@
+version: 2
+
+# Action は SHA pin している箇所があるが Dependabot は version comment
+# (`# v4.3.1` など) を読んで PR を上げ、SHA pin のままバンプしてくれる。
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - go
+
+  # site/ は Hugo modules で theme を入れているが、Hugo modules も裏では
+  # go.mod を使うので gomod ecosystem で扱える。Dependabot 側で hugo-book /
+  # hextra theme の更新も追いかけられる。
+  - package-ecosystem: gomod
+    directory: /site
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - docs
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - docker
