@@ -8,6 +8,9 @@ affected_paths:
   - docs/spec.md
   - docs/design.md
   - docs/history.md
+# 0027 で docs/history.md 自体を廃止したため path 不在
+lint_ignore_missing:
+  - docs/history.md
 tags: [pr-binding, hooks, sessionindex]
 closed_at: 2026-05-08
 ---
@@ -45,7 +48,7 @@ Stop hook 時点で `gh pr list --head <branch> --author @me` を 1 回叩いて
 - pin 失敗（PR 未作成 / `gh` エラー / cwd 不在）は best-effort で skip し、既存の backfill late binding にフォールバック
 - `Phase 2` の meta 取得（`is_merged` / `review_comments`）は pinned セッションも継続対象にする
 
-検討した代替案（`docs/history.md` の 9 番に詳細）:
+検討した代替案（[0022-design-pr-resolve-early-binding.md](0022-design-pr-resolve-early-binding.md) に詳細）:
 
 | 案 | 採否 |
 |---|---|

@@ -8,6 +8,9 @@ affected_paths:
 # (retro 化で 11 件の new issue を生むため、issues/ 全体への影響は legitimate)
 lint_ignore_broad:
   - issues/
+# 0027 で docs/history.md 自体を廃止したため path 不在
+lint_ignore_missing:
+  - docs/history.md
 tags: [intent, history, retro, decision-record]
 closed_at: 2026-05-10
 ---
@@ -117,3 +120,7 @@ input として load する正本にする」方向が確定したため、`make
 - **選別して一部のみ retro 化**: 「どの基準で外したか」を後から再検討するコストが、全件 sweep の追加コストを上回る
 - **history.md エントリに `affected_paths` メタを追加して逆引き対応**: フォーマット拡張が必要で、issue 側の frontmatter スキーマと二重管理になる
 - **history.md の narrative を全削除**: プロジェクト史の流れを失う。閲覧導線としての価値も消える
+
+## 後続の発展
+
+- 同日中の進化として [0027](0027-process-deprecate-history-md.md) で `docs/history.md` 自体を廃止する判断に至った。本 issue で残した「ナラティブ要約 + retro issue リンク」90 行が、結局 retro issue の `## 概要` セクションを 11 件並べたものでしかなく chronological view 以外の付加価値がなかったため。本 issue の「採用しなかった代替: history.md の narrative を全削除」は当時の判断としては正しかったが、実際にナラティブ要約を残してみた結果として情報量の薄さが顕在化したため、結論を覆して 0027 で削除に振り切った

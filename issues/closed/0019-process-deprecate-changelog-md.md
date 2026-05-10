@@ -4,6 +4,9 @@ affected_paths:
   - docs/history.md
   - .claude/skills/git-ship/
   - internal/hook/
+# 0027 で docs/history.md 自体を廃止したため path 不在
+lint_ignore_missing:
+  - docs/history.md
 tags: [retro, documentation, release-notes, changelog]
 closed_at: 2026-05-02
 ---
@@ -55,3 +58,4 @@ CHANGELOG.md を廃止し、4 つの store に役割を再分配する。
 
 - [0011](0011-feat-structured-intent-on-issues.md) で意思決定の primary store が `issues/` に移行し、history.md は事後ナラティブ要約に役割を絞る方針に再定義
 - 0013 で history.md の retro 化を実施し、本 issue 自体もその対象として retro 化
+- [0027](0027-process-deprecate-history-md.md) で `docs/history.md` 自体を廃止。本 issue が確立した 4 store split（GitHub Release / history.md / Contextual Commits / `git log`）は 3 store split に簡素化された（WHY の行き先は `issues/closed/` の retro issue）

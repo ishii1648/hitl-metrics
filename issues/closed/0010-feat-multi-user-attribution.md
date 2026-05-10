@@ -9,6 +9,9 @@ affected_paths:
   - docs/spec.md
   - docs/design.md
   - docs/history.md
+# 0027 で docs/history.md 自体を廃止したため path 不在
+lint_ignore_missing:
+  - docs/history.md
 tags: [user-id, multi-user, schema]
 closed_at: 2026-05-08
 ---
@@ -58,7 +61,7 @@ Completed: 2026-05-08
 
 ## 解決方法
 
-`session-index.jsonl` レコードと `sessions` テーブルに `user_id` フィールドを追加し、SessionStart hook 経由で取得・記録する経路を実装した。仕様は `docs/spec.md`、設計判断は `docs/design.md` の「ユーザ識別子」節と `docs/history.md` の「11. user 識別子の導入」節に書き起こした。
+`session-index.jsonl` レコードと `sessions` テーブルに `user_id` フィールドを追加し、SessionStart hook 経由で取得・記録する経路を実装した。仕様は `docs/spec.md`、設計判断は `docs/design.md` の「ユーザ識別子」節、retro 化された決定記録は [0024-spec-introduce-user-id-field.md](0024-spec-introduce-user-id-field.md) に書き起こした。
 
 ### 確定した方針
 

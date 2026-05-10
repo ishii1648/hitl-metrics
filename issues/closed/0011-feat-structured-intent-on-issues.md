@@ -251,3 +251,7 @@ issue 本文の例では当初 `make intent PATH=<p>` だったが、`PATH` は 
 
 - `make test-intent` → 21 ケース全 pass。lookup（JSON 構造 / bidirectional prefix overlap / 関係ない issue の除外 / action 行のないコミットの除外 / markdown 構造 / no-arg / frontmatter 欠落 skip）+ 本文抜粋（excerpt が `### 段階 N` を伴う場合は本文も取り込む / `--full` で全段階を含む）+ `--lint`（frontmatter 欠落 / 不正 decision_type / broad / missing / top-level file は broad ではない）+ rename-aware（git mv 後に新 path / 旧 path どちらで引いても元 issue がヒット）の 4 系統
 - `./scripts/intent-lookup internal/hook/stop.go` / `make intent-lint` 等の手動実行で実 repo に対する出力も期待通り（実 repo の lint は 6 件の legitimate な warning を返す: 0012 の `site/` 未作成 / 0005 の存在しない path / 0008 の broad `examples/` など）
+
+## 後続の発展
+
+- [0027](0027-process-deprecate-history-md.md) で `docs/history.md` 自体を廃止し、本 issue で位置付けた「issue が primary、history.md は事後ナラティブ要約」の二段構えを「issues/closed/ 一本化」に簡素化した。本 issue の「`docs/history.md` の位置付け変更」節と受け入れ条件にある history.md 関連の記述は、その時点で superseded された
