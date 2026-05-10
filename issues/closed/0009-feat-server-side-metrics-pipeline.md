@@ -3,8 +3,8 @@ decision_type: design
 affected_paths:
   - docs/spec.md
   - docs/design.md
-  - docs/metrics.md
-tags: [server, transport, otlp, multi-user]
+tags: [server, transport, multi-user]
+closed_at: 2026-05-10
 ---
 
 # 収集した metrics をサーバ側に転送・加工・表示できるようにする
@@ -46,3 +46,48 @@ Created: 2026-05-08
 検討の結果、たたき台を採らない判断もあり得る。`docs/spec.md` の hook / CLI 仕様は転送経路の有無で接点が増える可能性が高いので、決まった時点で同期する。
 
 依存: 0010（複数人のデータ識別）— サーバへ集約する前提で必須。両方が揃わないと意味のある可視化にならない。
+
+Completed: 2026-05-10
+
+## 解決方法
+
+設計セッションで方針を確定し、`docs/spec.md` / `docs/design.md` に書き起こした。実装は子 issue 0028 / 0029 / 0030 に分解した。
+
+### 確定した方針
+
+- **送信ペイロード**: `session-index.jsonl` 差分行 + transcript JSONL を **そのまま** raw 転送（集計済み値や OTLP は不採用）
+- **プロトコル**: 独自 HTTP JSON `POST /v1/ingest`、Bearer 認証、HTTP gzip 必須、1 リクエスト 50 MB 上限
+- **送信タイミング**: 独立コマンド `agent-telemetry push --since-last`。Stop hook hot path には載せない（ユーザは cron / launchd / systemd timer で起動）
+- **差分検知**: `state.json` の `pushed_session_versions: {session_id: sha256}`。backfill による後追い更新（`is_merged` 等）も hash 不一致で検知される
+- **進行中セッションは除外**: `ended_at` または `end_reason` が空のセッションは送信対象外
+- **認証**: 単一 API key（`AGENT_TELEMETRY_SERVER_TOKEN`）。`user_id` は payload 内、認証境界とは責務分離
+- **サーバ側**: `cmd/agent-telemetry-server/` で別 binary を提供。クライアントと同一 SQLite スキーマ + 共通 `internal/syncdb/` で集計し、Grafana ダッシュボード JSON を再利用する
+- **配布形態**: Go binary + Docker image 両方（systemd unit と `docker-compose.server.yml` を同梱）
+
+### プライバシー観点の整理
+
+「transcript には secret が含まれる」懸念は精査の結果 **本質的に消えた**。transcript の中身は既に Anthropic API に context として送信済みであり、自前 telemetry サーバへ送ることに追加のプライバシー懸念はない。残るのは保存期間・閲覧範囲・組織ポリシーで、いずれもサーバ運用ポリシーで吸収可能。MVP では `send_transcripts` フラグもサニタイズフックも不要（YAGNI）。
+
+### 採用しなかった代替
+
+- OTLP / Prometheus remote write（後追い更新の表現が面倒、二重スタックの維持コスト）
+- 集計済み `transcript_stats` のみ送る（SoR が JSONL という方針と整合せず、サーバ側で指標追加の道が塞がれる）
+- Stop hook 同期 push（latency 侵食、failure mode の混入）
+- fire-and-forget での子プロセス push（失敗が静かに死ぬためデバッグ困難）
+- `send_transcripts = false` フラグ（プライバシー懸念が「Anthropic に既送信」で消えるため YAGNI）
+
+### 主な変更点
+
+- `docs/spec.md` に「サーバ送信」節、`agent-telemetry push` コマンド、`AGENT_TELEMETRY_SERVER_TOKEN` 環境変数を追加
+- `docs/design.md` に「サーバ側集約パイプライン」節を追加、「既知の制約」にサーバ送信由来の制約を追加
+- 子 issue 3 件を新規発番:
+  - `0028-feat-server-push-client.md`（クライアント push 実装）
+  - `0029-feat-server-ingest.md`（サーバ ingest 実装）
+  - `0030-doc-server-grafana-setup.md`（運用ドキュメント + Grafana 連携）
+
+### 残課題
+
+- 0028 / 0029 / 0030 で実装する。0028 と 0029 は並列着手可能（両方が無いと E2E 検証ができないため、両方完了後に統合検証）
+- 配布形態は VPS / Docker 両方提供。ユーザは環境次第で選択
+
+依存: 0010（user 識別子）— 完了済み。
