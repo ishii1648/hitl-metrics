@@ -58,17 +58,17 @@ type Result struct {
 // AgentResult captures what was sent (or would be sent in dry-run) for one
 // agent. PayloadBytes is the wire size after gzip when applicable.
 type AgentResult struct {
-	Eligible          int
-	Sent              int
-	Skipped           int
-	Batches           int
-	PayloadBytes      int64
-	ReceivedSessions  int
-	ServerSkipped     int
-	SchemaMismatch    bool
-	NoConfig          bool
-	StateUpdated      bool
-	DryRun            bool
+	Eligible         int
+	Sent             int
+	Skipped          int
+	Batches          int
+	PayloadBytes     int64
+	ReceivedSessions int
+	ServerSkipped    int
+	SchemaMismatch   bool
+	NoConfig         bool
+	StateUpdated     bool
+	DryRun           bool
 }
 
 // ErrSchemaMismatch is returned when the server reports a schema_hash
