@@ -17,7 +17,7 @@ Retro-converted: 2026-05-10 (from docs/history.md §11)
 
 ## 概要
 
-ローカル単独利用前提（手元 `~/.claude/agent-telemetry.db` に閉じる）から、サーバ側で複数ユーザーのデータを集約する構成（[0009](../0009-feat-server-side-metrics-pipeline.md)）に向けた前提整備として、`session-index.jsonl` と `sessions` テーブルに `user_id` フィールドを導入した。
+ローカル単独利用前提（手元 `~/.claude/agent-telemetry.db` に閉じる）から、サーバ側で複数ユーザーのデータを集約する構成（[0009](0009-feat-server-side-metrics-pipeline.md)）に向けた前提整備として、`session-index.jsonl` と `sessions` テーブルに `user_id` フィールドを導入した。
 
 ## 根拠
 
@@ -35,7 +35,7 @@ Retro-converted: 2026-05-10 (from docs/history.md §11)
 
 ## 対応方針
 
-ローカル単独利用では `unknown` のままでも従来通り動作する形で、schema と JSONL に `user_id` を追加。サーバ送信時のゲートは [0009](../0009-feat-server-side-metrics-pipeline.md) 側の責務として分離。
+ローカル単独利用では `unknown` のままでも従来通り動作する形で、schema と JSONL に `user_id` を追加。サーバ送信時のゲートは [0009](0009-feat-server-side-metrics-pipeline.md) 側の責務として分離。
 
 ## 解決方法
 
@@ -66,5 +66,5 @@ Retro-converted: 2026-05-10 (from docs/history.md §11)
 
 ## 依存関係
 
-- [0009](../0009-feat-server-side-metrics-pipeline.md)（サーバ側転送）。本 issue 単独でも実害はないが、価値が顕在化するのは 0009 が動いてから
+- [0009](0009-feat-server-side-metrics-pipeline.md)（サーバ側転送）。本 issue 単独でも実害はないが、価値が顕在化するのは 0009 が動いてから
 - [0018](0018-spec-multi-coding-agent-support.md) の `sessions` 複合 PRIMARY KEY を `(session_id, coding_agent)` のまま維持（user_id は集約軸であって主キー軸ではない）

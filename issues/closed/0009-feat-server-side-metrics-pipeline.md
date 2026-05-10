@@ -69,7 +69,7 @@ Completed: 2026-05-10
 - **Grafana 設定資産はローカル / k8s で共通参照**: `grafana/dashboards/agent-telemetry.json` と `grafana/provisioning/datasources/*.yaml` をローカル `docker-compose.yaml` の volume mount と k8s ConfigMap mount の両方から参照する 1 セットだけ持つ。配布手段（compose / k8s）自体は揃えず、それぞれの環境ネイティブな形を取る
 - **配布形態**: Go binary + Docker image + k8s manifest の 3 形態
   - Go binary: VPS / bare metal で systemd 起動（`contrib/systemd/`）
-  - Docker image: GitHub Container Registry `ghcr.io/ishii1648/agent-telemetry-server` を CI で自動更新（[0031](0031-feat-server-image-ghcr-publish.md)）
+  - Docker image: GitHub Container Registry `ghcr.io/ishii1648/agent-telemetry-server` を CI で自動更新（[0031](../0031-feat-server-image-ghcr-publish.md)）
   - k8s manifest: `deploy/k8s/` に Kustomize ベースで Deployment / Service / ConfigMap / PVC / Secret を提供。本番デプロイの正本
 - **新メトリクス追加の遡及反映**: サーバを先にデプロイ → 全クライアント binary 更新 → 各クライアントで `sync-db --recheck && push --full` を実行する運用（クライアント手元の transcript が SoR として残るため成立する）
 
