@@ -5,7 +5,7 @@ description: >-
   Triggered automatically per CLAUDE.md when there are uncommitted changes
   on feature/fix/docs/chore branches. Also use when the user says
   "git-ship", "ship", "シップ", "ship して".
-  Runs: contextual-commit → push → Draft PR → auto-fix-ci.
+  Runs: contextual-commit → push → Draft PR → auto-fix.
 version: 0.1.0
 ---
 
@@ -44,6 +44,6 @@ PR URL を出力したら Step 4 に進む。
 
 ### Step 4: CI 自動監視
 
-`auto-fix-ci` skill を起動する。Monitor tool で CI を継続 watch し、失敗ジョブのログを取得して原因を診断 → 修正 → 再 push のループを自動実行する。
+`auto-fix` skill を起動する。Monitor tool で CI を継続 watch し、失敗ジョブのログを取得して原因を診断 → 修正 → 再 push のループを自動実行する。
 
 すべての check が緑になるか、自動修正不能な失敗（secrets 不足・外部障害・scope 越え）に達した時点で報告して終了する。
