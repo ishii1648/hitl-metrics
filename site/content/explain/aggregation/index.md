@@ -12,34 +12,18 @@ JSONL に記録された生イベントが **PR 単位の指標**に変わるま
 Claude と Codex で transcript フォーマットは異なります。**`internal/transcript/`** がフォーマット差異を吸収して `transcript_stats` の共通カラムに落とし込みます。
 
 ```mermaid
-%%{init: {'themeVariables': {'fontSize': '20px'}}}%%
 flowchart TB
-    subgraph claude["Claude Code transcript"]
-        CM["assistant message<br/>usage.input_tokens<br/>usage.output_tokens<br/>usage.cache_creation_input_tokens<br/>usage.cache_read_input_tokens"]
-    end
-
-    subgraph codex["Codex CLI rollout"]
-        CXE["event_msg.payload<br/>type == 'token_count'<br/>(累積値の最終 1 件を採用)"]
-    end
-
+    CC["Claude transcript<br/>(message ごとに usage 加算)"]
+    CX["Codex rollout<br/>(token_count 最終累積値)"]
     P["internal/transcript/<br/>(parser)"]
+    T[("transcript_stats<br/>共通スキーマ")]
 
-    subgraph stats["transcript_stats（共通スキーマ）"]
-        T1["input_tokens / output_tokens"]
-        T2["cache_write_tokens / cache_read_tokens"]
-        T3["reasoning_tokens<br/>(Claude=0, Codex のみ非ゼロ)"]
-        T4["tool_use_total / mid_session_msgs"]
-        T5["ask_user_question<br/>(Codex=0, Claude のみ非ゼロ)"]
-    end
-
-    CM --> P
-    CXE --> P
-    P --> T1
-    P --> T2
-    P --> T3
-    P --> T4
-    P --> T5
+    CC --> P
+    CX --> P
+    P --> T
 ```
+
+落とし込み先のカラム（差異も含む）は次節の表に集約しています。
 
 差異の扱い:
 
@@ -57,27 +41,16 @@ zstd 圧縮された Codex rollout は decoder を通して読みます（`klaus
 `pr_metrics` VIEW で PR 単位に集約します。フィルタを通過したセッションだけが指標に乗ります。
 
 ```mermaid
-%%{init: {'themeVariables': {'fontSize': '20px'}}}%%
-flowchart LR
+flowchart TB
     S[("sessions")]
     TS[("transcript_stats")]
-
-    F1{"pr_url != ''"}
-    F2{"is_subagent = 0"}
-    F3{"is_merged = 1"}
-    F4{"is_ghost = 0"}
-    F5{"repo NOT IN<br/>(運用ノイズ repo)"}
-
+    F["フィルタ (AND):<br/>pr_url != '' / is_subagent = 0 /<br/>is_merged = 1 / is_ghost = 0 /<br/>repo NOT IN (運用ノイズ)"]
     G["GROUP BY<br/>(pr_url, coding_agent, user_id)"]
+    PM[("pr_metrics VIEW")]
 
-    PM[("pr_metrics<br/>VIEW")]
-
-    S --> F1 --> F2 --> F3
-    TS --> F4
-    F3 --> F5
-    F4 --> F5
-    F5 --> G
-    G --> PM
+    S --> F
+    TS --> F
+    F --> G --> PM
 ```
 
 なぜこのフィルタか:
