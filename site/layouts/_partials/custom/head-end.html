@@ -4,4 +4,10 @@
     max-width: 100% !important;
     height: auto !important;
   }
+  /* 個別 diagram を縮小表示したいとき用 wrapper。markdown 側で <div class="diagram-sm"> で囲む。 */
+  .diagram-sm .mermaid svg {
+    max-width: 480px !important;
+    margin: 0 auto;
+    display: block;
+  }
 </style>

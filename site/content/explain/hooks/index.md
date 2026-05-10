@@ -46,6 +46,8 @@ Codex は `SessionEnd` を持たないため、`Stop` hook で `ended_at` を毎
 
 `Stop` hook は応答完了ごとに `backfill` → `sync-db` をブロッキングで走らせます。応答が長引かないよう **3 つの抑制策**が入っています。
 
+<div class="diagram-sm">
+
 ```mermaid
 flowchart TB
     A["Stop hook 発火"]
@@ -57,6 +59,8 @@ flowchart TB
 
     A --> B --> C --> D --> E --> F
 ```
+
+</div>
 
 | 抑制策 | 効果 |
 |---|---|

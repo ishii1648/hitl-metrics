@@ -40,6 +40,8 @@ zstd 圧縮された Codex rollout は decoder を通して読みます（`klaus
 
 `pr_metrics` VIEW で PR 単位に集約します。フィルタを通過したセッションだけが指標に乗ります。
 
+<div class="diagram-sm">
+
 ```mermaid
 flowchart TB
     S[("sessions")]
@@ -52,6 +54,8 @@ flowchart TB
     TS --> F
     F --> G --> PM
 ```
+
+</div>
 
 なぜこのフィルタか:
 
