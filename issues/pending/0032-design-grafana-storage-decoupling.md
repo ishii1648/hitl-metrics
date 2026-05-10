@@ -1,7 +1,7 @@
 ---
 decision_type: design
 affected_paths:
-  - docs/setup-server.md
+  - site/content/setup/server/index.md
   - docs/design.md
   - internal/syncdb/
   - internal/serverpipe/

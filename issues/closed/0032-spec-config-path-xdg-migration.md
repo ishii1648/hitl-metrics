@@ -9,7 +9,7 @@ affected_paths:
   - internal/doctor/
   - docs/spec.md
   - docs/design.md
-  - docs/setup-server.md
+  - site/content/setup/server/index.md
 tags: [config, xdg, migration, agent-agnostic]
 closed_at: 2026-05-11
 ---
