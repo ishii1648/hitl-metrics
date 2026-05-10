@@ -2,7 +2,14 @@
 decision_type: process
 affected_paths:
   - docs/history.md
+  - issues/
+# meta issue: history.md の retro 化方針を定義し 11 件の retro issue を生成する
+# 規約系 issue なので issues/ への broad 参照は legitimate
+# (retro 化で 11 件の new issue を生むため、issues/ 全体への影響は legitimate)
+lint_ignore_broad:
+  - issues/
 tags: [intent, history, retro, decision-record]
+closed_at: 2026-05-10
 ---
 
 # docs/history.md の既存 11 件を issue 化するか残置するかの方針決定
@@ -62,3 +69,51 @@ Created: 2026-05-10
 （例: ある PR で過去判断を見落として手戻りが発生した、等）で着手するのが
 順当。0012 の Hugo build 方針が固まれば、history.md の表示形態と issue の
 表示形態を合わせる必要が出るので、その時点で再検討する。
+
+Completed: 2026-05-10
+
+## 解決方法
+
+pending 期間は短かったが、0012 で Hugo docs site の方針が固まり「issues/ を
+input として load する正本にする」方向が確定したため、`make intent` の逆引き
+網に過去 11 件を乗せる価値が顕在化した。同日に retro 化を実施。
+
+### 採用基準
+
+- **全件 sweep**: 11 件すべてを issue 化。選別すると「どの基準で外したか」を
+  後から再検討するコストが膨らむ。retro 化の単発コスト（約 2.5 時間）が許容範囲
+  だったため一括処理を選んだ
+- **closed/ 直行**: すでに完了した決定なので open を経由しない。`closed_at` は
+  元の決定日（履歴値）、`Created:` も元日付。冒頭に
+  `Retro-converted: 2026-05-10 (from docs/history.md §N)` を 1 行入れて出自を明示
+- **history.md の narrative は 1〜3 文要約 + retro issue リンクに圧縮**:
+  CLAUDE.md / AGENTS.md の現行方針（「人間が大方針を筋立てたナラティブ要約」）
+  に整合。プロジェクト史の流れは保ちつつ、詳細は issue 側に集約
+
+### retro issue の採番マッピング
+
+| # | 元 history.md | retro issue | decision_type |
+|---|---|---|---|
+| 1 | §1 dotfiles 分離 | [0014](0014-process-dotfiles-to-standalone-repo.md) | process |
+| 2 | §2 SQLite+Grafana | [0015](0015-design-sqlite-grafana-as-visualization-backend.md) | design |
+| 3 | §3 Go サブコマンド統一 | [0016](0016-design-shell-hooks-to-go-subcommands.md) | design |
+| 4 | §4 token 効率中心 | [0017](0017-spec-shift-main-metric-to-pr-token-efficiency.md) | spec |
+| 5 | §5 マルチエージェント | [0018](0018-spec-multi-coding-agent-support.md) | spec |
+| 6 | §6 CHANGELOG 廃止 | [0019](0019-process-deprecate-changelog-md.md) | process |
+| 7 | §7 backfill 変遷 | [0020](0020-design-backfill-evolution-to-stop-hook.md) | design |
+| 8 | §8 リポジトリリネーム | [0021](0021-spec-rename-hitl-metrics-to-agent-telemetry.md) | spec |
+| 9 | §9 PR resolve early binding | [0022](0022-design-pr-resolve-early-binding.md) | design |
+| 10 | §10 TODO.md 廃止 | [0023](0023-process-deprecate-todo-md.md) | process |
+| 11 | §11 user_id 導入 | [0024](0024-spec-introduce-user-id-field.md) | spec |
+
+### 同梱変更
+
+- `issues/SEQUENCE` を 14 → 25 に bump
+- `docs/history.md` の §1〜§11 を 1〜3 文要約 + retro issue リンクに圧縮
+- 「ADR 索引」「残っている有効な決定の要点」「廃止された設計と理由」セクションは現状維持（history.md ならではの俯瞰価値）
+
+### 採用しなかった代替
+
+- **選別して一部のみ retro 化**: 「どの基準で外したか」を後から再検討するコストが、全件 sweep の追加コストを上回る
+- **history.md エントリに `affected_paths` メタを追加して逆引き対応**: フォーマット拡張が必要で、issue 側の frontmatter スキーマと二重管理になる
+- **history.md の narrative を全削除**: プロジェクト史の流れを失う。閲覧導線としての価値も消える

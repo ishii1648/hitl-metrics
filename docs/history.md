@@ -1,10 +1,11 @@
 # agent-telemetry 経緯
 
-この文書は過去の実装・判断の背景を記録する。
+この文書は過去の大方針転換のナラティブ要約を記録する。
 現在の外部契約は `docs/spec.md`、実装設計は `docs/design.md` を参照する。
 
-過去の意思決定の詳細は `docs/archive/adr/` 配下に保存している（旧 ADR フォーマット）。
-新規の設計判断は ADR を作らず、`docs/design.md` の更新と Contextual Commits で記録する。
+意思決定の primary store は `issues/` 配下（[0011](../issues/closed/0011-feat-structured-intent-on-issues.md) で確立）。各方針転換の詳細な根拠・問題・解決方法・採用しなかった代替は対応する retro issue を参照する（11 件は 2026-05-10 に [0013](../issues/closed/0013-design-history-md-retro-conversion.md) で `issues/closed/0014-...` 〜 `0024-...` に retro 化）。
+
+過去の意思決定の旧フォーマットは `docs/archive/adr/` 配下に保存している（参照のみ）。新規の設計判断は ADR を作らず、`docs/design.md` の更新と Contextual Commits + 必要なら issue で記録する。
 
 ---
 
@@ -12,48 +13,39 @@
 
 ### 1. dotfiles 内ディレクトリ → 別リポジトリ分離（2026-03-09）
 
-当初は dotfiles の `configs/claude/scripts/` 配下に hook スクリプトが他の Claude Code スクリプトと混在していた。`hitl-metrics/` ディレクトリへの集約で結合度を下げ、その後 dotfiles ADR の 14 件を占有していた問題と開発プロセスの完全独立を理由に、別リポジトリへ完全分離した。
-[ADR-013](archive/adr/013-claude-stats-directory-isolation.md)
+dotfiles の `configs/claude/scripts/` 配下にあった hook を、`hitl-metrics/` ディレクトリへ集約 → 結合度低下と開発プロセス独立を理由に別リポジトリへ完全分離。
+
+詳細: [issues/closed/0014-process-dotfiles-to-standalone-repo.md](../issues/closed/0014-process-dotfiles-to-standalone-repo.md) ・ [ADR-013](archive/adr/013-claude-stats-directory-isolation.md)
 
 ### 2. 純 Python ダッシュボード → SQLite + Grafana
 
-`permission-ui-server.py` が集計と表示を 1 ファイルに混載していた。Prometheus を検討したが「任意の日付範囲で PR 別集計」という用途と合わず、SQLite + Grafana を選定。Grafana の SQLite データソースで JSONL → SQLite の単純変換だけで任意集計が可能になった。
-[ADR-015](archive/adr/015-dashboard-visualization-backend-selection.md)
+`permission-ui-server.py` の集計 + 表示一体構成を解体。Prometheus は「任意の日付範囲で PR 別集計」と合わず、SQLite + Grafana を採用。JSONL → SQLite の単純変換で任意 SQL 集計が成立。
+
+詳細: [issues/closed/0015-design-sqlite-grafana-as-visualization-backend.md](../issues/closed/0015-design-sqlite-grafana-as-visualization-backend.md) ・ [ADR-015](archive/adr/015-dashboard-visualization-backend-selection.md)
 
 ### 3. Shell hooks → Go サブコマンド統一
 
-`session-index.sh` / `permission-log.sh` / `pretooluse-track.sh` / `stop.sh` / `todo-cleanup-check.sh` の 5 本を `hitl-metrics hook <event>` の Go サブコマンドに統合した。これにより配布の二重構造（Go バイナリ + Shell embed + 展開）が解消され、tool annotation などのロジックが共通化された。
-[ADR-021](archive/adr/021-migrate-shell-hooks-to-go-subcommands.md)
+`session-index.sh` 等 5 本の Shell スクリプトを `agent-telemetry hook <event>` の Go サブコマンドに統合。配布の二重構造（Go バイナリ + Shell embed + 展開）が解消され、tool annotation 等の共通ロジックも DRY 化。
+
+詳細: [issues/closed/0016-design-shell-hooks-to-go-subcommands.md](../issues/closed/0016-design-shell-hooks-to-go-subcommands.md) ・ [ADR-021](archive/adr/021-migrate-shell-hooks-to-go-subcommands.md)
 
 ### 4. permission UI 計測中心 → PR トークン効率中心
 
-主指標は `perm_rate`（permission UI 発生率）から `total_tokens` / `pr_per_million_tokens` に切り替えた。Claude Code の auto mode の進化により permission UI は構造的に減少していくため、長期的な改善対象としてトークン効率の方が安定していると判断した。これに伴い permission_events テーブル・PermissionRequest hook・関連 Grafana パネルをすべて廃止した。
-[ADR-023](archive/adr/023-pr-token-efficiency-metrics.md)
+主指標を `perm_rate` から `total_tokens` / `pr_per_million_tokens` に切り替え。Claude Code の auto mode 進化で permission UI が構造的に減るため、改善対象としてはトークン効率の方が長期的に安定。`permission_events` テーブル・`PermissionRequest` hook・関連 panel を全廃。
+
+詳細: [issues/closed/0017-spec-shift-main-metric-to-pr-token-efficiency.md](../issues/closed/0017-spec-shift-main-metric-to-pr-token-efficiency.md) ・ [ADR-023](archive/adr/023-pr-token-efficiency-metrics.md)
 
 ### 5. Claude Code 単一エージェント → マルチコーディングエージェント対応（2026-05-02）
 
-当初は Claude Code 専用ツールとして設計されていたため、データディレクトリ (`~/.claude/`)・hook 入力スキーマ・transcript 形式が暗黙にハードコードされていた。Codex CLI が lifecycle hooks（SessionStart / Stop / PostToolUse 等）と rollout JSONL（`event_msg.payload.type=="token_count"` で累積トークン記録）を提供しはじめたため、両エージェントを単一の SQLite DB に集約する構成に拡張した。
+Claude 専用前提でハードコードされていた DB / hook / transcript を、Codex CLI と単一 SQLite に集約する構成へ拡張。`sessions.coding_agent` カラムでの区別と agent ごとの adapter 分離（`internal/agent/{claude,codex}/`）が中核。PRIMARY KEY を `(session_id, coding_agent)` 複合化、`reasoning_tokens` カラム追加、`install` → `setup` リネームも同梱。
 
-主な設計判断:
-
-- **DB は単一に集約** — `~/.claude/hitl-metrics.db` を維持し、`sessions.coding_agent` カラムで claude/codex を区別する。Grafana datasource 設定の後方互換を壊さないため。
-- **データ収集元は agent ごとに分離** — `~/.claude/session-index.jsonl` と `~/.codex/session-index.jsonl` を別ファイルにし、`internal/agent/{claude,codex}/` のアダプタで読み込み元と transcript パーサだけを差し替える。
-- **PRIMARY KEY を複合化** — `(session_id, coding_agent)`。両 agent の UUID 衝突に対する保険。
-- **Codex の SessionEnd 不在を Stop hook で代替** — Stop が応答完了ごとに発火するため `ended_at` を毎回上書き。プロセス kill のケースは backfill が rollout JSONL の最終 event タイムスタンプで補正する。
-- **`reasoning_tokens` カラム追加** — Codex の token_count イベントに reasoning が独立して記録されるため、Claude では 0 固定、Codex では実値を入れる。
-- **`--agent` フラグ既定値を `claude` に** — 既存の `~/.claude/settings.json` 登録（フラグなし）が壊れないようにするため。
-- **`install` → `setup` リネーム + `uninstall-hooks` 独立化** — 旧 `install` は何も書き込まないのに `--uninstall-hooks` だけが破壊的、という非対称が認知的負荷だった。マルチエージェント対応で `--agent codex` が増えると「install というコマンドが Codex 設定に書き込みに来るのでは」という誤解を一層誘発する見通しがあったため、CLI 表面が変わる節目にまとめてリネームした。旧 `install` は deprecation warning 付き alias として残す。
+詳細: [issues/closed/0018-spec-multi-coding-agent-support.md](../issues/closed/0018-spec-multi-coding-agent-support.md)
 
 ### 6. CHANGELOG.md → history.md / GitHub Release への一本化（2026-05-02）
 
-ADR から spec/design/history へ移行した直後は CHANGELOG.md と history.md が並走していた。両者は WHAT（日付ごとの変更）と WHY（方針転換の経緯）として理屈の上では役割が分離していたが、実態としては ADR 番号参照や同一イベントの重複記載で境界が緩んでいた。goreleaser によるバイナリ配布で GitHub Release が事実上のリリースノートとして機能していたため、CHANGELOG.md を廃止して以下に再分配した。
+CHANGELOG.md と history.md の WHAT / WHY 役割分離が実態として崩れていたため、CHANGELOG.md を廃止して 4 つの store（GitHub Release / history.md / Contextual Commits / `git log`）に再分配。`todo-cleanup` hook の CHANGELOG 移送動作も削除。
 
-- リリース単位の WHAT → GitHub Release（タグ push 時に goreleaser が生成）
-- 方針転換の WHY → `docs/history.md`
-- 1 コミット内の判断 → Contextual Commits のアクション行
-- 個別コミットの WHAT → `git log`
-
-これに伴い `todo-cleanup` hook の「TODO.md 完了タスク → CHANGELOG.md 移送」動作は「TODO.md からの削除のみ」に変更する（`git-ship` skill の CHANGELOG チェックステップも削除）。
+詳細: [issues/closed/0019-process-deprecate-changelog-md.md](../issues/closed/0019-process-deprecate-changelog-md.md)
 
 ### 7. backfill 方式の変遷
 
@@ -63,118 +55,31 @@ ADR から spec/design/history へ移行した直後は CHANGELOG.md と history
 | 中期 (ADR-006) | launchd / cron 定期バッチ | Claude Code 外の唯一の手作業で UX が悪化 |
 | 現在 (ADR-019) | Stop hook + cursor + Go CLI 集約 | Go CLI への集約で複雑性問題が解消、cursor で増分処理 |
 
-[ADR-005](archive/adr/005-session-index-pr-url-backfill-on-stop.md) → [ADR-006](archive/adr/006-session-index-pr-url-backfill-cron-batch.md) → [ADR-019](archive/adr/019-backfill-stop-hook-migration.md)
+詳細: [issues/closed/0020-design-backfill-evolution-to-stop-hook.md](../issues/closed/0020-design-backfill-evolution-to-stop-hook.md) ・ [ADR-005](archive/adr/005-session-index-pr-url-backfill-on-stop.md) → [ADR-006](archive/adr/006-session-index-pr-url-backfill-cron-batch.md) → [ADR-019](archive/adr/019-backfill-stop-hook-migration.md)
 
 ### 8. リポジトリ名変更 — hitl-metrics → agent-telemetry（2026-05-04）
 
-「HITL（Human-In-The-Loop）」は ML / ロボティクス由来の抽象用語で、Claude Code / Codex CLI といった coding agent 領域に焦点を絞れていない。本ツールが観測する 6 観察軸（token 効率・キャッシュ・推論・ライフサイクル・対話の摩擦・同時実行）のうち、HITL に直結するのは「対話の摩擦」のみで、残りはエージェントそのものの振る舞いを測る指標である。さらに Claude Code の auto mode 普及により、HITL を前提とした "Loop" の感覚自体が薄れた。
+「HITL」が ML / ロボティクス由来で coding agent 領域に焦点が合わないため、実態に即した `agent-telemetry` に改名。個人ツールの特性を活かし、後方互換 shim を残さず破壊的変更を一度で済ませる方針（バイナリ名・モジュールパス・DB ファイル名・環境変数・Grafana UID を一括置換、DB の自動マイグレーションのみ提供）。
 
-実態は **coding agent の telemetry / profiler** であり、Grafana エコシステムとも整合する `agent-telemetry` を新名称として採用する。本リネームに合わせて、外部公開していない個人ツールという特性を活かし、後方互換のための名残を残さずに破壊的変更を一度で済ませる方針とする。
-
-主な決定事項:
-
-| # | 決定 | 理由 |
-|---|---|---|
-| D1 | メトリクス名プレフィックス: `hitl_*` → `agent_*` | 外部公開なしの個人ツールであり、命名規約を変えるなら破壊的変更を許容できる今のうちに実施する。現状の SQL VIEW / カラム名はそもそもプレフィックスを持たないため、新規メトリクス追加時の命名規約として `agent_*` を採用する |
-| D2 | CLI バイナリ名: `agent-telemetry`（フル形） | 短縮形 `at` は 2 文字すぎて他コマンドや POSIX 標準の `at(1)` と衝突する。フル形なら検索性も保たれる |
-| D3 | DB ファイル名: `~/.claude/agent-telemetry.db`、自動マイグレーションを提供 | 既存ユーザー環境（自分自身）の DB を破壊しないため、`scripts/migrate-db-name.sh` 同様のリネームスクリプトを同梱する |
-| D4 | Go モジュールパス: `github.com/ishii1648/agent-telemetry`（import 全置換） | GitHub の自動リダイレクトに依存すると import パスと実態が乖離し続ける。リダイレクトに頼らず一括置換することで、エディタ補完・grep の挙動も新名称で揃う |
-
-実作業の段取りは `TODO.md` の「リポジトリリネーム — agent-telemetry」を参照。
-
-#### **BREAKING CHANGE** — 利用者向けのインパクト
-
-旧 `hitl-metrics` 環境からアップグレードする際は以下の操作が必要。詳細手順は `docs/setup.md` の「5. hitl-metrics（旧名）からの移行」。
-
-- バイナリ名: `hitl-metrics` → `agent-telemetry`。旧バイナリは PATH から削除する（`agent-telemetry upgrade` が残存を warning で通知）
-- DB / state ファイル名: `~/.claude/hitl-metrics.db` / `*-state.json` は `agent-telemetry sync-db` / `backfill` 実行時に自動でリネームされる（`scripts/migrate-db-name.sh` でも同等処理可能）
-- hook 登録: `settings.json` / `hooks.json` の command 文字列を `hitl-metrics hook ...` から `agent-telemetry hook ...` に書き換える（`agent-telemetry doctor` が旧 command を warning として表示）
-- Grafana: ダッシュボード / datasource の `uid` を `hitl-metrics` → `agent-telemetry` に変更。旧ダッシュボードは Grafana UI から手動削除
-- 環境変数: `HITL_METRICS_DB` → `AGENT_TELEMETRY_DB`、`HITL_METRICS_AGENT` → `AGENT_TELEMETRY_AGENT`
+詳細: [issues/closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md](../issues/closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md)
 
 ### 9. PR resolve を Stop hook の early binding に切替（2026-05-07）
 
-それまで PR と session の紐づけは「`(repo, branch)` キーで `gh pr list --head <branch>` を late binding し、`pr_urls` 末尾を採用する」モデルだった。これに 2 つの構造的欠陥があった:
+`pr_urls` 末尾採用 + late binding モデルが、PostToolUse 正規表現の URL 汚染とブランチ再利用で誤接続を起こしていた。Stop hook で `gh pr list --head <branch> --author @me` を 1 回叩いて pin し、`pr_pinned: true` で session に束縛する early binding に切替。検討した 4 案（A/B/C/D）のうち C を採用。
 
-1. **PostToolUse 正規表現の汚染** — `internal/hook/posttooluse.go` が tool_response から PR URL を無差別に正規表現抽出して `pr_urls` に append する。`gh pr view 999` で他人の PR を見ただけ、または Bash で URL を貼っただけで、無関係な PR が末尾に追加される。`sync-db` は末尾を採用するため誤接続が発生していた。
-2. **ブランチ再利用での誤接続** — 同一ブランチを別 PR で使い回す運用で、後から作られた PR の URL が古いセッションに紐づく。
-
-検討案:
-
-| 案 | 内容 | 採否 |
-|---|---|---|
-| A | `pr_urls` 末尾採用を「先頭採用」に変更 | 却下。PostToolUse の append 順を逆にしただけで、汚染元は塞がらない |
-| B | PostToolUse の URL 抽出条件を絞る（自分の `gh pr create` 経路のみ拾う等） | 補助的。pin で根本解決するため今回は実装しない |
-| C | Stop hook で `gh pr list --head <branch>` を 1 回叩いて pin する | **採用**。両欠陥を同時に塞げる |
-| D | session_id と PR の HEAD SHA を連結して結合する | 将来の選択肢として記録。現状 overkill |
-
-採用案 (C) の要点:
-
-- `Stop` hook 時点で branch 単位の PR 解決を 1 回だけ実行し、`pr_pinned: true` で session に束縛する
-- pinned セッションは PostToolUse / `update` / `backfill` の URL append をすべて no-op にする
-- pin 失敗（PR 未作成 / `gh` エラー / cwd 消滅）は backfill のフォールバックに委ねる。late binding を完全に廃止するわけではなく、責務を「PR 未作成セッションのリトライ専用」に絞る
-- `Phase 2` の meta 取得は pinned セッションも引き続き対象にする（`is_merged` / `review_comments` の継続更新は必要）
-
-これにより `pr_urls` は通常 1 件で確定し、`sync-db` の「末尾採用」ルールが順序依存しなくなる。`docs/design.md` の `pr_urls` 採用ルール節も合わせて更新済み。
+詳細: [issues/closed/0022-design-pr-resolve-early-binding.md](../issues/closed/0022-design-pr-resolve-early-binding.md) ・ 関連バグ: [0001](../issues/closed/0001-bug-pr-session-misattribution.md)
 
 ### 10. TODO.md の廃止 — issues/ への一本化（2026-05-08）
 
-`TODO.md` を削除し、開発タスク管理を `issues/` ディレクトリ（per-issue Markdown + `SEQUENCE` 採番）に一本化した。背景は `issues/` 体制を導入した時点で `TODO.md` が CLAUDE.md / AGENTS.md の 3 本柱（spec / design / history）の外側にある orphan になっていたこと。tmux-sidebar の同種リファクタ（[ishii1648/tmux-sidebar#49](https://github.com/ishii1648/tmux-sidebar/pull/49)）を参考に同じ整理を当て、計測ツール側でも採番済みの per-issue ファイルでタスクを扱う形に揃えた。
+`TODO.md` が CLAUDE.md / AGENTS.md の 3 本柱（spec / design / history）の外側にある orphan になっていたため削除。「実装タスク」を open issue、「検討中」を pending issue にマッピングし、`todo-cleanup` hook も廃止。impl skill の入力ソースは `issues/*.md` の列挙に変更。
 
-**移行内容:**
-
-- `TODO.md` の `## 実装タスク`（受け入れ条件あり、すぐ着手可能）→ `issues/<NNNN>-<cat>-<slug>.md` として open
-  - `issues/0003-feat-grafana-agent-comparison-panel.md`
-  - `issues/0004-chore-goreleaser-release-verification.md`
-- `TODO.md` の `## 検討中`（仕様未確定）→ `issues/pending/<NNNN>-design-<slug>.md` として保留
-  - `issues/pending/0005-design-stop-hook-path-independence.md`
-  - `issues/pending/0006-design-local-env-ci-reproducibility.md`
-  - `issues/pending/0007-design-bash-context-monitoring.md`
-  - `issues/pending/0008-design-retro-pr-integration.md`
-- `issues/SEQUENCE` を `9` に bump
-
-**廃止に伴うコード/設定変更:**
-
-- `internal/hook/todocleanup.go` と関連テストを削除（main ブランチで `TODO.md` の完了タスクを自動削除する hook）
-- `agent-telemetry hook todo-cleanup` サブコマンドを `cmd/agent-telemetry/main.go` から削除
-- `setup.ClaudeHookSpecs` から `todo-cleanup` を除去。既存ユーザの `~/.claude/settings.json` から `agent-telemetry uninstall-hooks` で取り除けるよう `LegacyClaudeSubcommands = []string{"todo-cleanup"}` を追加
-- `docs/spec.md` / `docs/usage.md` の hook 表から `todo-cleanup` 行を削除
-- 旧 project-local hook（`.claude/settings.json` と `.codex/hooks.json` で `bash hooks/todo-cleanup-check.sh` を呼んでいた）を削除（参照先スクリプトは既に存在しなかった）
-
-**impl skill の入力ソース変更:**
-
-`.claude/skills/impl/SKILL.md` と `.agents/skills/impl/SKILL.md` を `TODO.md` パースから `issues/*.md`（`closed/` と `pending/` を除外）の列挙に書き換えた。受け入れ条件は `## 受け入れ条件` セクションの `- [ ]` 行から抽出する。Claude Code 用 / Codex 用の SKILL.md は別ファイルのまま個別に保持する。
-
-**採用しなかった代替:**
-
-- `TODO.md` を archive として残す: 中身は完了タスク + history と重複する rationale だけになっており、リンク切れと混乱の温床になる
-- `todo-cleanup` hook を `issues/closed/` の整理に転用する: `issues/` のライフサイクルは `git mv` ベースの手動運用が前提（AGENTS.md 参照）。自動削除が要件と噛み合わない
-- ADR 形式へ戻す: 既に `docs/archive/adr/` に保存されている過去 23 件で十分。新規判断は `docs/design.md` + Contextual Commits + 必要なら history.md という現行ルールを維持する
-
-**残課題:**
-
-なし。3 本柱（spec / design / history）+ `issues/` の体制に収束した。
+詳細: [issues/closed/0023-process-deprecate-todo-md.md](../issues/closed/0023-process-deprecate-todo-md.md)
 
 ### 11. user 識別子の導入 — マルチユーザー集約への布石（2026-05-08）
 
-ローカル単独利用前提（手元 `~/.claude/agent-telemetry.db` に閉じる）から、サーバ側で複数ユーザーのデータを集約する構成（issue 0009）に向けた前提整備として、`session-index.jsonl` と `sessions` テーブルに `user_id` フィールドを導入した。サーバ集約のないローカル単独利用では `unknown` のままでも従来通り動作する。
+サーバ集約構成（[0009](../issues/0009-feat-server-side-metrics-pipeline.md)）に向けて、`session-index.jsonl` と `sessions` テーブルに `user_id` を導入。取得順序は env → TOML → `git config --global user.email` → `unknown`。`git config --local` は cwd 依存で人物が分裂するため意図的に見ない。`pr_metrics` の GROUP BY に `user_id` を追加し pair coding に対応。
 
-**主な設計判断:**
-
-- **取得順序**: `AGENT_TELEMETRY_USER` 環境変数 → `~/.claude/agent-telemetry.toml` の `user` キー → `git config --global user.email` → `unknown`。`git config --local` は **意図的に見ない**（cwd 依存で人物が分裂するのを避け、マシン跨ぎで同一人物を束ねる本来目的に合わせる）
-- **形式は任意の文字列**: メール / pseudonym / UUID どれでも可。ハッシュ化はしない（ハッシュ化は join 不可で複数マシンからの集約に困る、PII 分離が必要なら TOML に pseudonym を入れる運用で十分）
-- **欠損時は `unknown`**: hook を失敗させない。サーバ送信時のゲート判定は 0009 の責務として分離
-- **既存レコードへの埋め戻し**: `sync-db` 実行時に `user_id` 欠落レコードを現在の解決値で埋め、JSONL に書き戻す。マイグレーションコマンドは追加しない
-- **`pr_metrics` VIEW の集約軸に追加**: GROUP BY を `(pr_url, coding_agent, user_id)` に拡張し、pair coding で同一 PR を複数人が触った場合に意味的に正しく分離する。単独利用時の集計結果は変わらない
-- **`session_concurrency_*` VIEW は未変更**: 既存互換維持のため。user 別の同時実行数は将来必要になったら別 VIEW として追加する
-
-**採用しなかった代替:**
-
-- `git config --local` を最優先: リポジトリごとに別 email を設定する運用（OSS と業務でメールを分ける）で同一人物が分裂し、user attribution の本来目的と逆方向になるため不採用
-- メールアドレス固定（ハッシュ化なし）: 表示と保存を分離するために `user_display` 列を追加する案もあったが、TOML に pseudonym を書くだけで同等の運用ができるため、列追加はしない（YAGNI）
-- 0009 のサーバ仕様を待つ: AuthN/AuthZ は user 識別子の表現が決まらないと割れるため、0010 を先行確定して 0009 を進めやすくする
-
-依存: issue 0009（サーバ側転送）。0010 単独でも実害はないが、価値が顕在化するのは 0009 が動いてから。
+詳細: [issues/closed/0024-spec-introduce-user-id-field.md](../issues/closed/0024-spec-introduce-user-id-field.md)
 
 ---
 
