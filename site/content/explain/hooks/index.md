@@ -124,6 +124,6 @@ flowchart TB
 - Claude Code: `~/.claude/settings.json` の `hooks` セクションに追記
 - Codex CLI: `~/.codex/config.toml` に `[features] codex_hooks = true` を立てたうえで `[[hooks.<Event>]]` を追加、または `~/.codex/hooks.json` を配置
 
-書き込みを伴うのは `uninstall-hooks` のみで、対象は旧 `install` が `~/.claude/settings.json` に残した単一エントリに限定されます。Codex 側は人間編集が前提のため自動削除を提供しません。
+過去 `agent-telemetry install` 系統で自動登録された hook がある場合は、`agent-telemetry doctor` の legacy hook warning を頼りに手動で削除してください（自動削除は提供しません）。
 
 具体的なセットアップ手順は [docs/setup.md](https://github.com/ishii1648/agent-telemetry/blob/main/docs/setup.md) を参照してください。

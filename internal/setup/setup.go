@@ -1,7 +1,6 @@
-// Package setup prints agent-specific hook registration instructions and
-// (only as `uninstall-hooks`) removes legacy auto-registered entries from
-// ~/.claude/settings.json. It does NOT register hooks — dotfiles or manual
-// editing remain the source of truth.
+// Package setup prints agent-specific hook registration instructions.
+// It does NOT register hooks — dotfiles or manual editing remain the
+// source of truth.
 package setup
 
 import (
@@ -14,37 +13,26 @@ import (
 )
 
 // HookSpec describes one agent-telemetry hook entry.
-//
-// CodingAgent identifies which agent the entry belongs to so doctor /
-// uninstall can scope their action correctly.
 type HookSpec struct {
-	CodingAgent string // "claude" or "codex"
-	Event       string // hook event name as written in settings (e.g. "SessionStart")
-	Subcommand  string // agent-telemetry hook subcommand
-	Optional    bool   // true → doctor flags as info, not failure
+	Event      string // hook event name as written in settings (e.g. "SessionStart")
+	Subcommand string // agent-telemetry hook subcommand
+	Optional   bool   // true → doctor flags as info, not failure
 }
 
 // ClaudeHookSpecs lists the canonical hooks for Claude Code.
 var ClaudeHookSpecs = []HookSpec{
-	{CodingAgent: agent.NameClaude, Event: "SessionStart", Subcommand: "session-start"},
-	{CodingAgent: agent.NameClaude, Event: "SessionEnd", Subcommand: "session-end"},
-	{CodingAgent: agent.NameClaude, Event: "Stop", Subcommand: "stop"},
-}
-
-// LegacyClaudeSubcommands は ClaudeHookSpecs から外したが既存ユーザの
-// settings.json から uninstall-hooks で取り除きたいサブコマンドのリスト。
-// agent-telemetry のリリースで廃止された hook 名を入れる。
-var LegacyClaudeSubcommands = []string{
-	"todo-cleanup", // TODO.md 廃止に伴い 2026-05-08 に削除
+	{Event: "SessionStart", Subcommand: "session-start"},
+	{Event: "SessionEnd", Subcommand: "session-end"},
+	{Event: "Stop", Subcommand: "stop"},
 }
 
 // CodexHookSpecs lists the canonical hooks for Codex CLI. PostToolUse is
 // optional — Codex is happy without PR URL auto-detection, since `update`
 // and Stop-time backfill cover the same data.
 var CodexHookSpecs = []HookSpec{
-	{CodingAgent: agent.NameCodex, Event: "SessionStart", Subcommand: "session-start"},
-	{CodingAgent: agent.NameCodex, Event: "Stop", Subcommand: "stop"},
-	{CodingAgent: agent.NameCodex, Event: "PostToolUse", Subcommand: "post-tool-use", Optional: true},
+	{Event: "SessionStart", Subcommand: "session-start"},
+	{Event: "Stop", Subcommand: "stop"},
+	{Event: "PostToolUse", Subcommand: "post-tool-use", Optional: true},
 }
 
 // HookSpecsFor returns the hook list for a given agent.
@@ -57,15 +45,10 @@ func HookSpecsFor(name string) []HookSpec {
 	}
 }
 
-// settingsPathFn returns ~/.claude/settings.json. Replaceable in tests.
-var settingsPathFn = func() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".claude", "settings.json")
-}
-
 // SettingsPath returns the resolved path of ~/.claude/settings.json.
 func SettingsPath() string {
-	return settingsPathFn()
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".claude", "settings.json")
 }
 
 // CodexHooksPath returns the conventional path for ~/.codex/hooks.json.
@@ -113,7 +96,6 @@ func printClaude(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "  hook 登録は dotfiles または手動で行ってください。")
 	fmt.Fprintln(w, "  検証: agent-telemetry doctor")
-	fmt.Fprintln(w, "  過去の自動登録を削除: agent-telemetry uninstall-hooks")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "  例:")
 	fmt.Fprintln(w, "  {")

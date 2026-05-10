@@ -363,29 +363,11 @@ ClickHouse / Loki も候補だが、個人利用規模では SQLite で十分。
 
 ## 配布補助
 
-### `setup` コマンド（旧 `install` のリネーム）
+### `setup` コマンド
 
 hook の自動登録はしない。dotfiles または手動で `~/.claude/settings.json` / `~/.codex/config.toml` を管理する前提に整合させるため。`setup [--agent <claude|codex>]` は agent 別の登録例を表示するだけで、書き込みは一切行わない。
 
-旧 `install` という名前は次の理由でリネームした:
-
-- 一般的な CLI 慣習（`pip install` 等）では「install」は実際にインストール／登録を行う。本コマンドは表示しかしないため、新規ユーザの期待を裏切っていた
-- マルチエージェント対応で `--agent codex` が増え、「install というコマンドが Codex 設定に書き込みに来るのでは」という誤解を一層誘発する見通しがあった
-- `setup` であれば「準備手順を出す」セマンティクスが自然で、`doctor` と並んで観察系コマンドであることが見た目で分かる
-
-旧 `install` は廃止予定 alias として残し、deprecation warning を stderr に出して `setup` と同等の案内を表示する。次のメジャーバージョンで削除する。
-
-### `uninstall-hooks` コマンド（旧 `install --uninstall-hooks` の独立化）
-
-過去バージョンが `~/.claude/settings.json` に書き込んだ単一エントリを削除する。matcher 付き・複数 hook を束ねたエントリは人間編集の可能性が高いので触らない。
-
-`install --uninstall-hooks` から独立サブコマンドに分離した理由:
-
-- 旧 `install` は何も書き込まないのに `--uninstall-hooks` だけが破壊的、という非対称が認知的負荷だった
-- リネーム後の `setup` に `--uninstall-hooks` を残すと「セットアップなのにアンインストール？」という語感破綻が発生する
-- 独立サブコマンドにすることで、書き込みを伴う唯一の配布補助コマンドだと CLI 表面で明示できる
-
-Codex 側 (`~/.codex/config.toml`) は提供しない。TOML で人間編集が前提のため自動削除のリスクが高い。
+過去 `install` / `install --uninstall-hooks` / `uninstall-hooks` サブコマンドで settings への書き込みを提供していたが、いずれも廃止した。`setup` が書き込まないのに `--uninstall-hooks` だけが破壊的という非対称、および dotfiles 一元管理との二重管理を解消するため。残置 entry の手動削除手順は `docs/setup.md` を参照。
 
 ### `doctor` コマンド
 
