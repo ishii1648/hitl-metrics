@@ -367,7 +367,7 @@ ClickHouse / Loki も候補だが、個人利用規模では SQLite で十分。
 
 hook の自動登録はしない。dotfiles または手動で `~/.claude/settings.json` / `~/.codex/config.toml` を管理する前提に整合させるため。`setup [--agent <claude|codex>]` は agent 別の登録例を表示するだけで、書き込みは一切行わない。
 
-過去 `install` / `install --uninstall-hooks` / `uninstall-hooks` サブコマンドで settings への書き込みを提供していたが、いずれも廃止した。`setup` が書き込まないのに `--uninstall-hooks` だけが破壊的という非対称、および dotfiles 一元管理との二重管理を解消するため。残置 entry の手動削除手順は `docs/setup.md` を参照。
+過去 `install` / `install --uninstall-hooks` / `uninstall-hooks` サブコマンドで settings への書き込みを提供していたが、いずれも廃止した。`setup` が書き込まないのに `--uninstall-hooks` だけが破壊的という非対称、および dotfiles 一元管理との二重管理を解消するため。残置 entry の手動削除手順は [site の setup/install](https://ishii1648.github.io/agent-telemetry/setup/install/) を参照。
 
 ### `doctor` コマンド
 
@@ -460,7 +460,7 @@ Stop hook 経路には載せない:
 - macOS launchd / Linux systemd timer / cron で定期実行（5〜30 分間隔）
 - 手動実行（必要なときだけ）
 
-`docs/setup.md` に launchd plist と systemd timer のサンプルを置く。
+[site の setup/server](https://ishii1648.github.io/agent-telemetry/setup/server/) に launchd plist と systemd timer のサンプルを置く。
 
 ### 認証 — 単一 API key
 

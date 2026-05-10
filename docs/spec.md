@@ -2,7 +2,7 @@
 
 この文書は agent-telemetry の外部契約を記述する。
 実装方法や設計判断は `docs/design.md`、過去の意思決定の経緯は `issues/closed/` の retro issue に分離する。
-セットアップ手順と日常運用は `docs/setup.md` と `docs/usage.md` を参照する。
+セットアップ手順と日常運用は site の [setup/install](https://ishii1648.github.io/agent-telemetry/setup/install/) / [setup/usage](https://ishii1648.github.io/agent-telemetry/setup/usage/) を参照する（source: `site/content/setup/`）。
 
 ---
 

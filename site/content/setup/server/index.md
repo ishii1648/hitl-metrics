@@ -1,8 +1,11 @@
-# サーバ送信のセットアップ（オプトイン）
+---
+title: server
+weight: 20
+---
 
-複数マシンやチームメンバーで集計値を集約したい場合、`agent-telemetry-server` を立てて `agent-telemetry push` で送信する経路を有効化できます。サーバ送信は **オプトイン** で、設定しなければローカル単独利用は従来どおり動きます。基本のローカルセットアップは [setup.md](setup.md) を、日常運用は [usage.md](usage.md) を参照してください。
+複数マシンやチームメンバーで集計値を集約したい場合、`agent-telemetry-server` を立てて `agent-telemetry push` で送信する経路を有効化できます。サーバ送信は **オプトイン** で、設定しなければローカル単独利用は従来どおり動きます。基本のローカルセットアップは [install]({{< relref "/setup/install" >}}) を、日常運用は [usage]({{< relref "/setup/usage" >}}) を参照してください。
 
-仕様の外部契約は [docs/spec.md ## サーバ送信](spec.md#サーバ送信)、設計判断は [docs/design.md ## サーバ側集約パイプライン](design.md#サーバ側集約パイプライン) を参照。
+仕様の外部契約は [docs/spec.md ## サーバ送信](https://github.com/ishii1648/agent-telemetry/blob/main/docs/spec.md#サーバ送信)、設計判断は [docs/design.md ## サーバ側集約パイプライン](https://github.com/ishii1648/agent-telemetry/blob/main/docs/design.md#サーバ側集約パイプライン) を参照。
 
 agent-telemetry が公式に配布するのは **container image** と **Go binary** のみです:
 
@@ -252,7 +255,7 @@ spec:
     - {port: 3000, targetPort: http,   name: grafana}
 ```
 
-Grafana にブラウザでアクセスする手順は [usage.md ## サーバ DB を Grafana で見る](usage.md#サーバ-db-を-grafana-で見る) を参照してください。
+Grafana にブラウザでアクセスする手順は [usage ## サーバ DB を Grafana で見る]({{< relref "/setup/usage" >}}#サーバ-db-を-grafana-で見る) を参照してください。
 
 ## 5. クライアント設定
 

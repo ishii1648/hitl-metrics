@@ -58,24 +58,21 @@ Codex CLI hooks   → ~/.codex/session-index.jsonl  + rollout JSONL    ┘
 1. **データ収集層** (`internal/hook/`) — 各 agent の hook で session イベントを記録（`internal/agent/` で agent 差分を吸収）
 2. **データ変換層** (`cmd/agent-telemetry/`, `internal/syncdb/`, `internal/transcript/`) — Go CLI で JSONL/transcript → SQLite 変換・PR URL 補完
 3. **可視化層** (`grafana/`) — Grafana ダッシュボードで PR 単位の token 効率を agent 別に表示
-4. **サーバ集約層（オプトイン）** (`cmd/agent-telemetry-server/`, `internal/serverpipe/`, `internal/serverclient/`) — `agent-telemetry push` がローカル DB の **集計値のみ**（`sessions` 行 + `transcript_stats` 行）を送信。transcript（会話本体）はクライアント手元に残るためプライバシー観点の議論が不要。サーバ Grafana はローカル `make grafana-up` と **同じ dashboard JSON / datasource provisioning yaml** を ConfigMap mount で参照する 1 セット運用なので、ダッシュボード変更は両環境に同時反映される。詳細は [docs/setup-server.md](docs/setup-server.md) を参照。
+4. **サーバ集約層（オプトイン）** (`cmd/agent-telemetry-server/`, `internal/serverpipe/`, `internal/serverclient/`) — `agent-telemetry push` がローカル DB の **集計値のみ**（`sessions` 行 + `transcript_stats` 行）を送信。transcript（会話本体）はクライアント手元に残るためプライバシー観点の議論が不要。サーバ Grafana はローカル `make grafana-up` と **同じ dashboard JSON / datasource provisioning yaml** を ConfigMap mount で参照する 1 セット運用なので、ダッシュボード変更は両環境に同時反映される。詳細は [setup/server](https://ishii1648.github.io/agent-telemetry/setup/server/) を参照。
 
 ## ドキュメント
 
-仕組みの解説（アーキテクチャ・データフロー・dashboard の読み方）は専用 site で公開しています:
+仕組みの解説（アーキテクチャ・データフロー・dashboard の読み方）とセットアップ手順は専用 site で公開しています:
 
-**→ [仕組み解説 site](https://ishii1648.github.io/agent-telemetry/)**
+**→ [agent-telemetry site](https://ishii1648.github.io/agent-telemetry/)**
 
-repo 内の Markdown（reference 系）は引き続き以下:
-
-| ファイル | 内容 |
+| 場所 | 内容 |
 |---|---|
+| [仕組み解説](https://ishii1648.github.io/agent-telemetry/explain/) | アーキテクチャ・データフロー・観察軸 |
+| [セットアップ](https://ishii1648.github.io/agent-telemetry/setup/) | install / server / usage（日常運用・トラブルシューティング） |
 | [docs/spec.md](docs/spec.md) | 外部契約（CLI・hook 仕様・データモデル） |
 | [docs/metrics.md](docs/metrics.md) | 計測フレームワーク（観察軸・解釈・OpenMetrics カタログ） |
 | [docs/design.md](docs/design.md) | 実装方針と設計判断 |
-| [docs/setup.md](docs/setup.md) | セットアップ手順 |
-| [docs/setup-server.md](docs/setup-server.md) | サーバ送信のセットアップ（オプトイン、k8s 参考デプロイ） |
-| [docs/usage.md](docs/usage.md) | 日常運用とトラブルシューティング |
 | [issues/closed/](issues/closed/) | 過去の意思決定記録（retro issue を含む正本） |
 | [docs/archive/adr/](docs/archive/adr/) | 旧 ADR 形式の意思決定記録（参照のみ） |
-| [site/](site/) | 仕組み解説 site の Hugo source（`make docs-serve` でローカル確認） |
+| [site/](site/) | site の Hugo source（`make docs-serve` でローカル確認） |

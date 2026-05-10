@@ -1,6 +1,9 @@
-# セットアップガイド
+---
+title: install
+weight: 10
+---
 
-agent-telemetry を導入する手順です。動作の仕組みや日常の運用については [usage.md](usage.md) を参照してください。
+agent-telemetry を導入する手順です。動作の仕組みや日常の運用については [usage]({{< relref "/setup/usage" >}}) を参照してください。
 
 ## 前提条件
 
@@ -149,7 +152,7 @@ jsonData:
 
 ## 5. hitl-metrics（旧名）からの移行
 
-`hitl-metrics` を使っていた環境からは以下の手順で移行します。背景は [issues/closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md](../issues/closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md) を参照。
+`hitl-metrics` を使っていた環境からは以下の手順で移行します。背景は [issues/closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md](https://github.com/ishii1648/agent-telemetry/blob/main/issues/closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md) を参照。
 
 ### 5.1 バイナリの差し替え
 
