@@ -13,7 +13,7 @@ Created: 2026-05-11
 
 ## 概要
 
-[0031](closed/0031-feat-server-image-ghcr-publish.md) で確定した「main push と `v*` tag push で `ghcr.io/.../agent-telemetry-server` を publish」のうち、tag push トリガを廃止し、新 workflow `.github/workflows/release-tag-image.yml` で **GitHub Release publish** をトリガに **main で既に push 済みの `:sha-<short>` image を `:vX.Y.Z` / `:vX.Y` / `:vX` / `:latest` に再 tag（promote）** する方式へ切り替える。
+[0031](0031-feat-server-image-ghcr-publish.md) で確定した「main push と `v*` tag push で `ghcr.io/.../agent-telemetry-server` を publish」のうち、tag push トリガを廃止し、新 workflow `.github/workflows/release-tag-image.yml` で **GitHub Release publish** をトリガに **main で既に push 済みの `:sha-<short>` image を `:vX.Y.Z` / `:vX.Y` / `:vX` / `:latest` に再 tag（promote）** する方式へ切り替える。
 
 main push → `:latest` / `:sha-<short>` 経路はそのまま維持する（外向きには `:latest` 追従と tag pin の semantic は変わらない）。
 
