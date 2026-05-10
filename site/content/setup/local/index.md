@@ -1,9 +1,15 @@
 ---
-title: install
+title: local
 weight: 10
 ---
 
-agent-telemetry を導入する手順です。動作の仕組みは [仕組み解説]({{< relref "/explain" >}}) と [docs/spec.md](https://github.com/ishii1648/agent-telemetry/blob/main/docs/spec.md) を参照してください。
+ローカルマシンに agent-telemetry を導入する手順です。
+
+agent-telemetry は **ローカル単独で完結** します。本ページの手順を実施すると、`~/.claude/agent-telemetry.db` に集計結果が蓄積され、Grafana ダッシュボードで PR 単位の token 効率や開発生産性を可視化できます。
+
+複数マシンやチームメンバーで集計値を集約したい場合は、**オプトイン** で `agent-telemetry-server` に送信する経路を有効化できます（[server]({{< relref "/setup/server" >}})）。サーバ送信を設定しなくてもローカル利用は従来どおり動きます。
+
+動作の仕組みは [仕組み解説]({{< relref "/explain" >}}) と [docs/spec.md](https://github.com/ishii1648/agent-telemetry/blob/main/docs/spec.md) を参照してください。
 
 ## 前提条件
 

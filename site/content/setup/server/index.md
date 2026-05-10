@@ -3,7 +3,7 @@ title: server
 weight: 20
 ---
 
-複数マシンやチームメンバーで集計値を集約したい場合、`agent-telemetry-server` を立てて `agent-telemetry push` で送信する経路を有効化できます。サーバ送信は **オプトイン** で、設定しなければローカル単独利用は従来どおり動きます。基本のローカルセットアップは [install]({{< relref "/setup/install" >}}) を参照してください。
+複数マシンやチームメンバーで集計値を集約したい場合、`agent-telemetry-server` を立てて `agent-telemetry push` で送信する経路を有効化できます。サーバ送信は **オプトイン** で、設定しなければローカル単独利用は従来どおり動きます。基本のローカルセットアップは [local]({{< relref "/setup/local" >}}) を参照してください。
 
 仕様の外部契約は [docs/spec.md ## サーバ送信](https://github.com/ishii1648/agent-telemetry/blob/main/docs/spec.md#サーバ送信)、設計判断は [docs/design.md ## サーバ側集約パイプライン](https://github.com/ishii1648/agent-telemetry/blob/main/docs/design.md#サーバ側集約パイプライン) を参照。
 

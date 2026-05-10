@@ -124,4 +124,4 @@ flowchart TB
 
 過去 `agent-telemetry install` 系統で自動登録された hook がある場合は、`agent-telemetry doctor` の legacy hook warning を頼りに手動で削除してください（自動削除は提供しません）。
 
-具体的なセットアップ手順は [setup/install]({{< relref "/setup/install" >}}) を参照してください。
+具体的なセットアップ手順は [setup/local]({{< relref "/setup/local" >}}) を参照してください。
