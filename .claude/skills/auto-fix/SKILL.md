@@ -1,12 +1,24 @@
 ---
 name: auto-fix
 description: PR push 後の GitHub Actions CI を Monitor tool で継続監視し、失敗ジョブのログを取得して原因診断 → 修正 → 再 push のループを自動実行する。`git-ship` 完了直後に自動連結されるほか、「ci 直して」「fix ci error」「auto-fix」「PR の CI 見て」「CI 監視して」などのトリガーで起動。
+allowed-tools: Monitor, Bash, Read, Edit, Write, Skill
 version: 0.1.0
 ---
 
 # auto-fix
 
 PR を push した後の CI を見守り、失敗があれば原因を特定して修正・再 push を繰り返す。すべて pass するか、ユーザー介入が必要な失敗に達するまでループする。
+
+## 中核ツール: Monitor
+
+**この skill は Monitor tool を中心に組み立てる。** Monitor を使わない実装（Bash の `sleep` 連打、`gh run watch` の同期実行、conversation を blocking する poll）は禁止。
+
+- Monitor は `gh pr checks` を背後で poll し、各 check が pending → 確定状態（pass / fail / cancelled）に遷移するたびに **1 行のイベント通知** を会話に流す
+- Claude は Monitor を arm したあと別の作業（ローカル fix の検証、別ファイルの読み込み）を進められる
+- 失敗イベントが届いた時点で初めてログ取得 → 修正に動く
+- 全 check 確定で `ALL_DONE` を出して Monitor が exit、その時点で skill が次の判定に移る
+
+`Bash` の `sleep` は cache を消費し、会話を進められなくする。**Monitor で代替できる場面では必ず Monitor を使うこと。**
 
 ## 前提条件
 
