@@ -18,7 +18,7 @@ Model: Opus 4.7
 
 ## 根拠
 
-リネームのフェーズ 3〜5 は完了済みだが、最終フェーズ（タグ push 動作確認）が未実施。GoReleaser 設定が agent-telemetry 名で正しく動作するかは tag push しないと分からない。リネーム決定の背景・決定事項（D1〜D4）と BREAKING CHANGE 一覧は [issues/closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md](closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md) を参照。
+リネームのフェーズ 3〜5 は完了済みだが、最終フェーズ（タグ push 動作確認）が未実施。GoReleaser 設定が agent-telemetry 名で正しく動作するかは tag push しないと分からない。リネーム決定の背景・決定事項（D1〜D4）と BREAKING CHANGE 一覧は [0021-spec-rename-hitl-metrics-to-agent-telemetry.md](0021-spec-rename-hitl-metrics-to-agent-telemetry.md) を参照。
 
 ## 対応方針
 
