@@ -1,0 +1,131 @@
+name: Release tag image promotion
+
+# Promote the main-built `:sha-<short>` image to semver tags
+# (`:vX.Y.Z` / `:vX.Y` / `:vX` / `:latest`) when a GitHub Release is
+# published. Re-tag only — does not re-build, so the released digest is
+# byte-identical to the image that was verified on main. Provenance and
+# SBOM attestations attach to the digest, so they survive the re-tag
+# without needing to be regenerated.
+#
+# Source: docker-image.yml publishes `:sha-<short>` for every main push.
+# Release publish (driven by goreleaser via release.yml on tag push)
+# triggers this workflow, which moves semver tags onto that digest.
+on:
+  release:
+    types: [published]
+
+# packages:write — required to push tag manifests to ghcr.io.
+# contents:read — required to checkout and verify the release tag is
+#                 reachable from origin/main.
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/agent-telemetry-server
+
+jobs:
+  promote:
+    name: promote ${{ github.event.release.tag_name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Actions are pinned to commit SHAs (with the corresponding tag in a
+      # comment) — version tags are mutable. Same policy as docker-image.yml.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          # Need full history so we can verify the release tag's commit is
+          # reachable from origin/main (rejects releases cut from feature
+          # branches or arbitrary SHAs).
+          fetch-depth: 0
+
+      # Resolve the release's tag commit and gate on main-reachability.
+      # We trust the tag's commit, not `target_commitish` (which is a
+      # branch hint and can be `main` even if the tag points elsewhere).
+      - id: target
+        name: Resolve release commit
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.release.tag_name }}"
+          tag_sha=$(git rev-list -n 1 "refs/tags/$tag")
+          if ! git merge-base --is-ancestor "$tag_sha" "origin/main"; then
+            echo "::error::Release tag $tag ($tag_sha) is not reachable from origin/main; refusing to promote." >&2
+            exit 1
+          fi
+          short_sha=$(git rev-parse --short=7 "$tag_sha")
+          echo "tag_sha=$tag_sha"     >> "$GITHUB_OUTPUT"
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3.12.0
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3.7.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Compute the destination tag set from the release ref.
+      #   - :vX.Y.Z + :vX.Y + :vX  always
+      #   - :latest only on stable releases (skip pre-release like vX.Y.Z-rc.1)
+      - id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ !github.event.release.prerelease }}
+
+      # Sanity-check that the source image actually exists in the registry
+      # before we try to re-tag it. If GHCR retention or a manual delete has
+      # removed it, we want a clear error rather than a confusing
+      # `imagetools create` failure.
+      - id: source
+        name: Verify source image
+        run: |
+          set -euo pipefail
+          src="${REGISTRY}/${IMAGE_NAME}:sha-${SHORT_SHA}"
+          if ! docker buildx imagetools inspect "$src" >/dev/null 2>&1; then
+            echo "::error::Source image $src not found in registry. The main-build workflow must have published :sha-<short> for this commit." >&2
+            exit 1
+          fi
+          digest=$(docker buildx imagetools inspect --format '{{ json .Manifest }}' "$src" | jq -r '.digest')
+          echo "src=$src"       >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          SHORT_SHA: ${{ steps.target.outputs.short_sha }}
+
+      # Re-tag the multi-arch manifest list onto each destination tag.
+      # `imagetools create -t <new> <src>` copies the manifest list (not
+      # the layers) so the resulting tags resolve to the same digest as
+      # the source — provenance/SBOM attestations remain valid without
+      # being re-generated.
+      - name: Promote tags
+        run: |
+          set -euo pipefail
+          src="${SOURCE_REF}"
+          src_digest="${SOURCE_DIGEST}"
+          tag_args=()
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            tag_args+=("-t" "$tag")
+          done <<< "${TAGS}"
+          docker buildx imagetools create "${tag_args[@]}" "$src"
+          # Verify each promoted tag now resolves to the source digest.
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            promoted_digest=$(docker buildx imagetools inspect --format '{{ json .Manifest }}' "$tag" | jq -r '.digest')
+            if [ "$promoted_digest" != "$src_digest" ]; then
+              echo "::error::Digest mismatch on $tag: got $promoted_digest, expected $src_digest" >&2
+              exit 1
+            fi
+            echo "promoted: $tag -> $promoted_digest"
+          done <<< "${TAGS}"
+        env:
+          SOURCE_REF: ${{ steps.source.outputs.src }}
+          SOURCE_DIGEST: ${{ steps.source.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}

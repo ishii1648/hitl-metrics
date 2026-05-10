@@ -1,10 +1,14 @@
 name: Docker image
 
 # PRs build the image to verify Dockerfile + multi-arch builds still work,
-# but do NOT push to ghcr.io. Only main pushes (`:latest`) and v* tag
-# pushes (`:vX.Y.Z` etc.) actually publish to the registry. This keeps the
-# CI loop honest without granting fork PRs write access to the org's
-# package namespace.
+# but do NOT push to ghcr.io. Only main pushes (`:latest`, `:sha-<short>`)
+# actually publish to the registry. This keeps the CI loop honest without
+# granting fork PRs write access to the org's package namespace.
+#
+# Semver tag publish (`:vX.Y.Z` / `:vX.Y` / `:vX` / `:latest`) is handled
+# by release-tag-image.yml, which re-tags the main-built image when a
+# GitHub Release is published — so released digests are byte-identical to
+# what was verified on main.
 on:
   pull_request:
     paths:
@@ -25,7 +29,6 @@ on:
       - "go.mod"
       - "go.sum"
       - ".github/workflows/docker-image.yml"
-    tags: ["v*"]
   workflow_dispatch:
 
 # packages:write — required to push to ghcr.io.
@@ -79,7 +82,8 @@ jobs:
       # Tag strategy:
       #   - PR / non-default branch → no tags pushed (build verify only)
       #   - main branch push        → :latest, :sha-<short>
-      #   - tag push (vX.Y.Z)       → :vX.Y.Z, :vX.Y, :vX, :latest
+      # Semver tags (:vX.Y.Z etc.) are produced by release-tag-image.yml
+      # via re-tagging on GitHub Release publish, not by this workflow.
       - id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
         with:
@@ -87,9 +91,6 @@ jobs:
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,format=short,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
           labels: |
             org.opencontainers.image.title=agent-telemetry-server
             org.opencontainers.image.description=Dumb ingest layer that receives aggregated agent-telemetry rows and upserts them into SQLite.
