@@ -282,7 +282,7 @@ agent-telemetry push --since-last     # 実送信。差分のみ
 ### cron（Linux / macOS）
 
 ```cron
-*/5 * * * * /usr/local/bin/agent-telemetry push --since-last >> $HOME/.claude/logs/push.log 2>&1
+0 * * * * /usr/local/bin/agent-telemetry push --since-last >> $HOME/.claude/logs/push.log 2>&1
 ```
 
 ### launchd plist（macOS）
@@ -304,7 +304,7 @@ agent-telemetry push --since-last     # 実送信。差分のみ
     <string>--since-last</string>
   </array>
   <key>StartInterval</key>
-  <integer>300</integer>
+  <integer>3600</integer>
   <key>StandardOutPath</key>
   <string>/Users/REPLACE_ME/.claude/logs/push.log</string>
   <key>StandardErrorPath</key>
