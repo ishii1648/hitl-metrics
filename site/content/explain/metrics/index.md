@@ -27,10 +27,9 @@ flowchart TB
 軸を 2 つ提示しただけで読み手に渡すと、**指標の絶対値や増減を素直に良し悪しと結びつけてしまう** 誤読が起きやすくなります。これは以下に起因します。
 
 - **キャッシュ・thinking の構成変化** で token 系の見かけが大きくぶれる
-- **API 構造差** により、agent 間で 0 固定になる指標がある（同じ名前でも比較不能）
 - **PR の性質差**（リファクタ vs feature など）を平均で潰すと意味を失う
 
-そこで主軸 2 つの軸別と、軸を跨いで影響する agent 間比較の 3 つに分けて、典型的な誤読パターンと回避策を並べます。
+主軸 2 つの軸別に、典型的な誤読パターンと回避策を並べます。
 
 ### トークン効率
 
@@ -69,38 +68,15 @@ token と違い「人間との対話量」が混ざるので、レビュア・PR
 
 `ended_at` が空のセッションは現在時刻で打ち切る扱いのため、**進行中セッションを含む時間帯は同時実行数が膨らみます**。
 
-### agent 間比較
+## 3 収集カテゴリ
 
-`coding_agent` ラベルで claude / codex を区別できますが、API 構造の差から **絶対値比較してはいけない指標** があります。
-
-```mermaid
-flowchart TB
-    subgraph ok["比較してよい"]
-        OK1["input / output / cache_read / cache_write tokens"]
-        OK2["tool_use_total / mid_session_msgs"]
-        OK3["review_comments / changes_requested"]
-        OK4["fresh_tokens / per_million_tokens"]
-    end
-
-    subgraph ng["絶対値比較してはいけない"]
-        NG1["ask_user_question<br/>Codex に相当 tool 無し → 0 固定"]
-        NG2["reasoning_tokens<br/>Claude は thinking を分離計上できず 0 固定<br/>Anthropic API の構造的制約"]
-        NG3["total_tokens<br/>上記 NG2 の影響を受ける<br/>fresh − reasoning か内訳並列が安全"]
-    end
-```
-
-agent 跨ぎでは `model` / `agent_version` の混在で平均化が壊れやすいので、**ラベル絞り込みを必ず併用**します。
-
-## 4 収集カテゴリ
-
-メトリクスは 30+ ありますが、**どこで値が確定するか** で 4 つに分類できます。コードを読む際の入口になります。
+メトリクスは 30+ ありますが、**どこで値が確定するか** で 3 つに分類できます。コードを読む際の入口になります。
 
 ```mermaid
 flowchart TB
     A["A. Hook 書き込み"]
     C["C. 外部 API 書き戻し"]
     B["B. Transcript パース"]
-    D["D. SQL 派生"]
     JSONL[("session-index.jsonl")]
     SQL[("SQLite")]
 
@@ -108,7 +84,6 @@ flowchart TB
     C -- 後追い --> JSONL
     JSONL -- sync-db --> SQL
     B -- 集計 --> SQL
-    SQL -- VIEW --> D
 ```
 
 各カテゴリの中身（値を確定させる層・代表メトリクス）は下の表で対応付けています。
@@ -118,15 +93,16 @@ flowchart TB
 | **A. Hook** | session-index.jsonl への即時 append/update | `started_timestamp_seconds` / `ended_timestamp_seconds` / `parent_session_id` / ラベル群 |
 | **B. Transcript** | `agent-telemetry sync-db` 実行時に transcript を後追いパース | token 系全部 / `tool_use_total` / `mid_session_msgs` / `ask_user_question` / `is_ghost` / `model` |
 | **C. 外部 API** | `Stop` hook の pin（早期）+ `agent-telemetry backfill` Phase 1/2（後追い） | `pr_url` ラベル / `pr_merged` / `pr_review_comments` / `pr_changes_requested` |
-| **D. SQL 派生** | Grafana / 手動クエリ実行時に VIEW を評価 | `is_subagent` / `agent_pr_total_tokens` / `agent_pr_fresh_tokens` / `agent_concurrent_sessions_*` |
 
-カテゴリの境界は **「どこから来るか」だけ見ると曖昧**になります（例: `is_subagent` の元データ `parent_session_id` は A だが、メトリクスとしては D の派生）。**「どの層が値を確定させるか」** で分類するとブレません。
+カテゴリの境界は **「どこから来るか」だけ見ると曖昧**になります（例: `pr_url` ラベルは Stop hook が即時 pin する経路と、backfill が gh CLI で後追いする経路の両方を持ち、A と C にまたがる）。**「どの層が値を確定させるか」** で分類するとブレません。
 
 各カテゴリの実装詳細・代表例の追跡は [docs/metrics.md ## 収集パイプライン](https://github.com/ishii1648/agent-telemetry/blob/main/docs/metrics.md#収集パイプライン) を参照してください。データの実際の流れは [data-flow]({{< relref "/explain/data-flow" >}}) ページで時系列に追えます。
 
+なお、`pr_metrics` VIEW・`is_subagent` など SQL VIEW で算出する **派生指標は SQL クエリ時（Grafana ダッシュボード）に評価される別レイヤ**で、収集パイプラインの一部ではありません。本ページでは扱いません。
+
 ## 関連
 
-- [architecture]({{< relref "/explain/architecture" >}}) — 4 カテゴリを支える 3 層構成
+- [architecture]({{< relref "/explain/architecture" >}}) — 3 カテゴリを支える 3 層構成
 - [hooks]({{< relref "/explain/hooks" >}}) — カテゴリ A・C の発火点
-- [data-flow]({{< relref "/explain/data-flow" >}}) — カテゴリ B のパース詳細と D の集約
+- [data-flow]({{< relref "/explain/data-flow" >}}) — カテゴリ B のパース詳細
 - [docs/metrics.md](https://github.com/ishii1648/agent-telemetry/blob/main/docs/metrics.md) — メトリクスカタログ（型・ラベル・SQL カラム対応）
