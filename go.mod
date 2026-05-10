@@ -1,6 +1,6 @@
 module github.com/ishii1648/agent-telemetry
 
-go 1.22.2
+go 1.25.9
 
 require (
 	github.com/klauspost/compress v1.17.11
