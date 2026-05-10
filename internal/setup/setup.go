@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/ishii1648/agent-telemetry/internal/agent"
+	"github.com/ishii1648/agent-telemetry/internal/configpath"
 )
 
 // HookSpec describes one agent-telemetry hook entry.
@@ -94,6 +95,8 @@ func RunWith(w io.Writer, a *agent.Agent) error {
 	if a == nil {
 		fmt.Fprintln(w, "setup: agent 別のセットアップ手順を表示します（hook 登録は dotfiles または手動）")
 		fmt.Fprintln(w)
+		printConfigFile(w)
+		fmt.Fprintln(w)
 		printClaude(w)
 		fmt.Fprintln(w)
 		printCodex(w)
@@ -106,6 +109,21 @@ func RunWith(w io.Writer, a *agent.Agent) error {
 		printClaude(w)
 	}
 	return nil
+}
+
+func printConfigFile(w io.Writer) {
+	preferred := configpath.Preferred()
+	fmt.Fprintf(w, "# config file (%s)\n", preferred)
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "  user_id 上書きとサーバ送信の opt-in に使う TOML ファイル。")
+	fmt.Fprintln(w, "  例:")
+	fmt.Fprintln(w, "    user = \"alice@example.com\"")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "    [server]")
+	fmt.Fprintln(w, "    endpoint = \"https://telemetry.example.com\"")
+	fmt.Fprintln(w, "    token    = \"your-api-token\"")
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "  旧パス %s にあるファイルもしばらく fallback として読みますが、将来削除予定です。\n", configpath.Legacy())
 }
 
 func printClaude(w io.Writer) {

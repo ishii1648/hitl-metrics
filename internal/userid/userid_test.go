@@ -1,10 +1,20 @@
 package userid
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/ishii1648/agent-telemetry/internal/configpath"
 )
+
+// configpathSilenceWarning silences the migration warning that
+// configpath.Resolve emits when only the legacy path exists. Returned
+// closure restores the prior writer.
+func configpathSilenceWarning() func() {
+	return configpath.SetWarnWriterForTest(io.Discard)
+}
 
 func TestResolveEnvBeatsConfig(t *testing.T) {
 	t.Setenv(EnvVar, "env-user@example.com")
@@ -87,6 +97,64 @@ func TestReadConfigUserMissingFile(t *testing.T) {
 	got := readConfigUser(filepath.Join(t.TempDir(), "does-not-exist.toml"))
 	if got != "" {
 		t.Fatalf("got %q, want empty", got)
+	}
+}
+
+// TestResolve_ReadsFromXDGPath confirms the precedence chain delegates to
+// configpath.Resolve() so the new XDG path is preferred. configpath has
+// its own coverage for the fallback semantics; this test only verifies
+// the wiring.
+func TestResolve_ReadsFromXDGPath(t *testing.T) {
+	t.Setenv(EnvVar, "")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+
+	dir := filepath.Join(home, ".config", "agent-telemetry")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "config.toml"),
+		[]byte(`user = "xdg-user@example.com"`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	id, src := Resolve()
+	if id != "xdg-user@example.com" {
+		t.Errorf("Resolve id: got %q, want xdg-user@example.com", id)
+	}
+	if src != SourceConfig {
+		t.Errorf("Resolve src: got %q, want %q", src, SourceConfig)
+	}
+}
+
+// TestResolve_ReadsFromLegacyPath confirms that a config under the old
+// ~/.claude location is still picked up (with the migration warning fired
+// from configpath, suppressed here so test output stays clean).
+func TestResolve_ReadsFromLegacyPath(t *testing.T) {
+	t.Setenv(EnvVar, "")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+
+	dir := filepath.Join(home, ".claude")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "agent-telemetry.toml"),
+		[]byte(`user = "legacy-user@example.com"`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	restore := configpathSilenceWarning()
+	defer restore()
+
+	id, src := Resolve()
+	if id != "legacy-user@example.com" {
+		t.Errorf("Resolve id: got %q, want legacy-user@example.com", id)
+	}
+	if src != SourceConfig {
+		t.Errorf("Resolve src: got %q, want %q", src, SourceConfig)
 	}
 }
 

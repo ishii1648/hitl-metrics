@@ -4,7 +4,8 @@
 // Source precedence (first hit wins):
 //
 //  1. Environment variable AGENT_TELEMETRY_USER
-//  2. ~/.claude/agent-telemetry.toml `user` key
+//  2. agent-telemetry's TOML config `user` key (XDG path; falls back to
+//     ~/.claude/agent-telemetry.toml on legacy installs — see internal/configpath)
 //  3. git config --global user.email
 //  4. fallback: "unknown"
 //
@@ -17,8 +18,9 @@ import (
 	"bufio"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
+
+	"github.com/ishii1648/agent-telemetry/internal/configpath"
 )
 
 // Unknown is the sentinel returned when no source produced a value.
@@ -53,12 +55,12 @@ func Resolve() (string, Source) {
 	return Unknown, SourceUnknown
 }
 
-// ConfigPath returns ~/.claude/agent-telemetry.toml. Lives under
-// ~/.claude/ for consistency with agent-telemetry.db; both agents read
-// the same file.
+// ConfigPath returns the resolved path of agent-telemetry's TOML config
+// (XDG path with ~/.claude fallback for legacy installs). Delegates to
+// configpath.Resolve so both userid and serverclient share the same
+// migration warning gate.
 func ConfigPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".claude", "agent-telemetry.toml")
+	return configpath.Resolve()
 }
 
 // readConfigUser reads the `user` key from a minimal TOML subset

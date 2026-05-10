@@ -32,7 +32,7 @@ docker run --rm -p 8443:8443 \
 
 ## 2. Bearer token を生成する
 
-`AGENT_TELEMETRY_SERVER_TOKEN` はサーバ起動時の Bearer 認証 key です。クライアント `~/.claude/agent-telemetry.toml` の `[server] token` と同値にする必要があります。
+`AGENT_TELEMETRY_SERVER_TOKEN` はサーバ起動時の Bearer 認証 key です。クライアント `~/.config/agent-telemetry/config.toml` の `[server] token` と同値にする必要があります（旧パス `~/.claude/agent-telemetry.toml` も fallback として読まれますが、新規セットアップでは `~/.config/` 側に置いてください）。
 
 ```fish
 openssl rand -hex 32
@@ -256,7 +256,7 @@ Grafana にブラウザでアクセスする手順は [usage.md ## サーバ DB 
 
 ## 5. クライアント設定
 
-`~/.claude/agent-telemetry.toml` に `[server]` セクションを追加します:
+`~/.config/agent-telemetry/config.toml`（`XDG_CONFIG_HOME` が設定されていれば `$XDG_CONFIG_HOME/agent-telemetry/config.toml`）に `[server]` セクションを追加します。旧バージョンが書き出した `~/.claude/agent-telemetry.toml` も fallback として読まれますが、stderr に migration warning が出るので、可能なら `~/.config/` 側に移動してください:
 
 ```toml
 user = "you@example.com"

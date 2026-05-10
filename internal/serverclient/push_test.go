@@ -37,8 +37,13 @@ func newPushTestEnv(t *testing.T) *pushTestEnv {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("CODEX_HOME", filepath.Join(home, ".codex"))
 	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	configDir := filepath.Join(home, ".config", "agent-telemetry")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -46,7 +51,7 @@ func newPushTestEnv(t *testing.T) *pushTestEnv {
 		t:          t,
 		home:       home,
 		dbPath:     filepath.Join(home, ".claude", "agent-telemetry.db"),
-		configPath: filepath.Join(home, ".claude", "agent-telemetry.toml"),
+		configPath: filepath.Join(configDir, "config.toml"),
 	}
 	env.server = httptest.NewServer(http.HandlerFunc(env.handle))
 	t.Cleanup(env.server.Close)

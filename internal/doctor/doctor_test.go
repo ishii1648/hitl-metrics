@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ishii1648/agent-telemetry/internal/agent"
+	"github.com/ishii1648/agent-telemetry/internal/configpath"
 	"github.com/ishii1648/agent-telemetry/internal/userid"
 )
 
@@ -216,6 +217,94 @@ func TestRun_UserIDUnknownSurfacedAsWarning(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "user_id: unknown") {
 		t.Errorf("expected unknown warning:\n%s", buf.String())
+	}
+}
+
+func TestRun_ConfigPathPreferredFound(t *testing.T) {
+	a := &agent.Agent{Name: agent.NameClaude, DataDir: t.TempDir()}
+	env := envWith(t, []*agent.Agent{a}, true, map[string]map[string][]string{
+		agent.NameClaude: {
+			"SessionStart": {"agent-telemetry hook session-start"},
+			"SessionEnd":   {"agent-telemetry hook session-end"},
+			"Stop":         {"agent-telemetry hook stop"},
+		},
+	})
+	env.ConfigPathStatus = func() configpath.MigrationStatus {
+		return configpath.MigrationStatus{
+			Preferred:       "/x/.config/agent-telemetry/config.toml",
+			Legacy:          "/x/.claude/agent-telemetry.toml",
+			PreferredExists: true,
+		}
+	}
+
+	var buf bytes.Buffer
+	if _, err := RunWith(&buf, env); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "✓ config: /x/.config/agent-telemetry/config.toml") {
+		t.Errorf("expected pass line for preferred path:\n%s", out)
+	}
+	if strings.Contains(out, "legacy file still present") {
+		t.Errorf("legacy reminder should be hidden when legacy missing:\n%s", out)
+	}
+}
+
+func TestRun_ConfigPathLegacyOnlyEmitsMigrationWarning(t *testing.T) {
+	a := &agent.Agent{Name: agent.NameClaude, DataDir: t.TempDir()}
+	env := envWith(t, []*agent.Agent{a}, true, map[string]map[string][]string{
+		agent.NameClaude: {
+			"SessionStart": {"agent-telemetry hook session-start"},
+			"SessionEnd":   {"agent-telemetry hook session-end"},
+			"Stop":         {"agent-telemetry hook stop"},
+		},
+	})
+	env.ConfigPathStatus = func() configpath.MigrationStatus {
+		return configpath.MigrationStatus{
+			Preferred:    "/x/.config/agent-telemetry/config.toml",
+			Legacy:       "/x/.claude/agent-telemetry.toml",
+			LegacyExists: true,
+		}
+	}
+
+	var buf bytes.Buffer
+	r, err := RunWith(&buf, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.ConfigPath.NeedsMigration() {
+		t.Error("NeedsMigration should be true when only legacy exists")
+	}
+	out := buf.String()
+	if !strings.Contains(out, "reading legacy") || !strings.Contains(out, "migrate to") {
+		t.Errorf("expected migration warning:\n%s", out)
+	}
+}
+
+func TestRun_ConfigPathBothExistShowsCleanupReminder(t *testing.T) {
+	a := &agent.Agent{Name: agent.NameClaude, DataDir: t.TempDir()}
+	env := envWith(t, []*agent.Agent{a}, true, map[string]map[string][]string{
+		agent.NameClaude: {
+			"SessionStart": {"agent-telemetry hook session-start"},
+			"SessionEnd":   {"agent-telemetry hook session-end"},
+			"Stop":         {"agent-telemetry hook stop"},
+		},
+	})
+	env.ConfigPathStatus = func() configpath.MigrationStatus {
+		return configpath.MigrationStatus{
+			Preferred:       "/x/.config/agent-telemetry/config.toml",
+			Legacy:          "/x/.claude/agent-telemetry.toml",
+			PreferredExists: true,
+			LegacyExists:    true,
+		}
+	}
+
+	var buf bytes.Buffer
+	if _, err := RunWith(&buf, env); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "legacy file still present") {
+		t.Errorf("expected cleanup reminder:\n%s", buf.String())
 	}
 }
 

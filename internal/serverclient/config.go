@@ -11,8 +11,9 @@ package serverclient
 import (
 	"bufio"
 	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/ishii1648/agent-telemetry/internal/configpath"
 )
 
 // ServerConfig holds the resolved [server] section from agent-telemetry.toml.
@@ -31,12 +32,12 @@ func (c ServerConfig) Configured() bool {
 	return c.Endpoint != "" && c.Token != ""
 }
 
-// ConfigPath returns ~/.claude/agent-telemetry.toml. Identical to
-// userid.ConfigPath — they read the same file but different sections, so
-// the helper is duplicated rather than depended upon to keep packages decoupled.
+// ConfigPath returns the resolved path of agent-telemetry's TOML config
+// (XDG path with ~/.claude fallback for legacy installs). Delegates to
+// configpath.Resolve so the migration warning fires once per process even
+// when both serverclient and userid touch the file.
 func ConfigPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".claude", "agent-telemetry.toml")
+	return configpath.Resolve()
 }
 
 // LoadConfig reads the [server] section of the TOML file. Missing file or

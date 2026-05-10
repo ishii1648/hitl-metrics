@@ -9,6 +9,7 @@ import (
 
 	"github.com/ishii1648/agent-telemetry/internal/agent"
 	"github.com/ishii1648/agent-telemetry/internal/backfill"
+	"github.com/ishii1648/agent-telemetry/internal/configpath"
 	"github.com/ishii1648/agent-telemetry/internal/doctor"
 	"github.com/ishii1648/agent-telemetry/internal/hook"
 	"github.com/ishii1648/agent-telemetry/internal/legacy"
@@ -233,7 +234,7 @@ func runPush(args []string) {
 		res.Summarize(os.Stderr)
 		for _, ar := range res.PerAgent {
 			if ar.NoConfig {
-				fmt.Fprintln(os.Stderr, "push: [server] セクションが ~/.claude/agent-telemetry.toml に未設定です。docs/spec.md ## サーバ送信 を参照してください。")
+				fmt.Fprintf(os.Stderr, "push: [server] セクションが %s に未設定です。docs/spec.md ## サーバ送信 を参照してください。\n", configpath.Preferred())
 				break
 			}
 		}
