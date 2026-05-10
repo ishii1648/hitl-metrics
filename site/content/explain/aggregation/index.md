@@ -12,6 +12,7 @@ JSONL に記録された生イベントが **PR 単位の指標**に変わるま
 Claude と Codex で transcript フォーマットは異なります。**`internal/transcript/`** がフォーマット差異を吸収して `transcript_stats` の共通カラムに落とし込みます。
 
 ```mermaid
+%%{init: {'themeVariables': {'fontSize': '20px'}}}%%
 flowchart TB
     subgraph claude["Claude Code transcript"]
         CM["assistant message<br/>usage.input_tokens<br/>usage.output_tokens<br/>usage.cache_creation_input_tokens<br/>usage.cache_read_input_tokens"]
@@ -56,6 +57,7 @@ zstd 圧縮された Codex rollout は decoder を通して読みます（`klaus
 `pr_metrics` VIEW で PR 単位に集約します。フィルタを通過したセッションだけが指標に乗ります。
 
 ```mermaid
+%%{init: {'themeVariables': {'fontSize': '20px'}}}%%
 flowchart LR
     S[("sessions")]
     TS[("transcript_stats")]
