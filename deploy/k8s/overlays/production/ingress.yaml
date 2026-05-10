@@ -1,0 +1,37 @@
+# Ingress exposes both the ingest endpoint and Grafana. Replace `host`
+# values, set ingressClassName, and wire TLS to your cert-manager
+# ClusterIssuer (or terminate at the LB) before applying.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agent-telemetry
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - telemetry.example.com
+        - grafana.example.com
+      secretName: agent-telemetry-tls
+  rules:
+    - host: telemetry.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: agent-telemetry-server
+                port:
+                  number: 8443
+    - host: grafana.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: agent-telemetry-grafana
+                port:
+                  number: 3000

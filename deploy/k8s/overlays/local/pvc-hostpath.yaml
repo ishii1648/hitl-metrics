@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: agent-telemetry-data
+spec:
+  storageClassName: manual
+  selector:
+    matchLabels:
+      overlay: local

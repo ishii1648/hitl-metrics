@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Production overlay. Pins resource limits, gives the PVC a real
+# StorageClass, and exposes the server through an Ingress. Tune
+# `host`, `storageClassName`, and the secret value before applying.
+namespace: agent-telemetry
+
+resources:
+  - ../../base
+  - ingress.yaml
+
+patches:
+  - path: pvc-storageclass.yaml
+    target:
+      kind: PersistentVolumeClaim
+      name: agent-telemetry-data
+  - path: server-resources.yaml
+    target:
+      kind: Deployment
+      name: agent-telemetry-server
+  - path: grafana-resources.yaml
+    target:
+      kind: Deployment
+      name: agent-telemetry-grafana
+
+# Token must be replaced before applying. Prefer ExternalSecrets /
+# SealedSecrets in real deployments — this stub exists so the overlay
+# applies cleanly when wired up by a secrets operator.
+secretGenerator:
+  - name: agent-telemetry-server-token
+    behavior: replace
+    literals:
+      - token=REPLACE_ME

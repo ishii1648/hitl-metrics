@@ -1,0 +1,46 @@
+# systemd unit for VPS / bare-metal deploys of the Go binary released by
+# goreleaser. Drop into /etc/systemd/system/ and enable:
+#
+#   sudo install -d -o agent-telemetry -g agent-telemetry /var/lib/agent-telemetry
+#   sudo install -m 0640 -o root -g agent-telemetry token.env /etc/agent-telemetry/token.env
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now agent-telemetry-server.service
+#
+# /etc/agent-telemetry/token.env holds:
+#   AGENT_TELEMETRY_SERVER_TOKEN=<api key>
+#
+# Match the same value in clients' ~/.claude/agent-telemetry.toml [server] section.
+
+[Unit]
+Description=agent-telemetry ingest server
+Documentation=https://github.com/ishii1648/agent-telemetry
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agent-telemetry
+Group=agent-telemetry
+ExecStart=/usr/local/bin/agent-telemetry-server --data-dir=/var/lib/agent-telemetry --listen=:8443
+EnvironmentFile=/etc/agent-telemetry/token.env
+Restart=on-failure
+RestartSec=5s
+
+# Hardening — the server only needs to read its binary and write its data dir.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ReadWritePaths=/var/lib/agent-telemetry
+
+[Install]
+WantedBy=multi-user.target

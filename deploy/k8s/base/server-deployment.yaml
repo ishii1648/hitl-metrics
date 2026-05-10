@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-telemetry-server
+  labels:
+    app.kubernetes.io/name: agent-telemetry-server
+spec:
+  # SQLite is single-writer; running >1 replica against one PVC corrupts
+  # the DB. If you need HA, sharding, or read replicas, switch to a
+  # different storage engine first.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent-telemetry-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent-telemetry-server
+    spec:
+      containers:
+        - name: server
+          image: ghcr.io/ishii1648/agent-telemetry-server:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --data-dir=/var/lib/agent-telemetry
+            - --listen=:8443
+          env:
+            - name: AGENT_TELEMETRY_SERVER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: agent-telemetry-server-token
+                  key: token
+          ports:
+            - name: http
+              containerPort: 8443
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/agent-telemetry
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: agent-telemetry-data
