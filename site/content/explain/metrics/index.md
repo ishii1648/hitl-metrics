@@ -68,6 +68,21 @@ token と違い「人間との対話量」が混ざるので、レビュア・PR
 
 `ended_at` が空のセッションは現在時刻で打ち切る扱いのため、**進行中セッションを含む時間帯は同時実行数が膨らみます**。
 
+## 計測の実務
+
+落とし穴を踏まえると、軸ごとに **主指標・ベースライン・ドリルダウン経路** がほぼ決まります。
+
+| 観点 | トークン効率 | 開発生産性 |
+|---|---|---|
+| 主指標 | `agent_pr_fresh_tokens`（cache 揺らぎを除き、作業量に近い値） | `mid_session_msgs`（agent 側の迷い）+ `changes_requested`（レビュア側の摩擦） |
+| ベースライン | 同 `task_type` 内の中央値 | 同レビュア・同規模帯（`additions+deletions` のバンド） |
+| ドリルダウン | PR → session → 内訳（input / output / cache_write / reasoning）→ transcript | PR → session の `mid_session_msgs` 推移 → transcript の人間介入局面 |
+| 時系列比較で固定するラベル | `model` / `agent_version` | `coding_agent` / レビュア |
+
+両軸を交差させる典型的な観察は **並列稼働の評価**: `concurrent_sessions_peak` が高い期間に `fresh_tokens / PR` も悪化していれば「並列詰め込み過ぎ」のサインです。
+
+具体的なクエリとパネル定義は [grafana/dashboards/agent-telemetry.json](https://github.com/ishii1648/agent-telemetry/blob/main/grafana/dashboards/agent-telemetry.json) を参照してください。
+
 ## 3 収集カテゴリ
 
 メトリクスは 30+ ありますが、**どこで値が確定するか** で 3 つに分類できます。コードを読む際の入口になります。
