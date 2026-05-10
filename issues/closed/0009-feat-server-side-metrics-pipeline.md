@@ -65,8 +65,9 @@ Completed: 2026-05-10
 - **差分検知**: `state.json` の `pushed_session_versions: {session_id: sha256(sessions row + transcript_stats row)}`。backfill による後追い更新（`is_merged` 等）で sessions 行 hash が変わると再送信される
 - **進行中セッションは除外**: `ended_at` または `end_reason` が空のセッションは送信対象外
 - **認証**: 単一 API key（`AGENT_TELEMETRY_SERVER_TOKEN`）。`user_id` は `sessions` 行に含まれ、認証境界とは責務分離
-- **サーバ側**: `cmd/agent-telemetry-server/` で別 binary を提供。クライアントと **schema DDL のみ共通化**（`internal/syncdb/schema.sql`）。集計ロジックはサーバ側に持たない。Grafana ダッシュボード JSON はそのまま再利用
-- **配布形態**: Go binary + Docker image 両方（systemd unit と `docker-compose.server.yml` を同梱）
+- **サーバ側**: `cmd/agent-telemetry-server/` で別 binary を提供。クライアントと **schema DDL のみ共通化**（`internal/syncdb/schema.sql`）。集計ロジックはサーバ側に持たない。Grafana ダッシュボード JSON / datasource provisioning はそのまま再利用
+- **Grafana 構成はローカルと共通化**: 既存 `docker-compose.yaml` は既に `AGENT_TELEMETRY_DB` env で DB パスを差し替え可能なため、サーバ運用でも `make grafana-up AGENT_TELEMETRY_DB=<server_data>/agent-telemetry.db` で同じ Grafana スタックがそのまま動く。サーバ専用 Grafana 設定ファイルは作らない
+- **配布形態**: Go binary + Docker overlay（`docker-compose.server.yml` は `agent-telemetry-server` サービスのみ追加する overlay。`docker compose -f docker-compose.yaml -f docker-compose.server.yml up` で base から Grafana を継承しつつ server を同居起動）
 - **新メトリクス追加の遡及反映**: サーバを先にデプロイ → 全クライアント binary 更新 → 各クライアントで `sync-db --recheck && push --full` を実行する運用（クライアント手元の transcript が SoR として残るため成立する）
 
 ### 採用しなかった代替
@@ -76,6 +77,7 @@ Completed: 2026-05-10
 - **Stop hook 同期 push（タイムアウト 3s）**: latency 侵食、failure mode の hook 出力混入
 - **fire-and-forget 子プロセス push**: 失敗が静かに死ぬためデバッグ困難
 - **`send_transcripts` フラグ + サニタイズフック**: 集計値だけ送る方針では transcript 自体がサーバに渡らないため、フラグ自体不要
+- **サーバ用 Grafana スタックを別 docker-compose ファイルで複製**: 既存 `docker-compose.yaml` が `AGENT_TELEMETRY_DB` env で DB パスを差し替え可能な作りなので、サーバ運用でもそのまま流用できる。複製するとダッシュボード JSON / datasource provisioning の二重メンテナンスを生むだけで利点がない
 
 ### プライバシー観点
 

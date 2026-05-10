@@ -519,7 +519,7 @@ ingest ハンドラの責務:
 
 `internal/syncdb/schema.sql` をサーバ binary にも埋め込み、起動時に `schema_meta` ハッシュ比較で DDL 再構築する仕組みはクライアントと同じ。**集計ロジック（transcript パース等）はサーバ側に存在しない**。
 
-サーバの SQLite は Grafana datasource として読み込まれる。datasource の `uid: agent-telemetry` を踏襲することで、ローカル Grafana のダッシュボード JSON をそのまま再利用できる。
+サーバの SQLite は Grafana datasource として読み込まれる。**ローカル運用と同じ `docker-compose.yaml` を流用し、`AGENT_TELEMETRY_DB` env でサーバ DB ファイルを指すだけで、datasource provisioning / dashboard JSON / Image Renderer 設定がそのまま動く**（`uid: agent-telemetry` を踏襲、`make grafana-up AGENT_TELEMETRY_DB=<server_data>/agent-telemetry.db` で OK）。サーバ専用の Grafana スタックを別ファイルで持たない。
 
 ### スキーマバージョン整合性と新メトリクス追加
 
@@ -535,14 +535,14 @@ ingest ハンドラの責務:
 
 複数マシンの同一ユーザで session_id が衝突する確率は UUID として実用上ゼロ。物理コピーされた DB を別マシンから再 push したケースだけが実際の衝突源になる。サーバは `(session_id, coding_agent)` PK で `INSERT OR REPLACE` する（最後に届いたものが勝つ）。衝突検出時は `<server_data>/collisions.log` に記録する。
 
-### 配布形態 — Go binary + Docker image
+### 配布形態 — Go binary + Docker overlay
 
 | 形態 | 提供物 | 想定 |
 |---|---|---|
 | Go binary | `cmd/agent-telemetry-server/`（goreleaser で配布） | Linux VPS で systemd unit 経由起動。`contrib/systemd/agent-telemetry-server.service` を同梱 |
-| Docker image | `Dockerfile.server` + `docker-compose.server.yml` | docker-compose 1 本で server + Grafana + Image Renderer を立ち上げ。ローカル Grafana 構成と流儀を揃える |
+| Docker overlay | `Dockerfile.server` + `docker-compose.server.yml` | 既存 `docker-compose.yaml`（Grafana + Image Renderer）を base に、`agent-telemetry-server` サービスのみ追加する **overlay**。`docker compose -f docker-compose.yaml -f docker-compose.server.yml up` で server + Grafana 同居起動できる。Grafana / datasource / dashboard 設定はローカル運用と完全共通 |
 
-両者は同一 Go binary をビルドするため、メンテナンスコストはほぼゼロ。
+両者は同一 Go binary をビルドするため、メンテナンスコストはほぼゼロ。**Grafana スタックをサーバ用に複製しない**ことで、ダッシュボード JSON や provisioning 設定の二重メンテナンスも避ける。
 
 ### 送信量とストレージ
 

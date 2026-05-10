@@ -40,7 +40,8 @@ Created: 2026-05-10
   - `schema_hash` 不一致なら `schema_mismatch: true` を返して受信拒否（DB は変更しない）
   - `(session_id, coding_agent)` PK での upsert 時に既存行があれば `<data_dir>/collisions.log` に記録（last-write-wins）
 - `internal/syncdb/schema.sql` をサーバ binary に埋め込み、起動時 DDL 再構築をクライアントと共通化する。集計ロジック（`internal/transcript/Parse()` 等）はサーバ側に取り込まない
-- `Dockerfile.server` と `docker-compose.server.yml` を新規作成（既存 `docker-compose.yml` とは別ライン、server + Grafana + Image Renderer 同梱）
+- `Dockerfile.server` 新規作成（`agent-telemetry-server` binary を含む image）
+- `docker-compose.server.yml` を **overlay として新規作成**: 既存 `docker-compose.yaml`（Grafana + Image Renderer）を base に、`agent-telemetry-server` サービスのみ追加する。`docker compose -f docker-compose.yaml -f docker-compose.server.yml up` で server + Grafana を同居起動できる。Grafana / datasource / dashboard 設定は base から継承し、サーバ用に複製しない
 - `contrib/systemd/agent-telemetry-server.service` を新規作成
 - goreleaser 設定に `agent-telemetry-server` ビルドラインを追加
 
@@ -51,7 +52,7 @@ Created: 2026-05-10
 - [ ] payload の `schema_hash` が DB の `schema_meta` と一致しない場合、`schema_mismatch: true` を返し DB を変更しない
 - [ ] 受信後の DB を Grafana datasource uid `agent-telemetry` で参照すると、既存ダッシュボード JSON がそのまま動く
 - [ ] 同一 `(session_id, coding_agent)` の再 push で `INSERT OR REPLACE` が効き、衝突は `collisions.log` に記録される
-- [ ] `docker-compose.server.yml` で server + Grafana + Image Renderer が立ち上がる
+- [ ] `docker compose -f docker-compose.yaml -f docker-compose.server.yml up` で server + Grafana + Image Renderer が立ち上がる（Grafana 設定は base 側を継承し、overlay 側は server サービスのみ追加していること）
 - [ ] 不正な Bearer token でのリクエストは 401 を返す
 - [ ] `go test ./...` が通る
 
