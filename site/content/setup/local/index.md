@@ -1,6 +1,15 @@
-# セットアップガイド
+---
+title: local
+weight: 10
+---
 
-agent-telemetry を導入する手順です。動作の仕組みや日常の運用については [usage.md](usage.md) を参照してください。
+ローカルマシンに agent-telemetry を導入する手順です。
+
+agent-telemetry は **ローカル単独で完結** します。本ページの手順を実施すると、`~/.claude/agent-telemetry.db` に集計結果が蓄積され、Grafana ダッシュボードで PR 単位の token 効率や開発生産性を可視化できます。
+
+複数マシンやチームメンバーで集計値を集約したい場合は、**オプトイン** で `agent-telemetry-server` に送信する経路を有効化できます（[server]({{< relref "/setup/server" >}})）。サーバ送信を設定しなくてもローカル利用は従来どおり動きます。
+
+動作の仕組みは [仕組み解説]({{< relref "/explain" >}}) と [docs/spec.md](https://github.com/ishii1648/agent-telemetry/blob/main/docs/spec.md) を参照してください。
 
 ## 前提条件
 
@@ -37,7 +46,7 @@ mv agent-telemetry ~/.local/bin/
 
 ## 2. hook の登録
 
-agent-telemetry が利用する hook は **dotfiles または手動** で登録します。`agent-telemetry setup` は登録例を表示するだけで自動登録はしません（dotfiles 等で settings.json / config.toml を一元管理する構成と整合させるため）。
+agent-telemetry が利用する hook は **手動** で登録します（個人の設定管理ツールから配布する形でも構いません）。`agent-telemetry setup` は登録例を表示するだけで自動登録はしません（ユーザが settings.json / config.toml を一元管理する構成と整合させるため）。
 
 ```fish
 agent-telemetry setup                # 両 agent の登録例を表示
@@ -93,7 +102,7 @@ Codex には `SessionEnd` イベントが存在しないため、`Stop` hook が
 agent-telemetry doctor
 ```
 
-binary の PATH 配置・データディレクトリ（`~/.claude/`, `~/.codex/`）の存在・hook 登録状況を agent ごとにチェックします。未登録の hook は warning として表示しますが、**自動修復は行いません**（dotfiles 一元管理の前提を壊さないため）。
+binary の PATH 配置・データディレクトリ（`~/.claude/`, `~/.codex/`）の存在・hook 登録状況を agent ごとにチェックします。未登録の hook は warning として表示しますが、**自動修復は行いません**（ユーザの設定一元管理の前提を壊さないため）。
 
 > **過去に `agent-telemetry install` / `hitl-metrics install` で自動登録した hook を取り除きたい場合**
 >
@@ -147,44 +156,19 @@ jsonData:
   path: /Users/<your-username>/.claude/agent-telemetry.db
 ```
 
-## 5. hitl-metrics（旧名）からの移行
+### 方法 C: Docker（リポジトリ clone 環境向け）
 
-`hitl-metrics` を使っていた環境からは以下の手順で移行します。背景は [issues/closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md](../issues/closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md) を参照。
-
-### 5.1 バイナリの差し替え
-
-旧 `hitl-metrics` バイナリは PATH から取り除いてから新 `agent-telemetry` を配置します。両方が PATH 上に共存すると、settings.json の hook entry が古いバイナリを呼び続ける事故が起きやすいため。
+リポジトリを clone した環境では、実 DB を mount した Grafana コンテナを 1 コマンドで起動できます。
 
 ```fish
-# 旧バイナリの場所を確認
-which hitl-metrics
-
-# 削除（自分の install 場所に合わせて調整）
-rm ~/.local/bin/hitl-metrics
+make grafana-up          # ~/.claude/agent-telemetry.db を mount → http://localhost:13000
+make grafana-down
 ```
 
-`agent-telemetry upgrade` 実行時にも旧バイナリが PATH にあれば warning を出します。
+別パスの DB を見たい場合は `AGENT_TELEMETRY_DB` で上書きします:
 
-### 5.2 DB / state ファイルの自動移行
+```fish
+make grafana-up AGENT_TELEMETRY_DB=/custom/path/agent-telemetry.db
+```
 
-`agent-telemetry backfill` または `agent-telemetry sync-db` を実行すると以下のファイルを自動でリネームします。
-
-| 旧 | 新 |
-|---|---|
-| `~/.claude/hitl-metrics.db` (+ `-wal`, `-shm`) | `~/.claude/agent-telemetry.db` (+ `-wal`, `-shm`) |
-| `~/.claude/hitl-metrics-state.json` | `~/.claude/agent-telemetry-state.json` |
-| `~/.codex/hitl-metrics-state.json` | `~/.codex/agent-telemetry-state.json` |
-
-新旧両方が存在する場合は安全のためリネームを中止し、stderr に warning を出します。手動でいずれか一方を削除してから再実行してください。
-
-一括で移行したい場合は `scripts/migrate-db-name.sh` を使えます（CLI 実行と等価）。
-
-### 5.3 hook 設定の更新
-
-`~/.claude/settings.json` / `~/.codex/hooks.json` の hook command を `hitl-metrics hook ...` から `agent-telemetry hook ...` に書き換えます。`agent-telemetry doctor` は旧名のまま登録された hook を warning として一覧表示するので、それを参照しながら旧 `install` 系統で自動登録された単一エントリも併せて手動削除します（手順は §2「検証」の囲み参照）。
-
-### 5.4 Grafana
-
-ダッシュボード `uid` / datasource `uid` を `hitl-metrics` から `agent-telemetry` に切り替えています。Grafana provisioning を使っている場合は本リポジトリの `grafana/provisioning/` を再配備してください。手動で datasource を作成していた場合は `Path` を新 DB ファイル名に変更します。
-
-旧ダッシュボード（`uid: hitl-metrics`）は Grafana 側に残ったままになります。不要なら Grafana UI から削除してください（自動削除は行いません）。
+> **注意**: mount は読み書き可能です（SQLite が WAL モードのため `:ro` mount は不可）。frser-sqlite-datasource は SELECT のみで書き込みは行わないので実害はありませんが、Grafana コンテナに DB ファイルへの書き込み権限が渡る点を留意してください。

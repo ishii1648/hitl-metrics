@@ -400,7 +400,7 @@ func writeHooks(w io.Writer, a *agent.Agent, env Env, checks []HookCheck) {
 		}
 	}
 	if !allOK {
-		fmt.Fprintln(w, "  → register manually or via dotfiles (see docs/setup.md)")
+		fmt.Fprintln(w, "  → register manually or via dotfiles (see https://ishii1648.github.io/agent-telemetry/setup/install/)")
 	}
 }
 
@@ -425,6 +425,6 @@ func writeLegacy(w io.Writer, r LegacyReport) {
 		fmt.Fprintf(w, "  - hook [%s/%s]: %s\n", h.Agent, h.Event, h.Command)
 	}
 	if len(r.Hooks) > 0 {
-		fmt.Fprintln(w, "  → update settings.json / hooks.json to call `agent-telemetry hook ...` (see docs/setup.md)")
+		fmt.Fprintln(w, "  → update settings.json / hooks.json to call `agent-telemetry hook ...` (see https://ishii1648.github.io/agent-telemetry/setup/install/)")
 	}
 }

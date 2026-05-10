@@ -3,44 +3,45 @@ title: architecture
 weight: 10
 ---
 
-# Architecture
-
 agent-telemetry は 3 つの層で構成されます。各層の責務を分離してあるので、収集元の追加（新しい coding agent）や可視化先の差し替え（Grafana 以外）は、層をまたいだ変更を最小化できます。
 
 ## 全体図
 
 ```mermaid
-flowchart LR
-    subgraph collect["1. 収集層 (hook)"]
-        CC["Claude Code<br/>SessionStart / SessionEnd / Stop"]
-        CX["Codex CLI<br/>SessionStart / Stop / PostToolUse"]
+%%{init: {'flowchart': {'nodeSpacing': 30, 'rankSpacing': 45}, 'themeVariables': {'fontSize': '14px'}}}%%
+flowchart TB
+    subgraph hooks["1. 収集 (hook)"]
+        direction LR
+        CC["Claude Code"]
+        CX["Codex CLI"]
     end
 
-    subgraph files["2. オンディスク state"]
-        CCJ["~/.claude/session-index.jsonl<br/>+ transcript JSONL"]
-        CXJ["~/.codex/session-index.jsonl<br/>+ rollout JSONL[.zst]"]
+    subgraph state["2. オンディスク (JSONL)"]
+        direction LR
+        CCJ["~/.claude/ session-index + transcript"]
+        CXJ["~/.codex/ session-index + rollout"]
     end
 
-    subgraph transform["3. 変換層 (CLI)"]
-        BF["agent-telemetry backfill<br/>(PR URL / merged / reviews)"]
-        SD["agent-telemetry sync-db<br/>(JSONL → SQLite)"]
+    subgraph cli["3. 変換 (CLI)"]
+        direction LR
+        BF["backfill"]
+        SD["sync-db"]
+        BF --> SD
     end
 
-    DB[("~/.claude/agent-telemetry.db<br/>(SQLite)")]
+    DB[("agent-telemetry.db (SQLite)")]
 
-    subgraph viz["4. 可視化層"]
-        GR["Grafana<br/>(参考実装)"]
-        SQL["任意の SQL クライアント"]
+    subgraph viz["4. 可視化"]
+        direction LR
+        GR["Grafana"]
+        SQL["SQL クライアント"]
     end
 
     CC --> CCJ
     CX --> CXJ
-    CCJ --> BF
-    CXJ --> BF
-    BF --> SD
-    CCJ --> SD
-    CXJ --> SD
-    SD --> DB
+    CCJ --> cli
+    CXJ --> cli
+    cli --> DB
     DB --> GR
     DB --> SQL
 ```
@@ -71,18 +72,16 @@ hook の詳細は [hooks]({{< relref "/explain/hooks" >}}) ページを参照し
 
 ### 3. 変換層（`agent-telemetry` CLI）
 
-CLI は state を読んで SQLite に変換します。
+CLI は state を読んで SQLite に変換します。**通常は `Stop` hook が応答完了時に `backfill` → `sync-db` をブロッキングで連続実行する**ため、ユーザが明示的にコマンドを叩かなくても、エージェントの応答が返ってくるまでに DB が最新化されています（手動で再構築したい場合は [setup/local]({{< relref "/setup/local" >}}) 参照）。
 
 - **`backfill`** — `gh` CLI を呼んで PR URL / merged / レビューコメント数などを補完。cursor を進めて再 API 呼び出しを避ける
 - **`sync-db`** — JSONL と transcript を読んで `sessions` / `transcript_stats` を `INSERT OR REPLACE` で upsert（毎回フル再構築）
-
-`Stop` hook は応答完了時に `backfill` → `sync-db` を**ブロッキング**で実行します。応答が返ってくるまでに DB が最新化される設計です。
 
 ### 4. 可視化層
 
 DB は `~/.claude/agent-telemetry.db` 1 ファイルに集約されます（agent は `coding_agent` カラムで区別）。`pr_metrics` VIEW が PR 単位の集約を提供するので、Grafana / DBeaver / `sqlite3` CLI など SQLite を読める任意のクライアントで参照可能です。
 
-リポジトリ同梱の Grafana dashboard はあくまで**参考実装**です。dashboard が表示する panel と読み方は [dashboard]({{< relref "/explain/dashboard" >}}) を参照してください。
+リポジトリ同梱の Grafana dashboard はあくまで**参考実装**です。panel 構成は `grafana/dashboards/agent-telemetry.json` を直接参照してください。
 
 ## なぜこの構成か
 

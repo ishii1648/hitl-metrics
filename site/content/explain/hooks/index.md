@@ -1,47 +1,23 @@
 ---
 title: hooks
-weight: 30
+weight: 20
 ---
 
-# Hooks
-
-agent-telemetry が登録する hook の一覧と、それぞれが**何のイベントを契機に・何のデータを集めるか**をまとめます。hook は agent プロセスから同期的に呼ばれるため、**永続化以外の重い処理を入れない**設計です（PR 集約は `sync-db` 側で行う）。
+agent-telemetry が登録する hook の一覧と、それぞれが**何のイベントを契機に・何のデータを集めるか**をまとめます。hook は agent プロセスから同期的に呼ばれ、**JSONL への追記から `backfill`・`sync-db` による SQLite 反映までを 1 回の hook 実行内で完結**させます（後続バッチが無いため、ここで sync しないと Grafana に反映されない）。応答時間への影響は [Stop hook の処理時間](#stop-hook-の処理時間) で説明する 3 つの抑制策で抑えています。
 
 ## hook がカバーする範囲
 
 ```mermaid
 flowchart TB
-    subgraph life["セッションのライフサイクル"]
-        S0["セッション開始"]
-        S1["応答ターン 1<br/>(tool_use)"]
-        S2["応答ターン 2<br/>(message)"]
-        S3["応答ターン N"]
-        S4["セッション終了"]
-    end
+    S0([セッション開始])
+    S1["応答ターン<br/>(tool_use / message を繰り返し)"]
+    S2([セッション終了])
+    S0 --> S1
+    S1 --> S2
 
-    subgraph claude["Claude Code hooks"]
-        CSS["SessionStart"]
-        CST["Stop<br/>(各応答完了)"]
-        CSE["SessionEnd"]
-    end
-
-    subgraph codex["Codex CLI hooks"]
-        XSS["SessionStart<br/>(startup / resume)"]
-        XPT["PostToolUse"]
-        XST["Stop<br/>(各応答完了)"]
-    end
-
-    S0 --> CSS
-    S0 --> XSS
-    S1 --> CST
-    S1 --> XPT
-    S1 --> XST
-    S2 --> CST
-    S2 --> XST
-    S3 --> CST
-    S3 --> XST
-    S4 --> CSE
-    S4 -. Codex は SessionEnd なし<br/>最後の Stop が SessionEnd 相当 .-> XST
+    S0 -.-> H0["SessionStart hook<br/>Claude Code / Codex CLI 両方が発火"]
+    S1 -.-> H1["Stop hook（両方・応答完了ごとに発火）<br/>PostToolUse hook（Codex のみ・tool_use 後）"]
+    S2 -.-> H2["SessionEnd hook（Claude のみ）<br/>Codex は最後の Stop が SessionEnd 相当"]
 ```
 
 Codex は `SessionEnd` を持たないため、`Stop` hook で `ended_at` を毎回上書きします。最後に発火した `Stop` がそのまま「終了時刻」になります。
@@ -70,18 +46,21 @@ Codex は `SessionEnd` を持たないため、`Stop` hook で `ended_at` を毎
 
 `Stop` hook は応答完了ごとに `backfill` → `sync-db` をブロッキングで走らせます。応答が長引かないよう **3 つの抑制策**が入っています。
 
-```mermaid
-flowchart LR
-    A["Stop hook 発火"]
-    B{"cursor で<br/>未処理セッションだけ<br/>抽出"}
-    C{"時間条件で<br/>スキップ判定"}
-    D{"goroutine 並列で<br/>gh CLI 呼び出し"}
-    E{"8 秒タイムアウト"}
-    F["JSONL 書き戻し"]
-    G["sync-db で SQLite 更新"]
+<div class="diagram-sm">
 
-    A --> B --> C --> D --> E --> F --> G
+```mermaid
+flowchart TB
+    A["Stop hook 発火"]
+    B["1. cursor で<br/>未処理セッション抽出"]
+    C["2. 時間条件で<br/>スキップ判定"]
+    D["3. goroutine 並列で<br/>gh CLI 呼び出し<br/>(8 秒タイムアウト)"]
+    E["JSONL 書き戻し"]
+    F["sync-db で<br/>SQLite 更新"]
+
+    A --> B --> C --> D --> E --> F
 ```
+
+</div>
 
 | 抑制策 | 効果 |
 |---|---|
@@ -92,7 +71,17 @@ flowchart LR
 
 それでも長引く環境では `Stop` を非同期化するアイデアもあるが、**「応答が返る頃には DB が最新」**という整合性を優先して同期実行に振っています。
 
-## PR URL 解決の優先順位
+## PR と session の紐づけ
+
+PR 単位のメトリクス（`pr_metrics` など）が成立するには、**どの session がどの PR に属するか** を確定する必要があります。hook と CLI が次の順で確定させ、確定後の混入は仕組みで弾く設計です。
+
+### 確定までの 3 ステップ
+
+1. **SessionStart hook** が `branch` / `cwd` / `repo` を session-index.jsonl に記録する（揮発しない事実）
+2. **Stop hook** が応答完了時に `gh pr list --head <branch> --author @me --limit 1` を 8 秒タイムアウトで叩き、1 件取れたら `pr_urls = [url]` + `pr_pinned: true` で **pin** する。同じレスポンスから `is_merged` / `review_comments` / `changes_requested` / `title` も seed
+3. **`agent-telemetry backfill` Phase 1** が pin できなかった session を `(repo, branch)` 単位でグループ化して再試行する fallback 経路。永続的に PR が無いブランチ（main / master 等）は `backfill_checked = true` で永続スキップ
+
+### pin 後の混入を弾く（URL 解決の優先順位）
 
 PR URL は複数の経路から到達するため、衝突を避けるために優先順位が決まっています。
 
@@ -115,15 +104,8 @@ flowchart TB
     P -- "no" --> JSONL
 ```
 
-`Stop` hook が `pr_pinned: true` を立てた後は、他経路からの URL 追記は**すべて no-op** になります。これは「branch とは無関係に PR URL が混入する」事故を防ぐためで、たとえば PR コメントに別 PR のリンクを貼った瞬間に `PostToolUse` が誤検出して紐付けが壊れる、というケースを排除します。
+`Stop` hook が `pr_pinned: true` を立てた後は、他経路からの URL 追記は **すべて no-op** になります。これにより以下のような事故を排除できます。
 
-## hook 登録のしくみ
-
-`agent-telemetry setup` は登録例を**表示するだけ**で、自動書き込みはしません。ユーザーが dotfiles または手動で登録する前提です。
-
-- Claude Code: `~/.claude/settings.json` の `hooks` セクションに追記
-- Codex CLI: `~/.codex/config.toml` に `[features] codex_hooks = true` を立てたうえで `[[hooks.<Event>]]` を追加、または `~/.codex/hooks.json` を配置
-
-過去 `agent-telemetry install` 系統で自動登録された hook がある場合は、`agent-telemetry doctor` の legacy hook warning を頼りに手動で削除してください（自動削除は提供しません）。
-
-具体的なセットアップ手順は [docs/setup.md](https://github.com/ishii1648/agent-telemetry/blob/main/docs/setup.md) を参照してください。
+- **branch とは無関係に PR URL が混入する** — PR コメントに別 PR のリンクを貼った瞬間に `PostToolUse` が誤検出する等
+- **同一ブランチで別 PR を使い回す運用** — 新 PR の URL が古いセッションに付与される
+- **Bash 出力に含まれた他人の PR URL** を `pr_urls` 末尾に拾うケース — `sync-db` は末尾を採用するため誤接続が起きる

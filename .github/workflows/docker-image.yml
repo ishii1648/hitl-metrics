@@ -63,7 +63,7 @@ jobs:
       # these when it sees the version comment.
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
 
-      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130  # v3.7.0
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a  # v4.0.0
         with:
           # arm64 emulation only — amd64 is the host arch on ubuntu-latest.
           platforms: arm64
@@ -85,7 +85,7 @@ jobs:
       # Semver tags (:vX.Y.Z etc.) are produced by release-tag-image.yml
       # via re-tagging on GitHub Release publish, not by this workflow.
       - id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
+        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf  # v6.0.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -98,7 +98,7 @@ jobs:
             org.opencontainers.image.licenses=MIT
 
       - id: build
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6.19.2
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7.1.0
         with:
           context: .
           file: Dockerfile.server
