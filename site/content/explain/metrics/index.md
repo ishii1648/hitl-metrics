@@ -7,21 +7,12 @@ agent-telemetry が **何を観察しているか・なぜそれを選んだか*
 
 ## 観察軸の見取り図
 
-メトリクスは 2 つの主軸 + 2 つの横断軸で配置されます。`pr_metrics` VIEW のフィルタ（merged のみ・subagent / ghost / dotfiles 除外）はすべての軸に効く前提です。
+メトリクスは 2 つの主軸で配置されます。`pr_metrics` VIEW のフィルタ（merged のみ・subagent / ghost / dotfiles 除外）はどちらの軸にも効く前提です。
 
 ```mermaid
 flowchart TB
-    subgraph main["主軸"]
-        A1["<b>1. トークン効率</b><br/>1 PR を完了するのに何 token か<br/>― total / fresh / per_million_tokens"]
-        A2["<b>2. 開発生産性</b><br/>道筋を一発で見つけられているか<br/>― mid_session_msgs / review_comments / changes_requested / 同時実行数"]
-    end
-
-    subgraph cross["横断軸（主軸の絞り込み視点）"]
-        C1["<b>A. agent 間比較</b><br/>coding_agent ラベル<br/>claude vs codex"]
-        C2["<b>B. version 跨ぎ比較</b><br/>agent_version ラベル<br/>session 粒度のみ集計可能"]
-    end
-
-    main --- cross
+    A1["<b>1. トークン効率</b><br/>1 PR を完了するのに何 token か<br/>― total / fresh / per_million_tokens"]
+    A2["<b>2. 開発生産性</b><br/>道筋を一発で見つけられているか<br/>― mid_session_msgs / review_comments / changes_requested / 同時実行数"]
 ```
 
 軸ごとに「答えたい疑問」と「主要指標」を並べると次のとおりです。
@@ -30,10 +21,6 @@ flowchart TB
 |---|---|---|
 | 1. トークン効率 | 1 PR を完了するのに何 token かかっているか | `agent_pr_total_tokens` / `agent_pr_fresh_tokens` / `agent_pr_per_million_tokens` |
 | 2. 開発生産性 | 詰まらず PR をマージまで到達させられているか | `agent_session_mid_session_msgs_total` / `agent_pr_changes_requested` / `agent_concurrent_sessions_peak` |
-| 横断 A | claude vs codex の差はどこに出るか | 上記すべて（ただし後述の比較不可指標を除く） |
-| 横断 B | バージョンアップで効率がどう変わったか | session 粒度の token 系すべて |
-
-メトリクスから軸を逆引きしたい場合は [docs/metrics.md ## メトリクス → 観察軸 逆引き表](https://github.com/ishii1648/agent-telemetry/blob/main/docs/metrics.md#メトリクス--観察軸-逆引き表) を参照してください。
 
 ## 落とし穴: トークン効率
 
@@ -90,53 +77,27 @@ flowchart TB
 
 agent 跨ぎでは `model` / `agent_version` の混在で平均化が壊れやすいので、**ラベル絞り込みを必ず併用**します。
 
-## 観察しないこと
-
-「あえて取らない」項目とその理由を明示しておくと、後発の追加要望を判断しやすくなります。
-
-| 非目標 | 理由 |
-|---|---|
-| 個別 API 課金額 | モデル単価変動が大きく、token 量の方が安定指標 |
-| permission UI 表示回数 | Claude Code の auto mode 進化で改善ターゲットとしての価値が低下 |
-| 未マージ PR / PR 無しセッションの効率 | ROI 不明のため `pr_metrics` から除外 |
-| `task_type` 軸の集計 | カテゴリ間で性質が違いすぎ、平均値が誤読されやすい（`sessions.task_type` 自体は任意フィルタ用に残す） |
-| キャッシュヒット率を単独軸として | 長文コンテキストで機械的に上がる傾向があり、運用の良し悪しとの相関が弱い |
-| reasoning トークンの「思考量」を単独軸として | Codex のみ計上で agent 跨ぎ比較不能。Claude は API 構造的に分離不能 |
-| ツール利用パターンを単独軸として | `tokens_per_tool_use` 自体に良し悪しは無い。token 効率の補助指標として残す |
-| ghost / subagent セッションの効率 | 実体のないセッション。生のメトリクスは残すが PR 単位集計から除外 |
-
 ## 4 収集カテゴリ
 
 メトリクスは 30+ ありますが、**どこで値が確定するか** で 4 つに分類できます。コードを読む際の入口になります。
 
 ```mermaid
-flowchart LR
-    subgraph A["A. Hook 書き込み"]
-        A1["SessionStart / SessionEnd / Stop"]
-        A2["即時に書く揮発しない事実<br/>(時刻・branch・cwd・user_id)"]
-    end
+flowchart TB
+    A["A. Hook 書き込み"]
+    C["C. 外部 API 書き戻し"]
+    B["B. Transcript パース"]
+    D["D. SQL 派生"]
+    JSONL[("session-index.jsonl")]
+    SQL[("SQLite")]
 
-    subgraph B["B. Transcript パース"]
-        B1["sync-db が後追い"]
-        B2["token / tool / message 系"]
-    end
-
-    subgraph C["C. 外部 API 書き戻し"]
-        C1["gh CLI"]
-        C2["PR URL / merged / reviews"]
-    end
-
-    subgraph D["D. SQL 派生"]
-        D1["pr_metrics VIEW など"]
-        D2["A〜C を束ねた集約"]
-    end
-
-    A -.事実.-> JSONL[("session-index.jsonl")]
-    C -.後追い.-> JSONL
-    B -.集計.-> SQL[("SQLite")]
-    JSONL -.sync-db.-> SQL
-    SQL -.VIEW.-> D
+    A -- 事実 --> JSONL
+    C -- 後追い --> JSONL
+    JSONL -- sync-db --> SQL
+    B -- 集計 --> SQL
+    SQL -- VIEW --> D
 ```
+
+各カテゴリの中身（値を確定させる層・代表メトリクス）は下の表で対応付けています。
 
 | カテゴリ | 値を確定させる層 | 代表メトリクス |
 |---|---|---|
