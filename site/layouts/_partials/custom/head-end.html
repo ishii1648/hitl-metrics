@@ -1,20 +1,7 @@
 <style>
-  /* mermaid のデフォルト useMaxWidth: true は SVG に
-     style="max-width: <naturalpx>" + width="100%" attribute をセットする。
-     `width="100%"` 属性は HTML attribute の specificity が低いので CSS の max-width だけでは
-     コンテナ幅まで広がらないケースがある（natural cap 内の挙動）。
-     CSS で width: 100% を !important で上書きすれば、container 幅まで使うのが確定する。
-     ただし useMaxWidth: false で natural 固定にしたいブロックは inline width attribute (px) で
-     固定されるが、それも CSS で 100% に上書きされてしまう点に注意。
-     → アプローチ: 全ブロックで useMaxWidth: true を採用、CSS で 100% 化、natural を超えない範囲で
-        コンテナ幅まで stretching する。 */
-  .mermaid {
-    display: block !important;
-    width: 100% !important;
-  }
+  /* mermaid SVG のはみ出し対策のみ。サイズは各 diagram の構造で調整する方針。 */
   .mermaid svg {
     max-width: 100% !important;
-    width: 100% !important;
     height: auto !important;
   }
 </style>
