@@ -56,7 +56,7 @@ Created: 2026-05-10
 - [ ] 不正な Bearer token でのリクエストは 401 を返す
 - [ ] `go test ./...` が通る
 
-依存: [0028](../0028-feat-server-push-client.md)（クライアント側送信、E2E 検証に必要）
+依存: [0028](0028-feat-server-push-client.md)（クライアント側送信、E2E 検証に必要）
 
 Completed: 2026-05-10
 
