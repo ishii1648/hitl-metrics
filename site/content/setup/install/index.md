@@ -3,7 +3,7 @@ title: install
 weight: 10
 ---
 
-agent-telemetry を導入する手順です。動作の仕組みや日常の運用については [usage]({{< relref "/setup/usage" >}}) を参照してください。
+agent-telemetry を導入する手順です。動作の仕組みは [仕組み解説]({{< relref "/explain" >}}) と [docs/spec.md](https://github.com/ishii1648/agent-telemetry/blob/main/docs/spec.md) を参照してください。
 
 ## 前提条件
 
@@ -149,3 +149,41 @@ cp -r grafana/dashboards /var/lib/grafana/dashboards/agent-telemetry
 jsonData:
   path: /Users/<your-username>/.claude/agent-telemetry.db
 ```
+
+### 方法 C: Docker（リポジトリ clone 環境向け）
+
+リポジトリを clone した環境では、実 DB を mount した Grafana コンテナを 1 コマンドで起動できます。
+
+```fish
+make grafana-up          # ~/.claude/agent-telemetry.db を mount → http://localhost:13000
+make grafana-down
+```
+
+別パスの DB を見たい場合は `AGENT_TELEMETRY_DB` で上書きします:
+
+```fish
+make grafana-up AGENT_TELEMETRY_DB=/custom/path/agent-telemetry.db
+```
+
+> **注意**: mount は読み書き可能です（SQLite が WAL モードのため `:ro` mount は不可）。frser-sqlite-datasource は SELECT のみで書き込みは行わないので実害はありませんが、Grafana コンテナに DB ファイルへの書き込み権限が渡る点を留意してください。
+
+## 5. トラブルシューティング
+
+### hook が動作しない
+
+- `agent-telemetry doctor` で binary / data dir / hook 登録状況を agent ごとに一括確認
+- 未登録の hook があれば §2 を参照しながら dotfiles または手動で `~/.claude/settings.json` または `~/.codex/hooks.json` に追加
+- デバッグログを確認: `~/.claude/logs/session-index-debug.log` または `~/.codex/logs/session-index-debug.log`
+
+### `sync-db` でデータが空になる
+
+- `~/.claude/session-index.jsonl` または `~/.codex/session-index.jsonl` が存在しデータが記録されているか確認
+- session-index の `transcript` パスが存在するか確認
+- Codex の場合、`.jsonl.zst` 圧縮ファイルでも透過解凍されるはず
+
+### Grafana でデータが表示されない
+
+- データソースの Path が `agent-telemetry.db` のフルパスを指しているか確認
+- `agent-telemetry sync-db` を再実行して DB を最新化
+- Grafana のデータソース設定で「Test」ボタンを押して接続を確認
+- ダッシュボードの `coding_agent` テンプレート変数が `All` になっているか確認
