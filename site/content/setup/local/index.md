@@ -46,7 +46,7 @@ mv agent-telemetry ~/.local/bin/
 
 ## 2. hook の登録
 
-agent-telemetry が利用する hook は **dotfiles または手動** で登録します。`agent-telemetry setup` は登録例を表示するだけで自動登録はしません（dotfiles 等で settings.json / config.toml を一元管理する構成と整合させるため）。
+agent-telemetry が利用する hook は **手動** で登録します（個人の設定管理ツールから配布する形でも構いません）。`agent-telemetry setup` は登録例を表示するだけで自動登録はしません（ユーザが settings.json / config.toml を一元管理する構成と整合させるため）。
 
 ```fish
 agent-telemetry setup                # 両 agent の登録例を表示
@@ -102,7 +102,7 @@ Codex には `SessionEnd` イベントが存在しないため、`Stop` hook が
 agent-telemetry doctor
 ```
 
-binary の PATH 配置・データディレクトリ（`~/.claude/`, `~/.codex/`）の存在・hook 登録状況を agent ごとにチェックします。未登録の hook は warning として表示しますが、**自動修復は行いません**（dotfiles 一元管理の前提を壊さないため）。
+binary の PATH 配置・データディレクトリ（`~/.claude/`, `~/.codex/`）の存在・hook 登録状況を agent ごとにチェックします。未登録の hook は warning として表示しますが、**自動修復は行いません**（ユーザの設定一元管理の前提を壊さないため）。
 
 > **過去に `agent-telemetry install` / `hitl-metrics install` で自動登録した hook を取り除きたい場合**
 >

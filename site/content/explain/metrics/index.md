@@ -7,7 +7,7 @@ agent-telemetry が **何を観察しているか・なぜそれを選んだか*
 
 ## 観察軸の見取り図
 
-メトリクスは 2 つの主軸で配置されます。`pr_metrics` VIEW のフィルタ（merged のみ・subagent / ghost / dotfiles 除外）はどちらの軸にも効く前提です。
+メトリクスは 2 つの主軸で配置されます。`pr_metrics` VIEW のフィルタ（merged のみ・subagent / ghost / 運用ノイズリポジトリ除外）はどちらの軸にも効く前提です。
 
 ```mermaid
 flowchart TB

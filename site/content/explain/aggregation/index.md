@@ -64,7 +64,7 @@ flowchart LR
     F2{"is_subagent = 0"}
     F3{"is_merged = 1"}
     F4{"is_ghost = 0"}
-    F5{"repo NOT IN<br/>(dotfiles)"}
+    F5{"repo NOT IN<br/>(運用ノイズ repo)"}
 
     G["GROUP BY<br/>(pr_url, coding_agent, user_id)"]
 
@@ -84,6 +84,6 @@ flowchart LR
 - `is_subagent = 0` — サブエージェントセッションは親と二重計上になるので除外
 - `is_merged = 1` — 未マージ・放棄 PR は最終成果物ではないため除外
 - `is_ghost = 0` — ユーザー発話相当が 0 件のセッション（環境調査だけで終わった等）を除外
-- dotfiles 除外 — agent-telemetry の運用上の自明なノイズ
+- 運用ノイズリポジトリ除外 — 計測対象に含めると指標を歪める個人作業領域（除外対象は schema.sql に固定列挙）
 
 集約軸が `(pr_url, coding_agent, user_id)` の 3 軸なのは、同一 PR が複数 agent / 複数ユーザに触られたケース（pair coding 等）を意味的に分離するためです。実運用上ほぼ発生しませんが、起きたときに合算してしまうと指標が歪むので分離しています。
