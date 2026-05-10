@@ -49,13 +49,16 @@ merged PR 数、total tokens、平均 tokens / PR、PR / 1M tokens、changes req
 Claude Code hooks → ~/.claude/session-index.jsonl + transcript JSONL ┐
                                                                      ├→ agent-telemetry backfill / sync-db
 Codex CLI hooks   → ~/.codex/session-index.jsonl  + rollout JSONL    ┘
-                                                                     → ~/.claude/agent-telemetry.db (SQLite)
-                                                                     → Grafana
+                                                                     → ~/.claude/agent-telemetry.db  (SQLite、クライアント手元)
+                                                                          ├→ Grafana (ローカル)
+                                                                          └→ agent-telemetry push  (オプトイン、集計値のみ)
+                                                                                → agent-telemetry-server (k8s pod) → 集約 SQLite → Grafana
 ```
 
 1. **データ収集層** (`internal/hook/`) — 各 agent の hook で session イベントを記録（`internal/agent/` で agent 差分を吸収）
 2. **データ変換層** (`cmd/agent-telemetry/`, `internal/syncdb/`, `internal/transcript/`) — Go CLI で JSONL/transcript → SQLite 変換・PR URL 補完
 3. **可視化層** (`grafana/`) — Grafana ダッシュボードで PR 単位の token 効率を agent 別に表示
+4. **サーバ集約層（オプトイン）** (`cmd/agent-telemetry-server/`, `internal/serverpipe/`, `internal/serverclient/`) — `agent-telemetry push` がローカル DB の **集計値のみ**（`sessions` 行 + `transcript_stats` 行）を送信。transcript（会話本体）はクライアント手元に残るためプライバシー観点の議論が不要。サーバ Grafana はローカル `make grafana-up` と **同じ dashboard JSON / datasource provisioning yaml** を ConfigMap mount で参照する 1 セット運用なので、ダッシュボード変更は両環境に同時反映される。詳細は [docs/setup-server.md](docs/setup-server.md) を参照。
 
 ## ドキュメント
 
@@ -71,6 +74,7 @@ repo 内の Markdown（reference 系）は引き続き以下:
 | [docs/metrics.md](docs/metrics.md) | 計測フレームワーク（観察軸・解釈・OpenMetrics カタログ） |
 | [docs/design.md](docs/design.md) | 実装方針と設計判断 |
 | [docs/setup.md](docs/setup.md) | セットアップ手順 |
+| [docs/setup-server.md](docs/setup-server.md) | サーバ送信のセットアップ（オプトイン、k8s 参考デプロイ） |
 | [docs/usage.md](docs/usage.md) | 日常運用とトラブルシューティング |
 | [issues/closed/](issues/closed/) | 過去の意思決定記録（retro issue を含む正本） |
 | [docs/archive/adr/](docs/archive/adr/) | 旧 ADR 形式の意思決定記録（参照のみ） |
