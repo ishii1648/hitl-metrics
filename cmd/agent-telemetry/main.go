@@ -77,7 +77,6 @@ Commands:
     stop                                 backfill + sync-db を実行
     post-tool-use                        tool_response から PR URL を抽出（Codex 用）
     pre-tool-use                         per-session tool 注釈を記録（Claude のみ）
-    permission-request                   permission ログを追記（Claude のみ）
   upgrade [--check]                      GitHub Releases から最新版を取得して自身を置き換える（--check は確認のみ）
   version                                version を表示
   help                                   このヘルプを表示
@@ -330,13 +329,6 @@ func runHook(args []string) {
 			os.Exit(1)
 		}
 		hookErr = hook.RunSessionEnd(input, a)
-	case "permission-request":
-		input, e := hook.ReadInput()
-		if e != nil {
-			fmt.Fprintf(os.Stderr, "hook input error: %v\n", e)
-			os.Exit(1)
-		}
-		hookErr = hook.RunPermissionRequest(input)
 	case "pre-tool-use":
 		input, e := hook.ReadInput()
 		if e != nil {
