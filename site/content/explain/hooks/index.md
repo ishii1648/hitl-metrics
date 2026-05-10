@@ -67,7 +67,17 @@ flowchart TB
 
 それでも長引く環境では `Stop` を非同期化するアイデアもあるが、**「応答が返る頃には DB が最新」**という整合性を優先して同期実行に振っています。
 
-## PR URL 解決の優先順位
+## PR と session の紐づけ
+
+PR 単位のメトリクス（`pr_metrics` など）が成立するには、**どの session がどの PR に属するか** を確定する必要があります。hook と CLI が次の順で確定させ、確定後の混入は仕組みで弾く設計です。
+
+### 確定までの 3 ステップ
+
+1. **SessionStart hook** が `branch` / `cwd` / `repo` を session-index.jsonl に記録する（揮発しない事実）
+2. **Stop hook** が応答完了時に `gh pr list --head <branch> --author @me --limit 1` を 8 秒タイムアウトで叩き、1 件取れたら `pr_urls = [url]` + `pr_pinned: true` で **pin** する。同じレスポンスから `is_merged` / `review_comments` / `changes_requested` / `title` も seed
+3. **`agent-telemetry backfill` Phase 1** が pin できなかった session を `(repo, branch)` 単位でグループ化して再試行する fallback 経路。永続的に PR が無いブランチ（main / master 等）は `backfill_checked = true` で永続スキップ
+
+### pin 後の混入を弾く（URL 解決の優先順位）
 
 PR URL は複数の経路から到達するため、衝突を避けるために優先順位が決まっています。
 
@@ -90,7 +100,11 @@ flowchart TB
     P -- "no" --> JSONL
 ```
 
-`Stop` hook が `pr_pinned: true` を立てた後は、他経路からの URL 追記は**すべて no-op** になります。これは「branch とは無関係に PR URL が混入する」事故を防ぐためで、たとえば PR コメントに別 PR のリンクを貼った瞬間に `PostToolUse` が誤検出して紐付けが壊れる、というケースを排除します。
+`Stop` hook が `pr_pinned: true` を立てた後は、他経路からの URL 追記は **すべて no-op** になります。これにより以下のような事故を排除できます。
+
+- **branch とは無関係に PR URL が混入する** — PR コメントに別 PR のリンクを貼った瞬間に `PostToolUse` が誤検出する等
+- **同一ブランチで別 PR を使い回す運用** — 新 PR の URL が古いセッションに付与される
+- **Bash 出力に含まれた他人の PR URL** を `pr_urls` 末尾に拾うケース — `sync-db` は末尾を採用するため誤接続が起きる
 
 ## hook 登録のしくみ
 

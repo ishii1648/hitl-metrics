@@ -109,17 +109,7 @@ flowchart TB
 | **B. Transcript** | `agent-telemetry sync-db` 実行時に transcript を後追いパース | token 系全部 / `tool_use_total` / `mid_session_msgs` / `ask_user_question` / `is_ghost` / `model` |
 | **C. 外部 API** | `Stop` hook の pin（早期）+ `agent-telemetry backfill` Phase 1/2（後追い） | `pr_url` ラベル / `pr_merged` / `pr_review_comments` / `pr_changes_requested` |
 
-カテゴリの境界は **「どこから来るか」だけ見ると曖昧**になります（例: `pr_url` ラベルは Stop hook が即時 pin する経路と、backfill が gh CLI で後追いする経路の両方を持ち、A と C にまたがる）。**「どの層が値を確定させるか」** で分類するとブレません。
-
-### PR と session の紐づけ（A と C の協調）
-
-PR 単位のメトリクスが成立するには、どの PR にどの session が属するかを確定する必要があります。これは A → C の順で組み立てます。
-
-1. **A. SessionStart hook** が `branch` / `cwd` / `repo` を session-index.jsonl に記録（揮発しない事実）
-2. **C. Stop hook** が応答完了時に `gh pr list --head <branch> --author @me --limit 1` を 8s タイムアウトで叩き、1 件取れたら `pr_urls = [url]` + `pr_pinned: true` で **pin**。同じレスポンスから `is_merged` / `review_comments` / `changes_requested` / `title` も seed する
-3. **C. backfill (Phase 1)** が pin できなかった session を `(repo, branch)` 単位でグループ化して再試行する fallback 経路。永続的に PR が無いブランチ（main/master 等）は `backfill_checked = true` で永続スキップ
-
-pin の役割は **誤接続防止**: 一度確定した session は、PostToolUse や `update` / `backfill` による後追い URL 追記をすべて no-op にします。これにより **同一ブランチで別 PR を使い回すケース** や **Bash 出力に含まれた他人の PR URL を `pr_urls` 末尾に拾うケース** で誤った PR に紐づくのを防ぎます。
+カテゴリの境界は **「どこから来るか」だけ見ると曖昧**になります（例: `pr_url` ラベルは Stop hook が即時 pin する経路と、backfill が gh CLI で後追いする経路の両方を持ち、A と C にまたがる）。**「どの層が値を確定させるか」** で分類するとブレません。session ↔ PR の紐づけ機構（pin / fallback / 優先順位）は [hooks ## PR と session の紐づけ]({{< relref "/explain/hooks" >}}#pr-と-session-の紐づけ) を参照してください。
 
 各カテゴリの実装詳細・代表例の追跡は [docs/metrics.md ## 収集パイプライン](https://github.com/ishii1648/agent-telemetry/blob/main/docs/metrics.md#収集パイプライン) を参照してください。データの実際の流れは [data-flow]({{< relref "/explain/data-flow" >}}) ページで時系列に追えます。
 
