@@ -185,7 +185,7 @@ func (h *Handler) checkAuth(r *http.Request) bool {
 // defend against zip-bomb-style inputs.
 func readBody(r *http.Request) ([]byte, error) {
 	limited := io.LimitReader(r.Body, MaxPayloadBytes+1)
-	var src io.Reader = limited
+	src := limited
 	var gz *gzip.Reader
 	if strings.EqualFold(r.Header.Get("Content-Encoding"), "gzip") {
 		var err error
