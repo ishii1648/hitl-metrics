@@ -1,6 +1,9 @@
 <style>
-  /* narrow viewport で mermaid SVG が自然幅のままはみ出すのを防ぐ
-     （natural 幅は mermaid が inline style で固定するので、ここでは縮小方向だけ許可する） */
+  /* mermaid のデフォルト useMaxWidth: true は SVG の inline style に
+     max-width: <naturalpx> をセットするため container に余裕があっても拡大されない。
+     これを 100% に上書きして、container 幅まで使わせる。
+     ブロック側で useMaxWidth: false にした diagram は inline width が naturalpx の attribute で
+     固定されるので、CSS では max-width だけ緩めて (container を超えない範囲で natural を採用) 自然幅を保つ。 */
   .mermaid svg {
     max-width: 100% !important;
     height: auto !important;

@@ -47,13 +47,14 @@ Codex は `SessionEnd` を持たないため、`Stop` hook で `ended_at` を毎
 `Stop` hook は応答完了ごとに `backfill` → `sync-db` をブロッキングで走らせます。応答が長引かないよう **3 つの抑制策**が入っています。
 
 ```mermaid
-flowchart TB
+%%{init: {'flowchart': {'useMaxWidth': false}}}%%
+flowchart LR
     A["Stop hook 発火"]
-    B["1. cursor で未処理セッションだけ抽出"]
-    C["2. 時間条件でスキップ判定"]
-    D["3. goroutine 並列で gh CLI 呼び出し<br/>（全体 8 秒タイムアウト）"]
+    B["1. cursor で<br/>未処理セッション抽出"]
+    C["2. 時間条件で<br/>スキップ判定"]
+    D["3. goroutine 並列で<br/>gh CLI 呼び出し<br/>(8 秒タイムアウト)"]
     E["JSONL 書き戻し"]
-    F["sync-db で SQLite 更新"]
+    F["sync-db で<br/>SQLite 更新"]
 
     A --> B --> C --> D --> E --> F
 ```
