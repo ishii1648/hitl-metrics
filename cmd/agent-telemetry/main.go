@@ -40,10 +40,6 @@ func main() {
 		runPush(os.Args[2:])
 	case "setup":
 		runSetup(os.Args[2:])
-	case "uninstall-hooks":
-		runUninstallHooks()
-	case "install":
-		runInstallAlias(os.Args[2:])
 	case "doctor":
 		runDoctor()
 	case "hook":
@@ -66,7 +62,6 @@ func printUsage(w io.Writer) {
 
 Commands:
   setup [--agent <claude|codex>]         セットアップ案内を表示（hook 登録は dotfiles または手動）
-  uninstall-hooks                        旧 install で登録された hook を ~/.claude/settings.json から削除
   doctor                                 検出された agent ごとに binary / data dir / hook 登録を検証（自動修復はしない）
   backfill [--recheck] [--agent <a>]     検出された agent すべての pr_urls / is_merged / review_comments を補完
   sync-db [--agent <a>]                  検出された agent すべての JSONL/transcript → SQLite 変換（毎回フル再構築）
@@ -82,7 +77,6 @@ Commands:
     post-tool-use                        tool_response から PR URL を抽出（Codex 用）
     pre-tool-use                         per-session tool 注釈を記録（Claude のみ）
     permission-request                   permission ログを追記（Claude のみ）
-  install                                廃止予定 alias。setup を呼び出して同等の案内を表示
   upgrade [--check]                      GitHub Releases から最新版を取得して自身を置き換える（--check は確認のみ）
   version                                version を表示
   help                                   このヘルプを表示
@@ -270,39 +264,6 @@ func runSetup(args []string) {
 	}
 	if err := setup.Run(a); err != nil {
 		fmt.Fprintf(os.Stderr, "setup error: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-func runUninstallHooks() {
-	if err := setup.Uninstall(); err != nil {
-		fmt.Fprintf(os.Stderr, "uninstall-hooks error: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-// runInstallAlias preserves the legacy `agent-telemetry install [--uninstall-hooks]`
-// surface for users still on the old invocation. New flows MUST use the
-// dedicated `setup` / `uninstall-hooks` subcommands.
-//
-// We deliberately call setup.* directly (rather than the install package's
-// thin alias) so this file does not trip the staticcheck SA1019 rule.
-// The deprecation warning is emitted inline and stays close to the
-// dispatch logic.
-func runInstallAlias(args []string) {
-	for _, a := range args {
-		if a == "--uninstall-hooks" {
-			fmt.Fprintln(os.Stderr, "warning: `agent-telemetry install --uninstall-hooks` は廃止予定です。`agent-telemetry uninstall-hooks` を使ってください。")
-			if err := setup.Uninstall(); err != nil {
-				fmt.Fprintf(os.Stderr, "install --uninstall-hooks error: %v\n", err)
-				os.Exit(1)
-			}
-			return
-		}
-	}
-	fmt.Fprintln(os.Stderr, "warning: `agent-telemetry install` は廃止予定です。`agent-telemetry setup` を使ってください。")
-	if err := setup.Run(nil); err != nil {
-		fmt.Fprintf(os.Stderr, "install error: %v\n", err)
 		os.Exit(1)
 	}
 }

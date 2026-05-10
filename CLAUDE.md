@@ -2,7 +2,7 @@
 
 Claude Code および Codex CLI の PR 単位のトークン消費効率を追跡・可視化する計測ツール（hook・CLI・ダッシュボード）。
 
-> 旧称 `hitl-metrics`。リネームの意思決定は [issues/closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md](issues/closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md) を参照。`doctor` / `uninstall-hooks` は旧名の hook 登録も検出する（互換性のため）。
+> 旧称 `hitl-metrics`。リネームの意思決定は [issues/closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md](issues/closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md) を参照。`doctor` は旧名の hook 登録も検出する（互換性のため）。
 
 ## ドキュメント構成
 

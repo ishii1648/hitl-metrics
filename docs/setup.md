@@ -95,13 +95,9 @@ agent-telemetry doctor
 
 binary の PATH 配置・データディレクトリ（`~/.claude/`, `~/.codex/`）の存在・hook 登録状況を agent ごとにチェックします。未登録の hook は warning として表示しますが、**自動修復は行いません**（dotfiles 一元管理の前提を壊さないため）。
 
-> **過去に `agent-telemetry install` で自動登録した hook を取り除きたい場合**
+> **過去に `agent-telemetry install` / `hitl-metrics install` で自動登録した hook を取り除きたい場合**
 >
-> ```fish
-> agent-telemetry uninstall-hooks
-> ```
->
-> 旧バージョンが書き込んだ `~/.claude/settings.json` の単一フックエントリのみを削除します。matcher 付きエントリや複数フックを束ねたエントリは（人間が編集した可能性が高いため）触りません。Codex 側 (`~/.codex/config.toml`) は人間編集が前提のため自動削除を提供しません。
+> `~/.claude/settings.json` を直接編集して `agent-telemetry hook ...` / `hitl-metrics hook ...` を含むエントリを削除してください。`agent-telemetry doctor` が legacy hook を warning として一覧表示するので、それを参考にします。Codex 側 (`~/.codex/config.toml` / `~/.codex/hooks.json`) も同様に手動で削除します。
 
 ## 3. 初回データ生成
 
@@ -187,7 +183,7 @@ rm ~/.local/bin/hitl-metrics
 
 `~/.claude/settings.json` / `~/.codex/hooks.json` の hook command を `hitl-metrics hook ...` から `agent-telemetry hook ...` に書き換えます。`agent-telemetry doctor` は旧名のまま登録された hook を warning として一覧表示します。
 
-旧 `hitl-metrics install` で自動登録された単一エントリは `agent-telemetry uninstall-hooks` で削除できます（旧名 / 新名どちらの command 文字列でもマッチします）。
+旧 `hitl-metrics install` / `agent-telemetry install` で自動登録された単一エントリは、上記 warning を参照しながら手動で削除してください。
 
 ### 5.4 Grafana
 
