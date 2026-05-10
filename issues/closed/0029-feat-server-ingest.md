@@ -7,14 +7,8 @@ affected_paths:
   - Dockerfile.server
   - deploy/k8s/
   - contrib/systemd/
-# 新規 binary / image / manifest / config のため close 時点で未存在
-lint_ignore_missing:
-  - cmd/agent-telemetry-server/
-  - internal/serverpipe/
-  - Dockerfile.server
-  - deploy/k8s/
-  - contrib/systemd/
 tags: [server, ingest, http, k8s]
+closed_at: 2026-05-10
 ---
 
 # サーバ側 ingest 実装 — agent-telemetry-server で集計値を受信し SQLite に upsert
@@ -62,4 +56,33 @@ Created: 2026-05-10
 - [ ] 不正な Bearer token でのリクエストは 401 を返す
 - [ ] `go test ./...` が通る
 
-依存: [0028](closed/0028-feat-server-push-client.md)（クライアント側送信、E2E 検証に必要）
+依存: [0028](0028-feat-server-push-client.md)（クライアント側送信、E2E 検証に必要）
+
+Completed: 2026-05-10
+
+## 解決方法
+
+`agent-telemetry-server` 側を、受信値をそのまま `INSERT OR REPLACE` する dumb ingest layer として実装した。集計ロジックはサーバ側に取り込まず、`internal/syncdb/schema.sql` だけを共通化するために `internal/syncdb/schema/` 新規サブパッケージへ schema embed と hash を切り出し、`syncdb` パッケージと `serverpipe` の双方が依存する形にした。これにより server binary は transcript パーサや sessionindex を引き込まずに済む。
+
+### 主な変更点
+
+- `cmd/agent-telemetry-server/main.go` 新規。`--data-dir` / `--listen` フラグ、`AGENT_TELEMETRY_SERVER_TOKEN` 必須チェック、`/healthz` と graceful shutdown を実装
+- `internal/serverpipe/` 新規。`POST /v1/metrics` ハンドラ（Bearer 認証 + gzip optional + 50 MB 上限 + `schema_hash` 検証 + `INSERT OR REPLACE`）と `OpenDB` / `EnsureSchema` を提供。9 ケースのユニットテストを追加（happy path / schema_mismatch / 401 / 405 / upsert / collisions / gzip / bad json / pr_metrics VIEW 連動）
+- `internal/syncdb/schema/` 新規サブパッケージ。schema.sql / schema_hash.go / genhash を移動し、`schema.SQL` / `schema.Hash` として export
+- `internal/syncdb/syncdb.go` を新サブパッケージ参照に更新。挙動は不変
+- `Dockerfile.server` 新規（multi-stage build → distroless/static、CGO_ENABLED=0、nonroot で 8443 公開）
+- `deploy/k8s/` 新規 Kustomize 構成（base + overlays/local + overlays/production）。Grafana の datasource / dashboard ConfigMap は既存 `grafana/` 配下のファイルを `configMapGenerator` で参照するため二重メンテ無し。`kubectl apply -k --load-restrictor=LoadRestrictionsNone` で適用する旨を README に明記
+- `contrib/systemd/agent-telemetry-server.service` 新規（VPS / bare-metal 用、systemd hardening 込み）
+- `.goreleaser.yaml` に `agent-telemetry-server` build / archive を追加（linux/amd64+arm64、systemd unit を archive に同梱）
+- `.gitignore` に `agent-telemetry-server` バイナリを追加
+
+### 確認した受け入れ条件
+
+- `--listen :8443` で起動・`AGENT_TELEMETRY_SERVER_TOKEN` 未設定時にエラー終了する（`run()` で early return）
+- `POST /v1/metrics` で `sessions` / `transcript_stats` を upsert する（`TestServeIngest_HappyPath`）
+- `schema_hash` 不一致時に DB を変更せず `schema_mismatch: true` を返す（`TestServeIngest_SchemaMismatch`）
+- 既存ダッシュボード JSON の `pr_metrics` VIEW がそのまま動く（`TestServeIngest_PRMetricsViewExists`）
+- 同一 `(session_id, coding_agent)` での再 push が `collisions.log` に記録される（`TestServeIngest_CollisionLogged`）
+- 不正 Bearer は 401（`TestServeIngest_Unauthorized`）
+- `kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/k8s/overlays/local` が成功（render 確認のみ。kind / minikube 上での実行は環境準備込みで未検証）
+- `go test ./...` 全 pass、`go vet ./...` clean、`go build ./...` 成功
