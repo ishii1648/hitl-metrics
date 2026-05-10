@@ -8,9 +8,17 @@ import (
 )
 
 // State holds the cursor for incremental backfill processing.
+//
+// PushedSessionVersions is owned by the serverclient push pipeline (issue 0028)
+// but lives in the same on-disk file. Keeping it on this struct lets either
+// package round-trip the file without a custom merge: backfill leaves the map
+// untouched and push leaves the cursor fields untouched. Keys are
+// `<coding_agent>:<session_id>` (composite to survive UUID collisions across
+// agents), values are SHA-256 hashes of the canonicalized payload.
 type State struct {
-	LastBackfillOffset int       `json:"last_backfill_offset"`
-	LastMetaCheck      time.Time `json:"last_meta_check"`
+	LastBackfillOffset    int               `json:"last_backfill_offset"`
+	LastMetaCheck         time.Time         `json:"last_meta_check"`
+	PushedSessionVersions map[string]string `json:"pushed_session_versions,omitempty"`
 }
 
 // StatePath returns ~/.claude/agent-telemetry-state.json (Claude default).
