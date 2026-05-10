@@ -154,5 +154,4 @@ flowchart LR
 - [architecture]({{< relref "/explain/architecture" >}}) — 4 カテゴリを支える 3 層構成
 - [hooks]({{< relref "/explain/hooks" >}}) — カテゴリ A・C の発火点
 - [data-flow]({{< relref "/explain/data-flow" >}}) — カテゴリ B のパース詳細と D の集約
-- [dashboard]({{< relref "/explain/dashboard" >}}) — 観察軸を panel に落とした参考実装
 - [docs/metrics.md](https://github.com/ishii1648/agent-telemetry/blob/main/docs/metrics.md) — メトリクスカタログ（型・ラベル・SQL カラム対応）

@@ -80,7 +80,7 @@ CLI は state を読んで SQLite に変換します。
 
 DB は `~/.claude/agent-telemetry.db` 1 ファイルに集約されます（agent は `coding_agent` カラムで区別）。`pr_metrics` VIEW が PR 単位の集約を提供するので、Grafana / DBeaver / `sqlite3` CLI など SQLite を読める任意のクライアントで参照可能です。
 
-リポジトリ同梱の Grafana dashboard はあくまで**参考実装**です。dashboard が表示する panel と読み方は [dashboard]({{< relref "/explain/dashboard" >}}) を参照してください。
+リポジトリ同梱の Grafana dashboard はあくまで**参考実装**です。panel 構成は `grafana/dashboards/agent-telemetry.json` を直接参照してください。
 
 ## なぜこの構成か
 
