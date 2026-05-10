@@ -1,48 +1,11 @@
 ---
-title: data-flow
+title: aggregation
 weight: 30
 ---
 
-セッション開始から PR 単位の集計値が出るまでの**データの流れ**を追います。各 agent の transcript フォーマットの違いをどこで吸収しているか、PR への紐付け（pinning）がいつ確定するかを把握できます。
+JSONL に記録された生イベントが **PR 単位の指標**に変わるまでを追います。Claude / Codex の transcript フォーマットの違いをどこで吸収しているか、`pr_metrics` VIEW のフィルタが何を弾いているかを把握できます。
 
-## 一回のセッションのライフサイクル
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant U as ユーザー
-    participant A as Coding Agent<br/>(Claude / Codex)
-    participant H as hook<br/>(agent-telemetry hook ...)
-    participant J as session-index.jsonl<br/>+ transcript
-    participant CLI as agent-telemetry CLI
-    participant DB as SQLite
-
-    U->>A: セッション開始
-    A->>H: SessionStart 発火
-    H->>J: メタデータ追記<br/>(session_id, cwd, repo, branch, user_id)
-
-    loop 応答ターン
-        A->>A: tool_use / message 生成<br/>token usage を transcript に記録
-        opt Codex のみ
-            A->>H: PostToolUse
-            H->>J: tool_response から PR URL を抽出 → pr_urls 追記
-        end
-        A->>H: Stop（応答完了）
-        H->>H: branch から `gh pr list --head` で PR を解決
-        H->>J: pr_pinned: true で確定
-        H->>CLI: backfill → sync-db (blocking)
-        CLI->>J: pr_urls / is_merged / review_comments 補完
-        CLI->>DB: sessions / transcript_stats を upsert
-    end
-
-    A->>H: SessionEnd（Claude のみ）
-    H->>J: ended_at / end_reason 確定
-```
-
-ポイント:
-
-- **PR pinning は `Stop` hook で確定する** — 応答完了時点の branch を `gh pr list --head` で問い合わせて PR を確定させ、`pr_pinned: true` を立てる。pinned 後は `PostToolUse` や `update` での URL 追記を no-op 化して**誤接続を防ぐ**
-- **`backfill` → `sync-db` はブロッキング** — 応答が返るまでに DB が最新化される。UX 上の遅延と引き換えに「table を見れば直前のセッションが映っている」整合性を取っている
+セッション 1 本のライフサイクル（いつ hook が発火し、いつ PR に pin されるか）は [hooks]({{< relref "/explain/hooks" >}}) に集約しています。本ページは hook が JSONL に書き込んだ**後**、CLI と SQL VIEW がどう加工するかに絞ります。
 
 ## agent ごとの transcript パース
 
