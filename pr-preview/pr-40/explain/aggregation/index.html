@@ -1,7 +1,9 @@
 <!doctype html><html lang=ja dir=ltr><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=robots content="index, follow"><link rel="icon shortcut" href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/favicon.ico sizes=32x32><link rel=icon href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/favicon.svg type=image/svg+xml id=favicon-svg><link rel=icon href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/favicon-16x16.png type=image/png sizes=16x16><link rel=icon href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/favicon-32x32.png type=image/png sizes=32x32><link rel=apple-touch-icon href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/apple-touch-icon.png sizes=180x180><link fetchpriority=low href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/site.webmanifest rel=manifest><title>aggregation – agent-telemetry</title><meta name=description content='JSONL に記録された生イベントが PR 単位の指標に変わるまでを追います。Claude / Codex の transcript フォーマットの違いをどこで吸収しているか、pr_metrics VIEW のフィルタが何を弾いているかを把握できます。
 セッション 1 本のライフサイクル（いつ hook が発火し、いつ PR に pin されるか）は hooks に集約しています。本ページは hook が JSONL に書き込んだ後、CLI と SQL VIEW がどう加工するかに絞ります。
 agent ごとの transcript パース Claude と Codex で transcript フォーマットは異なります。internal/transcript/ がフォーマット差異を吸収して transcript_stats の共通カラムに落とし込みます。
-%%{init: {&#39;themeVariables&#39;: {&#39;fontSize&#39;: &#39;20px&#39;}}}%% flowchart TB subgraph claude["Claude Code transcript"] CM["assistant message<br/>usage.input_tokens<br/>usage.output_tokens<br/>usage.cache_creation_input_tokens<br/>usage.cache_read_input_tokens"] end subgraph codex["Codex CLI rollout"] CXE["event_msg.payload<br/>type == &#39;token_count&#39;<br/>(累積値の最終 1 件を採用)"] end P["internal/transcript/<br/>(parser)"] subgraph stats["transcript_stats（共通スキーマ）"] T1["input_tokens / output_tokens"] T2["cache_write_tokens / cache_read_tokens"] T3["reasoning_tokens<br/>(Claude=0, Codex のみ非ゼロ)"] T4["tool_use_total / mid_session_msgs"] T5["ask_user_question<br/>(Codex=0, Claude のみ非ゼロ)"] end CM --> P CXE --> P P --> T1 P --> T2 P --> T3 P --> T4 P --> T5 差異の扱い:'><link rel=canonical href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/explain/aggregation/ itemprop=url><meta property="og:title" content="aggregation"><meta property="og:description" content='
+flowchart TB CC["Claude transcript<br/>(message ごとに usage 加算)"] CX["Codex rollout<br/>(token_count 最終累積値)"] P["internal/transcript/<br/>(parser)"] T[("transcript_stats<br/>共通スキーマ")] CC --> P CX --> P P --> T 落とし込み先のカラム（差異も含む）は次節の表に集約しています。
+差異の扱い:
+軸 Claude Codex token 集計の単位 message ごとの usage を合算 rollout の token_count イベントの最終累積値を採用 reasoning_tokens 常に 0 非ゼロを取りうる ask_user_question 非ゼロを取りうる 常に 0（Codex に該当 tool 概念がないため） transcript ファイル ~/.claude/projects/**/<session-id>.jsonl ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl[.zst] zstd 圧縮された Codex rollout は decoder を通して読みます（klauspost/compress/zstd）。'><link rel=canonical href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/explain/aggregation/ itemprop=url><meta property="og:title" content="aggregation"><meta property="og:description" content='
     
       JSONL に記録された生イベントが PR 単位の指標に変わるまでを追います。Claude / Codex の transcript フォーマットの違いをどこで吸収しているか、pr_metrics VIEW のフィルタが何を弾いているかを把握できます。
 セッション 1 本のライフサイクル（いつ hook が発火し、いつ PR に pin されるか）は hooks に集約しています。本ページは hook が JSONL に書き込んだ後、CLI と SQL VIEW がどう加工するかに絞ります。
@@ -9,45 +11,64 @@ agent ごとの transcript パース
     Claude と Codex で transcript フォーマットは異なります。internal/transcript/ がフォーマット差異を吸収して transcript_stats の共通カラムに落とし込みます。
 
   
-    %%{init: {&#39;themeVariables&#39;: {&#39;fontSize&#39;: &#39;20px&#39;}}}%%
-flowchart TB
-    subgraph claude["Claude Code transcript"]
-        CM["assistant message<br/>usage.input_tokens<br/>usage.output_tokens<br/>usage.cache_creation_input_tokens<br/>usage.cache_read_input_tokens"]
-    end
-
-    subgraph codex["Codex CLI rollout"]
-        CXE["event_msg.payload<br/>type == &#39;token_count&#39;<br/>(累積値の最終 1 件を採用)"]
-    end
-
+    flowchart TB
+    CC["Claude transcript<br/>(message ごとに usage 加算)"]
+    CX["Codex rollout<br/>(token_count 最終累積値)"]
     P["internal/transcript/<br/>(parser)"]
+    T[("transcript_stats<br/>共通スキーマ")]
 
-    subgraph stats["transcript_stats（共通スキーマ）"]
-        T1["input_tokens / output_tokens"]
-        T2["cache_write_tokens / cache_read_tokens"]
-        T3["reasoning_tokens<br/>(Claude=0, Codex のみ非ゼロ)"]
-        T4["tool_use_total / mid_session_msgs"]
-        T5["ask_user_question<br/>(Codex=0, Claude のみ非ゼロ)"]
-    end
-
-    CM --> P
-    CXE --> P
-    P --> T1
-    P --> T2
-    P --> T3
-    P --> T4
-    P --> T5
+    CC --> P
+    CX --> P
+    P --> T
   
+落とし込み先のカラム（差異も含む）は次節の表に集約しています。
 差異の扱い:
+
+  
+      
+          軸
+          Claude
+          Codex
+      
+  
+  
+      
+          token 集計の単位
+          message ごとの usage を合算
+          rollout の token_count イベントの最終累積値を採用
+      
+      
+          reasoning_tokens
+          常に 0
+          非ゼロを取りうる
+      
+      
+          ask_user_question
+          非ゼロを取りうる
+          常に 0（Codex に該当 tool 概念がないため）
+      
+      
+          transcript ファイル
+          ~/.claude/projects/**/<session-id>.jsonl
+          ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl[.zst]
+      
+  
+
+zstd 圧縮された Codex rollout は decoder を通して読みます（klauspost/compress/zstd）。
     
   '><meta property="og:type" content="
     article
   "><meta property="og:url" content="https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/explain/aggregation/"><meta property="article:section" content="explain"><meta itemprop=name content="aggregation"><meta itemprop=description content='JSONL に記録された生イベントが PR 単位の指標に変わるまでを追います。Claude / Codex の transcript フォーマットの違いをどこで吸収しているか、pr_metrics VIEW のフィルタが何を弾いているかを把握できます。
 セッション 1 本のライフサイクル（いつ hook が発火し、いつ PR に pin されるか）は hooks に集約しています。本ページは hook が JSONL に書き込んだ後、CLI と SQL VIEW がどう加工するかに絞ります。
 agent ごとの transcript パース Claude と Codex で transcript フォーマットは異なります。internal/transcript/ がフォーマット差異を吸収して transcript_stats の共通カラムに落とし込みます。
-%%{init: {&#39;themeVariables&#39;: {&#39;fontSize&#39;: &#39;20px&#39;}}}%% flowchart TB subgraph claude["Claude Code transcript"] CM["assistant message<br/>usage.input_tokens<br/>usage.output_tokens<br/>usage.cache_creation_input_tokens<br/>usage.cache_read_input_tokens"] end subgraph codex["Codex CLI rollout"] CXE["event_msg.payload<br/>type == &#39;token_count&#39;<br/>(累積値の最終 1 件を採用)"] end P["internal/transcript/<br/>(parser)"] subgraph stats["transcript_stats（共通スキーマ）"] T1["input_tokens / output_tokens"] T2["cache_write_tokens / cache_read_tokens"] T3["reasoning_tokens<br/>(Claude=0, Codex のみ非ゼロ)"] T4["tool_use_total / mid_session_msgs"] T5["ask_user_question<br/>(Codex=0, Claude のみ非ゼロ)"] end CM --> P CXE --> P P --> T1 P --> T2 P --> T3 P --> T4 P --> T5 差異の扱い:'><meta itemprop=wordCount content="248"><meta name=twitter:card content="summary"><meta name=twitter:title content="aggregation"><meta name=twitter:description content='JSONL に記録された生イベントが PR 単位の指標に変わるまでを追います。Claude / Codex の transcript フォーマットの違いをどこで吸収しているか、pr_metrics VIEW のフィルタが何を弾いているかを把握できます。
+flowchart TB CC["Claude transcript<br/>(message ごとに usage 加算)"] CX["Codex rollout<br/>(token_count 最終累積値)"] P["internal/transcript/<br/>(parser)"] T[("transcript_stats<br/>共通スキーマ")] CC --> P CX --> P P --> T 落とし込み先のカラム（差異も含む）は次節の表に集約しています。
+差異の扱い:
+軸 Claude Codex token 集計の単位 message ごとの usage を合算 rollout の token_count イベントの最終累積値を採用 reasoning_tokens 常に 0 非ゼロを取りうる ask_user_question 非ゼロを取りうる 常に 0（Codex に該当 tool 概念がないため） transcript ファイル ~/.claude/projects/**/<session-id>.jsonl ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl[.zst] zstd 圧縮された Codex rollout は decoder を通して読みます（klauspost/compress/zstd）。'><meta itemprop=wordCount content="196"><meta name=twitter:card content="summary"><meta name=twitter:title content="aggregation"><meta name=twitter:description content='JSONL に記録された生イベントが PR 単位の指標に変わるまでを追います。Claude / Codex の transcript フォーマットの違いをどこで吸収しているか、pr_metrics VIEW のフィルタが何を弾いているかを把握できます。
 セッション 1 本のライフサイクル（いつ hook が発火し、いつ PR に pin されるか）は hooks に集約しています。本ページは hook が JSONL に書き込んだ後、CLI と SQL VIEW がどう加工するかに絞ります。
 agent ごとの transcript パース Claude と Codex で transcript フォーマットは異なります。internal/transcript/ がフォーマット差異を吸収して transcript_stats の共通カラムに落とし込みます。
-%%{init: {&#39;themeVariables&#39;: {&#39;fontSize&#39;: &#39;20px&#39;}}}%% flowchart TB subgraph claude["Claude Code transcript"] CM["assistant message<br/>usage.input_tokens<br/>usage.output_tokens<br/>usage.cache_creation_input_tokens<br/>usage.cache_read_input_tokens"] end subgraph codex["Codex CLI rollout"] CXE["event_msg.payload<br/>type == &#39;token_count&#39;<br/>(累積値の最終 1 件を採用)"] end P["internal/transcript/<br/>(parser)"] subgraph stats["transcript_stats（共通スキーマ）"] T1["input_tokens / output_tokens"] T2["cache_write_tokens / cache_read_tokens"] T3["reasoning_tokens<br/>(Claude=0, Codex のみ非ゼロ)"] T4["tool_use_total / mid_session_msgs"] T5["ask_user_question<br/>(Codex=0, Claude のみ非ゼロ)"] end CM --> P CXE --> P P --> T1 P --> T2 P --> T3 P --> T4 P --> T5 差異の扱い:'><link rel=preload href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/css/compiled/main.min.b34d4c1853f2ce7cc97299cd595f32316a750f7f4726c65edbb0075ec25380d0.css as=style integrity="sha256-s01MGFPyznzJcpnNWV8yMWp1D39HJsZe27AHXsJTgNA="><link href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/css/compiled/main.min.b34d4c1853f2ce7cc97299cd595f32316a750f7f4726c65edbb0075ec25380d0.css rel=stylesheet integrity="sha256-s01MGFPyznzJcpnNWV8yMWp1D39HJsZe27AHXsJTgNA="><script src=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/js/main-head.min.94da6f95b126542222dab3a6e07ffefe1aaf63ec3ca555e827b58b80e7d3f0b7.js integrity="sha256-lNpvlbEmVCIi2rOm4H/+/hqvY+w8pVXoJ7WLgOfT8Lc="></script><style>.mermaid svg{max-width:100%!important;height:auto!important}</style></head><body><a href=#content class="hx:sr-only hx:focus-visible:not-sr-only hx:focus-visible:fixed hx:focus-visible:z-50 hx:focus-visible:top-2 hx:focus-visible:left-2 hx:focus-visible:bg-primary-500 hx:focus-visible:text-white hx:focus-visible:px-4 hx:focus-visible:py-2 hx:focus-visible:rounded-md hx:focus-visible:text-sm hx:focus-visible:font-medium">コンテンツにスキップ</a><div class="hextra-nav-container hx:sticky hx:top-0 hx:z-20 hx:w-full hx:bg-transparent hx:print:hidden"><div class="hextra-nav-container-blur hx:pointer-events-none hx:absolute hx:z-[-1] hx:h-full hx:w-full hx:bg-white hx:dark:bg-dark hx:shadow-[0_2px_4px_rgba(0,0,0,.02),0_1px_0_rgba(0,0,0,.06)] hx:contrast-more:shadow-[0_0_0_1px_#000] hx:dark:shadow-[0_-1px_0_rgba(255,255,255,.1)_inset] hx:contrast-more:dark:shadow-[0_0_0_1px_#fff]"></div><nav class="hextra-max-navbar-width hx:mx-auto hx:flex hx:items-center hx:justify-end hx:gap-2 hx:h-16 hx:px-6"><a class="hx:flex hx:items-center hx:hover:opacity-75 hx:ltr:mr-auto hx:rtl:ml-auto" href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/><span class="hx:mr-2 hx:font-extrabold hx:inline hx:select-none">agent-telemetry</span>
+flowchart TB CC["Claude transcript<br/>(message ごとに usage 加算)"] CX["Codex rollout<br/>(token_count 最終累積値)"] P["internal/transcript/<br/>(parser)"] T[("transcript_stats<br/>共通スキーマ")] CC --> P CX --> P P --> T 落とし込み先のカラム（差異も含む）は次節の表に集約しています。
+差異の扱い:
+軸 Claude Codex token 集計の単位 message ごとの usage を合算 rollout の token_count イベントの最終累積値を採用 reasoning_tokens 常に 0 非ゼロを取りうる ask_user_question 非ゼロを取りうる 常に 0（Codex に該当 tool 概念がないため） transcript ファイル ~/.claude/projects/**/<session-id>.jsonl ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl[.zst] zstd 圧縮された Codex rollout は decoder を通して読みます（klauspost/compress/zstd）。'><link rel=preload href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/css/compiled/main.min.b34d4c1853f2ce7cc97299cd595f32316a750f7f4726c65edbb0075ec25380d0.css as=style integrity="sha256-s01MGFPyznzJcpnNWV8yMWp1D39HJsZe27AHXsJTgNA="><link href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/css/compiled/main.min.b34d4c1853f2ce7cc97299cd595f32316a750f7f4726c65edbb0075ec25380d0.css rel=stylesheet integrity="sha256-s01MGFPyznzJcpnNWV8yMWp1D39HJsZe27AHXsJTgNA="><script src=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/js/main-head.min.94da6f95b126542222dab3a6e07ffefe1aaf63ec3ca555e827b58b80e7d3f0b7.js integrity="sha256-lNpvlbEmVCIi2rOm4H/+/hqvY+w8pVXoJ7WLgOfT8Lc="></script><style>.mermaid svg{max-width:100%!important;height:auto!important}</style></head><body><a href=#content class="hx:sr-only hx:focus-visible:not-sr-only hx:focus-visible:fixed hx:focus-visible:z-50 hx:focus-visible:top-2 hx:focus-visible:left-2 hx:focus-visible:bg-primary-500 hx:focus-visible:text-white hx:focus-visible:px-4 hx:focus-visible:py-2 hx:focus-visible:rounded-md hx:focus-visible:text-sm hx:focus-visible:font-medium">コンテンツにスキップ</a><div class="hextra-nav-container hx:sticky hx:top-0 hx:z-20 hx:w-full hx:bg-transparent hx:print:hidden"><div class="hextra-nav-container-blur hx:pointer-events-none hx:absolute hx:z-[-1] hx:h-full hx:w-full hx:bg-white hx:dark:bg-dark hx:shadow-[0_2px_4px_rgba(0,0,0,.02),0_1px_0_rgba(0,0,0,.06)] hx:contrast-more:shadow-[0_0_0_1px_#000] hx:dark:shadow-[0_-1px_0_rgba(255,255,255,.1)_inset] hx:contrast-more:dark:shadow-[0_0_0_1px_#fff]"></div><nav class="hextra-max-navbar-width hx:mx-auto hx:flex hx:items-center hx:justify-end hx:gap-2 hx:h-16 hx:px-6"><a class="hx:flex hx:items-center hx:hover:opacity-75 hx:ltr:mr-auto hx:rtl:ml-auto" href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/><span class="hx:mr-2 hx:font-extrabold hx:inline hx:select-none">agent-telemetry</span>
 </a><a title href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/explain class="hx:text-sm hx:contrast-more:text-gray-700 hx:contrast-more:dark:text-gray-100 hx:relative hx:-ml-2 hx:hidden hx:whitespace-nowrap hx:p-2 hx:md:inline-flex hx:items-center hx:gap-1 hx:font-medium"><span class=hx:text-center>仕組み解説</span>
 </a><a title href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/setup class="hx:text-sm hx:contrast-more:text-gray-700 hx:contrast-more:dark:text-gray-100 hx:relative hx:-ml-2 hx:hidden hx:whitespace-nowrap hx:p-2 hx:md:inline-flex hx:items-center hx:gap-1 hx:text-gray-600 hx:hover:text-gray-800 hx:dark:text-gray-400 hx:dark:hover:text-gray-200"><span class=hx:text-center>セットアップ</span>
 </a><a class="hx:p-2 hx:text-current" target=_blank rel=noreferrer href=https://github.com/ishii1648/agent-telemetry title=GitHub><svg height="24" fill="currentColor" viewBox="3 3 18 18"><path d="M12 3C7.0275 3 3 7.12937 3 12.2276c0 4.0833 2.57625 7.5321 6.15374 8.7548C9.60374 21.0631 9.77249 20.7863 9.77249 20.5441 9.77249 20.3249 9.76125 19.5982 9.76125 18.8254 7.5 19.2522 6.915 18.2602 6.735 17.7412 6.63375 17.4759 6.19499 16.6569 5.8125 16.4378 5.4975 16.2647 5.0475 15.838 5.80124 15.8264 6.51 15.8149 7.01625 16.4954 7.18499 16.7723 7.99499 18.1679 9.28875 17.7758 9.80625 17.5335 9.885 16.9337 10.1212 16.53 10.38 16.2993 8.3775 16.0687 6.285 15.2728 6.285 11.7432c0-1.0035.34875-1.834.92249-2.47994C7.1175 9.03257 6.8025 8.08674 7.2975 6.81794c0 0 .753749999999999-.24223 2.47499.94583.72001-.20762 1.48501-.31143 2.25001-.31143C12.7875 7.45234 13.5525 7.55615 14.2725 7.76377c1.7212-1.19959 2.475-.94583 2.475-.94583C17.2424 8.08674 16.9275 9.03257 16.8375 9.26326 17.4113 9.9092 17.76 10.7281 17.76 11.7432c0 3.5411-2.1037 4.3255-4.1063 4.5561C13.98 16.5877 14.2613 17.1414 14.2613 18.0065 14.2613 19.2407 14.25 20.2326 14.25 20.5441 14.25 20.7863 14.4188 21.0746 14.8688 20.9824 16.6554 20.364 18.2079 19.1866 19.3078 17.6162c1.0999-1.5705 1.6917-3.4551 1.6922-5.3886C21 7.12937 16.9725 3 12 3z"/></svg>
@@ -69,54 +90,25 @@ agent ごとの transcript パース Claude と Codex で transcript フォー�
 <span>トップにスクロール</span>
 <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true" focusable="false" class="hx:inline hx:ltr:ml-1 hx:rtl:mr-1 hx:h-3.5 hx:w-3.5 hx:rounded-full hx:border hx:border-gray-500 hx:hover:border-gray-900 hx:dark:border-gray-400 hx:dark:hover:border-gray-100 hx:contrast-more:border-gray-800 hx:contrast-more:dark:border-gray-50"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5"/></svg></button></div></div></nav><article class="hx:w-full hx:break-words hx:flex hx:min-h-[calc(100vh-var(--navbar-height))] hx:min-w-0 hx:justify-center hx:pb-8 hx:pr-[calc(env(safe-area-inset-right)-1.5rem)]"><main id=content class="hx:w-full hx:min-w-0 hextra-max-content-width hx:px-6 hx:pt-4 hx:md:px-12"><div class="hx:mt-1.5 hx:flex hx:items-center hx:gap-1 hx:overflow-hidden hx:text-sm hx:text-gray-500 hx:dark:text-gray-400 hx:contrast-more:text-current"><div class="hx:whitespace-nowrap hx:transition-colors hx:min-w-[24px] hx:overflow-hidden hx:text-ellipsis hx:hover:text-gray-900 hx:dark:hover:text-gray-100"><a href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/explain/ class="hx:inline-block hx:rounded-sm hx:hextra-focus-visible-inset">仕組み解説</a></div><svg class="hx:w-3.5 hx:shrink-0 hx:rtl:-rotate-180" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg><div class="hx:whitespace-nowrap hx:transition-colors hx:font-medium hx:text-gray-700 hx:contrast-more:font-bold hx:contrast-more:text-current hx:dark:text-gray-100 hx:contrast-more:dark:text-current">aggregation</div></div><div class=content><div class="hx:flex hx:flex-col hx:sm:flex-row hx:items-start hx:sm:items-center hx:sm:justify-between hx:gap-4 hx:mb-4"><h1 class=hx:mb-0>aggregation</h1></div><p>JSONL に記録された生イベントが <strong>PR 単位の指標</strong>に変わるまでを追います。Claude / Codex の transcript フォーマットの違いをどこで吸収しているか、<code>pr_metrics</code> VIEW のフィルタが何を弾いているかを把握できます。</p><p>セッション 1 本のライフサイクル（いつ hook が発火し、いつ PR に pin されるか）は <a href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/explain/hooks/>hooks</a> に集約しています。本ページは hook が JSONL に書き込んだ<strong>後</strong>、CLI と SQL VIEW がどう加工するかに絞ります。</p><h2>agent ごとの transcript パース<span class="hx:absolute hx:-mt-20" id=agent-ごとの-transcript-パース></span>
 <a href=#agent-%e3%81%94%e3%81%a8%e3%81%ae-transcript-%e3%83%91%e3%83%bc%e3%82%b9 class=subheading-anchor aria-label=このセクションへのパーマリンク></a></h2><p>Claude と Codex で transcript フォーマットは異なります。<strong><code>internal/transcript/</code></strong> がフォーマット差異を吸収して <code>transcript_stats</code> の共通カラムに落とし込みます。</p><div role=img aria-label=図><pre class="mermaid hx:mt-6">
-    %%{init: {&#39;themeVariables&#39;: {&#39;fontSize&#39;: &#39;20px&#39;}}}%%
-flowchart TB
-    subgraph claude[&#34;Claude Code transcript&#34;]
-        CM[&#34;assistant message&lt;br/&gt;usage.input_tokens&lt;br/&gt;usage.output_tokens&lt;br/&gt;usage.cache_creation_input_tokens&lt;br/&gt;usage.cache_read_input_tokens&#34;]
-    end
-
-    subgraph codex[&#34;Codex CLI rollout&#34;]
-        CXE[&#34;event_msg.payload&lt;br/&gt;type == &#39;token_count&#39;&lt;br/&gt;(累積値の最終 1 件を採用)&#34;]
-    end
-
+    flowchart TB
+    CC[&#34;Claude transcript&lt;br/&gt;(message ごとに usage 加算)&#34;]
+    CX[&#34;Codex rollout&lt;br/&gt;(token_count 最終累積値)&#34;]
     P[&#34;internal/transcript/&lt;br/&gt;(parser)&#34;]
+    T[(&#34;transcript_stats&lt;br/&gt;共通スキーマ&#34;)]
 
-    subgraph stats[&#34;transcript_stats（共通スキーマ）&#34;]
-        T1[&#34;input_tokens / output_tokens&#34;]
-        T2[&#34;cache_write_tokens / cache_read_tokens&#34;]
-        T3[&#34;reasoning_tokens&lt;br/&gt;(Claude=0, Codex のみ非ゼロ)&#34;]
-        T4[&#34;tool_use_total / mid_session_msgs&#34;]
-        T5[&#34;ask_user_question&lt;br/&gt;(Codex=0, Claude のみ非ゼロ)&#34;]
-    end
-
-    CM --&gt; P
-    CXE --&gt; P
-    P --&gt; T1
-    P --&gt; T2
-    P --&gt; T3
-    P --&gt; T4
-    P --&gt; T5
-  </pre></div><p>差異の扱い:</p><table><thead><tr><th>軸</th><th>Claude</th><th>Codex</th></tr></thead><tbody><tr><td>token 集計の単位</td><td>message ごとの <code>usage</code> を<strong>合算</strong></td><td>rollout の <code>token_count</code> イベントの<strong>最終累積値</strong>を採用</td></tr><tr><td><code>reasoning_tokens</code></td><td>常に 0</td><td>非ゼロを取りうる</td></tr><tr><td><code>ask_user_question</code></td><td>非ゼロを取りうる</td><td>常に 0（Codex に該当 tool 概念がないため）</td></tr><tr><td>transcript ファイル</td><td><code>~/.claude/projects/**/&lt;session-id>.jsonl</code></td><td><code>~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl[.zst]</code></td></tr></tbody></table><p>zstd 圧縮された Codex rollout は decoder を通して読みます（<code>klauspost/compress/zstd</code>）。</p><h2>sessions → pr_metrics の集約<span class="hx:absolute hx:-mt-20" id=sessions--pr_metrics-の集約></span>
+    CC --&gt; P
+    CX --&gt; P
+    P --&gt; T
+  </pre></div><p>落とし込み先のカラム（差異も含む）は次節の表に集約しています。</p><p>差異の扱い:</p><table><thead><tr><th>軸</th><th>Claude</th><th>Codex</th></tr></thead><tbody><tr><td>token 集計の単位</td><td>message ごとの <code>usage</code> を<strong>合算</strong></td><td>rollout の <code>token_count</code> イベントの<strong>最終累積値</strong>を採用</td></tr><tr><td><code>reasoning_tokens</code></td><td>常に 0</td><td>非ゼロを取りうる</td></tr><tr><td><code>ask_user_question</code></td><td>非ゼロを取りうる</td><td>常に 0（Codex に該当 tool 概念がないため）</td></tr><tr><td>transcript ファイル</td><td><code>~/.claude/projects/**/&lt;session-id>.jsonl</code></td><td><code>~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl[.zst]</code></td></tr></tbody></table><p>zstd 圧縮された Codex rollout は decoder を通して読みます（<code>klauspost/compress/zstd</code>）。</p><h2>sessions → pr_metrics の集約<span class="hx:absolute hx:-mt-20" id=sessions--pr_metrics-の集約></span>
 <a href=#sessions--pr_metrics-%e3%81%ae%e9%9b%86%e7%b4%84 class=subheading-anchor aria-label=このセクションへのパーマリンク></a></h2><p><code>pr_metrics</code> VIEW で PR 単位に集約します。フィルタを通過したセッションだけが指標に乗ります。</p><div role=img aria-label=図><pre class="mermaid hx:mt-6">
-    %%{init: {&#39;themeVariables&#39;: {&#39;fontSize&#39;: &#39;20px&#39;}}}%%
-flowchart LR
+    flowchart TB
     S[(&#34;sessions&#34;)]
     TS[(&#34;transcript_stats&#34;)]
-
-    F1{&#34;pr_url != &#39;&#39;&#34;}
-    F2{&#34;is_subagent = 0&#34;}
-    F3{&#34;is_merged = 1&#34;}
-    F4{&#34;is_ghost = 0&#34;}
-    F5{&#34;repo NOT IN&lt;br/&gt;(運用ノイズ repo)&#34;}
-
+    F[&#34;フィルタ (AND):&lt;br/&gt;pr_url != &#39;&#39; / is_subagent = 0 /&lt;br/&gt;is_merged = 1 / is_ghost = 0 /&lt;br/&gt;repo NOT IN (運用ノイズ)&#34;]
     G[&#34;GROUP BY&lt;br/&gt;(pr_url, coding_agent, user_id)&#34;]
+    PM[(&#34;pr_metrics VIEW&#34;)]
 
-    PM[(&#34;pr_metrics&lt;br/&gt;VIEW&#34;)]
-
-    S --&gt; F1 --&gt; F2 --&gt; F3
-    TS --&gt; F4
-    F3 --&gt; F5
-    F4 --&gt; F5
-    F5 --&gt; G
-    G --&gt; PM
+    S --&gt; F
+    TS --&gt; F
+    F --&gt; G --&gt; PM
   </pre></div><p>なぜこのフィルタか:</p><ul><li><code>pr_url != ''</code> — PR 未作成セッションを除外（PR 単位の効率を見るため）</li><li><code>is_subagent = 0</code> — サブエージェントセッションは親と二重計上になるので除外</li><li><code>is_merged = 1</code> — 未マージ・放棄 PR は最終成果物ではないため除外</li><li><code>is_ghost = 0</code> — ユーザー発話相当が 0 件のセッション（環境調査だけで終わった等）を除外</li><li>運用ノイズリポジトリ除外 — 計測対象に含めると指標を歪める個人作業領域（除外対象は schema.sql に固定列挙）</li></ul><p>集約軸が <code>(pr_url, coding_agent, user_id)</code> の 3 軸なのは、同一 PR が複数 agent / 複数ユーザに触られたケース（pair coding 等）を意味的に分離するためです。実運用上ほぼ発生しませんが、起きたときに合算してしまうと指標が歪むので分離しています。</p></div><div class=hx:mt-16></div><div class="hx:mb-8 hx:flex hx:items-center hx:border-t hx:pt-8 hx:border-gray-200 hx:dark:border-neutral-800 hx:contrast-more:border-neutral-400 hx:dark:contrast-more:border-neutral-400 hx:print:hidden"><a href=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/explain/hooks/ title=hooks class="hx:flex hx:max-w-[50%] hx:items-center hx:gap-1 hx:py-4 hx:text-base hx:font-medium hx:text-gray-600 hx:transition-colors [word-break:break-word] hx:hover:text-primary-600 hx:dark:text-gray-300 hx:md:text-lg hx:ltr:pr-4 hx:rtl:pl-4"><svg class="hx:inline hx:h-5 hx:shrink-0 hx:ltr:rotate-180" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>hooks</a></div></main></article></div><footer class="hextra-footer hx:bg-gray-100 hx:pb-[env(safe-area-inset-bottom)] hx:dark:bg-neutral-900 hx:print:bg-transparent"><div class="hextra-custom-footer hextra-max-footer-width hx:mx-auto hx:pl-[max(env(safe-area-inset-left),1.5rem)] hx:pr-[max(env(safe-area-inset-right),1.5rem)] hx:text-gray-600 hx:dark:text-gray-400"></div><div class="hextra-max-footer-width hx:mx-auto hx:flex hx:justify-center hx:py-12 hx:pl-[max(env(safe-area-inset-left),1.5rem)] hx:pr-[max(env(safe-area-inset-right),1.5rem)] hx:text-gray-600 hx:dark:text-gray-400 hx:md:justify-start"><div class="hx:flex hx:w-full hx:flex-col hx:items-center hx:sm:items-start"><div class=hx:font-semibold><a class="hx:flex hx:text-sm hx:items-center hx:gap-1 hx:text-current" target=_blank rel="noopener noreferrer" title="Hextra GitHub Homepage" href=https://github.com/imfing/hextra><span>提供元 Hextra<svg height="1em" class="hx:inline-block hx:ltr:ml-1 hx:rtl:mr-1 hx:align-[-2.5px]" viewBox="0 0 180 180" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="m105.50024 22.224647c-9.59169-5.537563-21.40871-5.537563-31.000093.0L39.054693 42.689119C29.463353 48.226675 23.55484 58.460531 23.55484 69.535642v40.928918c0 11.07542 5.908513 21.3092 15.499853 26.84652l35.445453 20.46446c9.591313 5.53732 21.408404 5.53732 31.000094.0l35.44507-20.46446c9.59131-5.53732 15.49985-15.7711 15.49985-26.84652V69.535642c0-11.075111-5.90854-21.308967-15.49985-26.846523zM34.112797 85.737639c-1.384445 2.397827-1.384445 5.352099.0 7.749927l24.781554 42.922974c1.38437 2.39783 3.942853 3.87496 6.711592 3.87496h49.563107c2.76905.0 5.3273-1.47713 6.71144-3.87496l24.78194-42.922974c1.38414-2.397828 1.38414-5.3521.0-7.749927L121.88049 42.814746c-1.38414-2.397828-3.94239-3.874964-6.71144-3.874964H65.605944c-2.768739.0-5.327223 1.477059-6.711592 3.874964z" style="stroke-width:.774993"/></svg></span></a></div><div class="hx:mt-6 hx:text-xs">© 2026 Hextra プロジェクト。</div></div></div></footer><script defer src=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/js/main.min.d9fbefbbac8caeb66025dbb14d569c30defac0effcba45486a78209fba9360af.js integrity="sha256-2fvvu6yMrrZgJduxTVacMN76wO/8ukVIanggn7qTYK8="></script><script defer src=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/js/flexsearch.433e941a8a573ebb9931fc16fc75266ab6b93f569ac2fb4f3dc66882e0416f4c.js integrity="sha256-Qz6UGopXPruZMfwW/HUmara5P1aawvtPPcZoguBBb0w=" crossorigin=anonymous></script><script defer src=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/ja.search.min.6daedae5c556152a3dbf0e5aae94b15acbdbfccfc485b2e6babb66228cb417b8.js integrity="sha256-ba7a5cVWFSo9vw5arpSxWsvb/M/EhbLmurtmIoy0F7g="></script><script defer src=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-40/js/mermaid.min.217b66ef4279c33c141b4afe22effad10a91c02558dc70917be2c0981e78ed87.js integrity="sha256-IXtm70J5wzwUG0r+Iu/60QqRwCVY3HCRe+LAmB547Yc=" crossorigin=anonymous></script><script>document.addEventListener("DOMContentLoaded",()=>{document.querySelectorAll(".mermaid").forEach(e=>{e.dataset.original=e.innerHTML});const t=document.documentElement.classList.contains("dark")?"dark":"default";mermaid.initialize({startOnLoad:!0,theme:t});let e;new MutationObserver(()=>{clearTimeout(e),e=setTimeout(()=>{const e=document.documentElement.classList.contains("dark")?"dark":"default";document.querySelectorAll(".mermaid").forEach(e=>{e.innerHTML=e.dataset.original,e.removeAttribute("data-processed")}),mermaid.initialize({startOnLoad:!0,theme:e}),mermaid.init()},150)}).observe(document.documentElement,{attributes:!0,attributeFilter:["class"]})})</script></body></html>
