@@ -172,24 +172,3 @@ make grafana-up AGENT_TELEMETRY_DB=/custom/path/agent-telemetry.db
 ```
 
 > **注意**: mount は読み書き可能です（SQLite が WAL モードのため `:ro` mount は不可）。frser-sqlite-datasource は SELECT のみで書き込みは行わないので実害はありませんが、Grafana コンテナに DB ファイルへの書き込み権限が渡る点を留意してください。
-
-## 5. トラブルシューティング
-
-### hook が動作しない
-
-- `agent-telemetry doctor` で binary / data dir / hook 登録状況を agent ごとに一括確認
-- 未登録の hook があれば §2 を参照しながら dotfiles または手動で `~/.claude/settings.json` または `~/.codex/hooks.json` に追加
-- デバッグログを確認: `~/.claude/logs/session-index-debug.log` または `~/.codex/logs/session-index-debug.log`
-
-### `sync-db` でデータが空になる
-
-- `~/.claude/session-index.jsonl` または `~/.codex/session-index.jsonl` が存在しデータが記録されているか確認
-- session-index の `transcript` パスが存在するか確認
-- Codex の場合、`.jsonl.zst` 圧縮ファイルでも透過解凍されるはず
-
-### Grafana でデータが表示されない
-
-- データソースの Path が `agent-telemetry.db` のフルパスを指しているか確認
-- `agent-telemetry sync-db` を再実行して DB を最新化
-- Grafana のデータソース設定で「Test」ボタンを押して接続を確認
-- ダッシュボードの `coding_agent` テンプレート変数が `All` になっているか確認
