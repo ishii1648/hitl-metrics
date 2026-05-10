@@ -3,8 +3,12 @@ version: "2"
 linters:
   settings:
     errcheck:
+      # Tx.Rollback は失敗しても呼び出し側で握り潰すのが慣例。
+      # io.Closer.Close は defer で呼ぶことが多くエラーチェックを徹底するとノイズが大きい。
+      # OSS Tier 1 CI として最低限の baseline を守る方針で、Close 系は除外する。
       exclude-functions:
         - (*database/sql.Tx).Rollback
+        - (io.Closer).Close
   exclusions:
     rules:
       - path: _test\.go

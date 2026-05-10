@@ -406,7 +406,7 @@ func TestPinPR_PreservesFieldOrder(t *testing.T) {
 	if urlsIdx < 0 || pinnedIdx < 0 || transcriptIdx < 0 {
 		t.Fatalf("missing field in serialized line: %q", line)
 	}
-	if !(urlsIdx < pinnedIdx && pinnedIdx < transcriptIdx) {
+	if urlsIdx >= pinnedIdx || pinnedIdx >= transcriptIdx {
 		t.Errorf("field order broken: pr_urls=%d pr_pinned=%d transcript=%d in %q",
 			urlsIdx, pinnedIdx, transcriptIdx, line)
 	}
