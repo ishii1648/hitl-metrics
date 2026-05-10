@@ -325,5 +325,7 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.WriteHeader(status)
 	buf := &bytes.Buffer{}
 	_ = json.NewEncoder(buf).Encode(body)
-	w.Write(buf.Bytes())
+	// Client may have hung up — nothing actionable on write failure
+	// past the headers, so swallow the error explicitly.
+	_, _ = w.Write(buf.Bytes())
 }

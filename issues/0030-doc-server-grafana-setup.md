@@ -13,7 +13,7 @@ Created: 2026-05-10
 
 ## 概要
 
-サーバ送信機能を利用者が立ち上げるためのドキュメントを `docs/setup.md` / `docs/usage.md` に追加する。本番想定は **k8s pod**（[0029](0029-feat-server-ingest.md) で `deploy/k8s/` に Kustomize manifest を提供）。Grafana の **設定資産**（dashboard JSON、datasource provisioning yaml）はローカル `docker-compose.yaml` と k8s ConfigMap の **両方から同じファイルを参照** する形で共通化し、二重メンテナンスを避ける。配布手段（compose vs k8s）自体は揃えず、それぞれの環境ネイティブな形を取る。
+サーバ送信機能を利用者が立ち上げるためのドキュメントを `docs/setup.md` / `docs/usage.md` に追加する。本番想定は **k8s pod**（[0029](closed/0029-feat-server-ingest.md) で `deploy/k8s/` に Kustomize manifest を提供）。Grafana の **設定資産**（dashboard JSON、datasource provisioning yaml）はローカル `docker-compose.yaml` と k8s ConfigMap の **両方から同じファイルを参照** する形で共通化し、二重メンテナンスを避ける。配布手段（compose vs k8s）自体は揃えず、それぞれの環境ネイティブな形を取る。
 
 ## 根拠
 
@@ -44,4 +44,4 @@ Created: 2026-05-10
 - [ ] `make grafana-screenshot` の E2E 経路は変更せず動き続ける（fixture 使用なのでサーバ/ローカル区別不要）
 - [ ] `README.md` の図と機能一覧が更新されている
 
-依存: [0028](closed/0028-feat-server-push-client.md) と [0029](0029-feat-server-ingest.md)（実装と manifest が無いと文書化が成立しない）、[0031](0031-feat-server-image-ghcr-publish.md)（image が ghcr に上がっていないと k8s manifest が pull できない）
+依存: [0028](closed/0028-feat-server-push-client.md) と [0029](closed/0029-feat-server-ingest.md)（実装と manifest が無いと文書化が成立しない）、[0031](0031-feat-server-image-ghcr-publish.md)（image が ghcr に上がっていないと k8s manifest が pull できない）

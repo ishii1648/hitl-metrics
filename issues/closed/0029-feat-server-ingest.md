@@ -21,7 +21,7 @@ Created: 2026-05-10
 
 ## 根拠
 
-[0009](closed/0009-feat-server-side-metrics-pipeline.md) で確定した方針として、サーバ側はクライアントと **DB スキーマだけ** を共通化し、集計（transcript パース等）はクライアント側で完結させる。これにより (1) 送信サイズが極小（月数 MB）、(2) サーバ実装が単純（`internal/syncdb/` 全体を持たず schema DDL のみ）、(3) transcript の保管不要（プライバシー観点とストレージ運用の議論がゼロ）という利点を取る。
+[0009](0009-feat-server-side-metrics-pipeline.md) で確定した方針として、サーバ側はクライアントと **DB スキーマだけ** を共通化し、集計（transcript パース等）はクライアント側で完結させる。これにより (1) 送信サイズが極小（月数 MB）、(2) サーバ実装が単純（`internal/syncdb/` 全体を持たず schema DDL のみ）、(3) transcript の保管不要（プライバシー観点とストレージ運用の議論がゼロ）という利点を取る。
 
 ## 対応方針
 
@@ -56,7 +56,7 @@ Created: 2026-05-10
 - [ ] 不正な Bearer token でのリクエストは 401 を返す
 - [ ] `go test ./...` が通る
 
-依存: [0028](0028-feat-server-push-client.md)（クライアント側送信、E2E 検証に必要）
+依存: [0028](../0028-feat-server-push-client.md)（クライアント側送信、E2E 検証に必要）
 
 Completed: 2026-05-10
 

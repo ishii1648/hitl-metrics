@@ -20,7 +20,7 @@ Created: 2026-05-10
 
 ## 根拠
 
-[0009](closed/0009-feat-server-side-metrics-pipeline.md) で確定した方針として、サーバの本番形態は k8s pod。[0029](0029-feat-server-ingest.md) で `Dockerfile.server` を新設し `deploy/k8s/` の Deployment が `ghcr.io/ishii1648/agent-telemetry-server` を pull する形に決めたが、image を ghcr.io に上げる仕組みは未整備。手動 push は再現性とセキュリティの観点で持続しないため、CI で自動化する。
+[0009](closed/0009-feat-server-side-metrics-pipeline.md) で確定した方針として、サーバの本番形態は k8s pod。[0029](closed/0029-feat-server-ingest.md) で `Dockerfile.server` を新設し `deploy/k8s/` の Deployment が `ghcr.io/ishii1648/agent-telemetry-server` を pull する形に決めたが、image を ghcr.io に上げる仕組みは未整備。手動 push は再現性とセキュリティの観点で持続しないため、CI で自動化する。
 
 ## 対応方針
 
@@ -32,7 +32,7 @@ Created: 2026-05-10
   - multi-arch: `linux/amd64` + `linux/arm64` を `docker/setup-buildx-action` + `docker/setup-qemu-action` で生成
   - tag 戦略: `docker/metadata-action@v5` で main は `latest`、tag は `vX.Y.Z` + `vX.Y` + `vX` を自動生成
   - SBOM と provenance attestation: GitHub の `actions/attest-build-provenance` を有効化（追加コスト最小、サプライチェーン可視化）
-- `Dockerfile.server` を新規作成（[0029](0029-feat-server-ingest.md) で本体実装）
+- `Dockerfile.server` を新規作成（[0029](closed/0029-feat-server-ingest.md) で本体実装）
   - multi-stage build（builder stage で `CGO_ENABLED=0 go build`、final stage は distroless / static）
   - non-root user で起動
   - `--listen :8443` がデフォルトで露出するよう EXPOSE 8443
@@ -49,4 +49,4 @@ Created: 2026-05-10
 - [ ] SBOM / provenance attestation が GitHub PR / release で確認できる
 - [ ] CI ジョブの実行時間が 5 分以内に収まる（buildx cache を使う）
 
-依存: [0029](0029-feat-server-ingest.md)（`Dockerfile.server` がないとビルドできない）
+依存: [0029](closed/0029-feat-server-ingest.md)（`Dockerfile.server` がないとビルドできない）
