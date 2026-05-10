@@ -2,6 +2,7 @@
 decision_type: process
 affected_paths:
   - docs/setup.md
+  - docs/setup-server.md
   - docs/usage.md
   - README.md
 tags: [server, docs, grafana, k8s, operations]
@@ -60,7 +61,7 @@ Completed: 2026-05-10
 
 ## 解決方法
 
-`docs/setup.md` に「5. サーバ送信を有効化する（オプトイン）」節を追加し、image 入手 → token 生成 → k8s 参考 YAML（最小構成 / Grafana 同居版）→ クライアント `[server]` 設定 → push 定期起動 → 新メトリクス追加時の遡及反映、までを 1 本の流れで書いた。`docs/usage.md` には「サーバ DB を Grafana で見る」を追加し、k8s Port-forward と「サーバ DB スナップショットをローカルで `AGENT_TELEMETRY_DB=… make grafana-up`」の 2 経路を載せた。`README.md` のアーキテクチャ図と機能一覧にも「サーバ集約層（オプトイン）」を 4 番目のレイヤーとして追記した。
+サーバ送信のセットアップ手順を `docs/setup-server.md` に **独立 doc** として切り出した（`docs/setup.md` 上の長大な opt-in 章として書く案からは PR レビュー中に転換）。image 入手 → token 生成 → k8s 参考 YAML（最小構成 / Grafana 同居版）→ クライアント `[server]` 設定 → push 定期起動 → 新メトリクス追加時の遡及反映、までを 1 本の流れで書いた。`docs/usage.md` には「サーバ DB を Grafana で見る」を追加し、k8s Port-forward と「サーバ DB スナップショットをローカルで `AGENT_TELEMETRY_DB=… make grafana-up`」の 2 経路を載せた。`README.md` のアーキテクチャ図と機能一覧にも「サーバ集約層（オプトイン）」を 4 番目のレイヤーとして追記した。
 
 ### Grafana 同居版の構成判断 — sidecar pattern + PVC 二重 mount
 
@@ -84,6 +85,10 @@ ConfigMap は `kubectl create configmap … --from-file=… --dry-run=client -o 
 ### スコープから外した — クライアント push の systemd timer
 
 issue 本文では `agent-telemetry push --since-last` の定期起動サンプルとして cron / launchd plist / systemd timer の 3 つが挙げられていたが、systemd timer は最終的にドロップした。理由: クライアントは dev 機（macOS / remote dev box）が主な想定で、Linux dev 機の `systemctl --user` 運用はまれ。Linux ケースは cron が同等にカバーするので、3 つあると冗長と判断した（user 確認の上）。
+
+### setup.md 内 opt-in 章 → 独立 doc への切り出し
+
+当初は `docs/setup.md` 5 章として書いたが、PR review で「opt-in かつ約 400 行のボリュームがあるので別 md への分離を検討」と指摘されたため、`docs/setup-server.md` へ独立 doc として切り出した。理由: (1) サーバ送信は opt-in で、ローカル単独利用のユーザにとっては setup.md 内で読み飛ばすコストが高い、(2) k8s YAML スニペットが 2 種類あり setup.md の他章（hook 登録 / Grafana 設定）と粒度が大きく違う、(3) サーバ運用は別の運用者ロール（インフラ担当）に渡すケースが多く、そのとき URL 1 本で渡せた方がよい。`docs/setup.md` 5 章は完全に削除し、移行章を 5 に戻した（中途半端な stub は残さない）。README.md の docs 一覧表と `docs/usage.md` の「サーバ DB を Grafana で見る」節からは `setup-server.md` へリンクを張り直した。
 
 ### 受け入れ条件の確認
 

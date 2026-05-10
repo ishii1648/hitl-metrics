@@ -96,7 +96,7 @@ make grafana-up AGENT_TELEMETRY_DB=/custom/path/agent-telemetry.db
 
 ### サーバ DB を Grafana で見る
 
-サーバ送信を有効化している場合（[setup.md ## 5. サーバ送信を有効化する](setup.md#5-サーバ送信を有効化するオプトイン)）、サーバ側 SQLite (`<data_dir>/agent-telemetry.db`) を 2 通りの経路で Grafana から参照できます。datasource の `uid: agent-telemetry` を踏襲しているため、ローカル `make grafana-up` と **同じダッシュボード JSON** がそのまま動きます。
+サーバ送信を有効化している場合（[setup-server.md](setup-server.md)）、サーバ側 SQLite (`<data_dir>/agent-telemetry.db`) を 2 通りの経路で Grafana から参照できます。datasource の `uid: agent-telemetry` を踏襲しているため、ローカル `make grafana-up` と **同じダッシュボード JSON** がそのまま動きます。
 
 #### k8s 経由 — 同居版 Grafana を Port-forward
 
