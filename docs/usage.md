@@ -72,6 +72,7 @@ agent-telemetry sync-db [--agent <a>]                     JSONL/transcript → S
 agent-telemetry update <session_id> <url>...              session-index.jsonl に PR URL を追加
 agent-telemetry update --mark-checked <session_id>...     backfill_checked をセット
 agent-telemetry update --by-branch <repo> <branch> <url>  ブランチ全セッションに URL 追加
+agent-telemetry push [--since-last|--full] [--dry-run]    サーバへ集計値を送信（要 [server] 設定。exit 2 = schema_mismatch）
 agent-telemetry install                                   廃止予定 alias。setup へ誘導する warning を出す
 agent-telemetry version                                   version を表示
 ```
@@ -92,6 +93,47 @@ make grafana-up AGENT_TELEMETRY_DB=/custom/path/agent-telemetry.db
 ```
 
 > **注意**: mount は読み書き可能です（SQLite が WAL モードのため `:ro` mount は不可）。frser-sqlite-datasource は SELECT のみで書き込みは行わないので実害はありませんが、Grafana コンテナに DB ファイルへの書き込み権限が渡る点を留意してください。
+
+### サーバ DB を Grafana で見る
+
+サーバ送信を有効化している場合（[setup.md ## 5. サーバ送信を有効化する](setup.md#5-サーバ送信を有効化するオプトイン)）、サーバ側 SQLite (`<data_dir>/agent-telemetry.db`) を 2 通りの経路で Grafana から参照できます。datasource の `uid: agent-telemetry` を踏襲しているため、ローカル `make grafana-up` と **同じダッシュボード JSON** がそのまま動きます。
+
+#### k8s 経由 — 同居版 Grafana を Port-forward
+
+`setup.md` の Grafana 同居版を deploy 済みなら、Service を Port-forward するだけで開けます:
+
+```fish
+kubectl port-forward -n agent-telemetry svc/agent-telemetry 3000:3000
+# → http://localhost:3000 で Grafana にアクセス
+```
+
+NodePort / Ingress / LoadBalancer で外部公開する場合は cluster の慣習に合わせて `Service.spec.type` を変更してください。
+
+#### ローカル開発時 — サーバ DB ファイルを直接 mount
+
+サーバ DB のスナップショットを手元に持ってきて、ローカル Grafana で見たい場合（個人検証や比較用）。`AGENT_TELEMETRY_DB` を server data dir 内のファイルに向ければ、`make grafana-up` がそのまま動きます:
+
+```fish
+# サーバから DB をコピー（k8s の場合の例。VPS / docker 環境ならその慣習で）
+kubectl cp -n agent-telemetry agent-telemetry-0:/var/lib/agent-telemetry/agent-telemetry.db /tmp/server-snapshot.db
+
+# ローカル Grafana で開く
+make grafana-up AGENT_TELEMETRY_DB=/tmp/server-snapshot.db
+# → http://localhost:13000
+```
+
+サーバ DB スキーマはクライアント DB と同一なので、ダッシュボードは無調整で描画されます。
+
+#### 送信内容を確認する — `agent-telemetry push --dry-run`
+
+実送信する前に対象セッション件数と payload サイズを確認できます:
+
+```fish
+agent-telemetry push --dry-run                # 検出された全 agent
+agent-telemetry push --dry-run --agent codex  # agent を絞る
+```
+
+`[server]` 設定の token / endpoint が空のときは warning を stderr に出して exit code 0 で終わります（cron に設定したまま config を抜いても CI / cron が壊れないように）。
 
 ### E2E テスト環境（開発者向け）
 

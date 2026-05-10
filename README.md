@@ -49,13 +49,16 @@ merged PR 数、total tokens、平均 tokens / PR、PR / 1M tokens、changes req
 Claude Code hooks → ~/.claude/session-index.jsonl + transcript JSONL ┐
                                                                      ├→ agent-telemetry backfill / sync-db
 Codex CLI hooks   → ~/.codex/session-index.jsonl  + rollout JSONL    ┘
-                                                                     → ~/.claude/agent-telemetry.db (SQLite)
-                                                                     → Grafana
+                                                                     → ~/.claude/agent-telemetry.db  (SQLite、クライアント手元)
+                                                                          ├→ Grafana (ローカル)
+                                                                          └→ agent-telemetry push  (オプトイン、集計値のみ)
+                                                                                → agent-telemetry-server (k8s pod) → 集約 SQLite → Grafana
 ```
 
 1. **データ収集層** (`internal/hook/`) — 各 agent の hook で session イベントを記録（`internal/agent/` で agent 差分を吸収）
 2. **データ変換層** (`cmd/agent-telemetry/`, `internal/syncdb/`, `internal/transcript/`) — Go CLI で JSONL/transcript → SQLite 変換・PR URL 補完
 3. **可視化層** (`grafana/`) — Grafana ダッシュボードで PR 単位の token 効率を agent 別に表示
+4. **サーバ集約層（オプトイン）** (`cmd/agent-telemetry-server/`, `internal/serverpipe/`, `internal/serverclient/`) — `agent-telemetry push` がローカル DB の **集計値のみ**（`sessions` 行 + `transcript_stats` 行）を送信。transcript（会話本体）はクライアント手元に残るためプライバシー観点の議論が不要。サーバ Grafana はローカル `make grafana-up` と **同じ dashboard JSON / datasource provisioning yaml** を ConfigMap mount で参照する 1 セット運用なので、ダッシュボード変更は両環境に同時反映される。詳細は [docs/setup.md ## 5. サーバ送信を有効化する](docs/setup.md#5-サーバ送信を有効化するオプトイン) を参照。
 
 ## ドキュメント
 
