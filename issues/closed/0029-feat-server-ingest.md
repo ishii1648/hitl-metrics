@@ -5,7 +5,6 @@ affected_paths:
   - internal/serverpipe/
   - internal/syncdb/
   - Dockerfile.server
-  - deploy/k8s/
   - contrib/systemd/
 tags: [server, ingest, http, k8s]
 closed_at: 2026-05-10
@@ -71,10 +70,20 @@ Completed: 2026-05-10
 - `internal/syncdb/schema/` 新規サブパッケージ。schema.sql / schema_hash.go / genhash を移動し、`schema.SQL` / `schema.Hash` として export
 - `internal/syncdb/syncdb.go` を新サブパッケージ参照に更新。挙動は不変
 - `Dockerfile.server` 新規（multi-stage build → distroless/static、CGO_ENABLED=0、nonroot で 8443 公開）
-- `deploy/k8s/` 新規 Kustomize 構成（base + overlays/local + overlays/production）。Grafana の datasource / dashboard ConfigMap は既存 `grafana/` 配下のファイルを `configMapGenerator` で参照するため二重メンテ無し。`kubectl apply -k --load-restrictor=LoadRestrictionsNone` で適用する旨を README に明記
 - `contrib/systemd/agent-telemetry-server.service` 新規（VPS / bare-metal 用、systemd hardening 込み）
 - `.goreleaser.yaml` に `agent-telemetry-server` build / archive を追加（linux/amd64+arm64、systemd unit を archive に同梱）
 - `.gitignore` に `agent-telemetry-server` バイナリを追加
+
+### スコープ縮小: `deploy/k8s/` を本リポジトリに含めない方針へ転換
+
+当初は `deploy/k8s/` 配下に Kustomize manifest（base + overlays/local + overlays/production）を提供する受け入れ条件だったが、実装後の議論で **削除** した。理由:
+
+- デプロイ方式（Helm / Argo CD / Flux / 素の kubectl）と cluster topology（StorageClass / IngressClass / cert-manager の有無）は運用者ごとに異なり、ひとつの canonical manifest を置くと fork or copy が必要になる
+- `letsencrypt-prod` cert-manager / `nginx` ingressClass / `standard` StorageClass などの defaults はクラスタ前提を強く埋め込んでおり、メンテナンスと陳腐化のコストが本リポのスコープに見合わない
+- `REPLACE_ME` token / `local-dev-token` リテラル / サンプル Secret といった「うっかり deploy されると事故るもの」をリポに置くこと自体がアンチパターン
+- agent-telemetry のスコープは hook + CLI + dashboard JSON。インフラ配布物は別レイヤーの責務
+
+代替: image (`ghcr.io/ishii1648/agent-telemetry-server`) のみを公式提供物とし、デプロイは運用者の責務とする。docs (0030 の作業) で reference YAML スニペットを示す方針に切り替える。`docs/spec.md` / `docs/design.md` の k8s manifest 記述は merge 後に main で同期更新する（実装ブランチでは触れない CLAUDE.md ルール）。
 
 ### 確認した受け入れ条件
 
@@ -84,5 +93,9 @@ Completed: 2026-05-10
 - 既存ダッシュボード JSON の `pr_metrics` VIEW がそのまま動く（`TestServeIngest_PRMetricsViewExists`）
 - 同一 `(session_id, coding_agent)` での再 push が `collisions.log` に記録される（`TestServeIngest_CollisionLogged`）
 - 不正 Bearer は 401（`TestServeIngest_Unauthorized`）
-- `kubectl kustomize --load-restrictor=LoadRestrictionsNone deploy/k8s/overlays/local` が成功（render 確認のみ。kind / minikube 上での実行は環境準備込みで未検証）
 - `go test ./...` 全 pass、`go vet ./...` clean、`go build ./...` 成功
+
+### 受け入れ条件のうち取り下げ
+
+- ~~`kubectl apply -k deploy/k8s/overlays/local/` で kind / minikube 上に server + Grafana + PVC + Secret が立ち上がる~~ — 上記スコープ縮小により取り下げ
+- ~~Grafana Deployment が ConfigMap mount 経由で既存のダッシュボード JSON を参照する~~ — manifest を持たない方針のため取り下げ。docker-compose 経由のローカル可視化は従来通り動く
