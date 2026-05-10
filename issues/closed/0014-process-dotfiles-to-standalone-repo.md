@@ -25,7 +25,7 @@ Retro-converted: 2026-05-10 (from docs/history.md §1)
 
 ## 問題
 
-- 初期判断（[ADR-013](../archive/adr/013-claude-stats-directory-isolation.md)）では「ディレクトリ隔離（案A）」を採用し「別リポジトリ分離（案B）」は却下していたが、隔離後の実態として結合度が想定以上に低下したため、案 B を覆して採用するに至った
+- 初期判断（[ADR-013](../../docs/archive/adr/013-claude-stats-directory-isolation.md)）では「ディレクトリ隔離（案A）」を採用し「別リポジトリ分離（案B）」は却下していたが、隔離後の実態として結合度が想定以上に低下したため、案 B を覆して採用するに至った
 
 ## 対応方針
 
@@ -44,4 +44,4 @@ Retro-converted: 2026-05-10 (from docs/history.md §1)
 
 ## 参照
 
-- [ADR-013](../archive/adr/013-claude-stats-directory-isolation.md)
+- [ADR-013](../../docs/archive/adr/013-claude-stats-directory-isolation.md)

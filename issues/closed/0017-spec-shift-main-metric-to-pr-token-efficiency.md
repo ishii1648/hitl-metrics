@@ -35,7 +35,7 @@ PR 単位のトークン消費効率を主指標に据え、permission UI 計測
 
 ## 解決方法
 
-- `transcript_stats` テーブルに token 使用量カラム（input / output / cache）を追加（[ADR-020](../archive/adr/020-add-token-usage-columns-to-transcript-stats.md) を凍結→ ADR-023 で実現）
+- `transcript_stats` テーブルに token 使用量カラム（input / output / cache）を追加（[ADR-020](../../docs/archive/adr/020-add-token-usage-columns-to-transcript-stats.md) を凍結→ ADR-023 で実現）
 - `pr_metrics` VIEW を `total_tokens` / `pr_per_million_tokens` 中心に再構築
 - `permission_events` テーブル・`PermissionRequest` hook・関連 Grafana panel をすべて削除
 - 関連 ADR（ADR-003 / 007 / 008 / 009 / 012 / 014 / 022）を「廃止 (ADR-023)」または「一部廃止」ステータスに更新
@@ -47,5 +47,5 @@ PR 単位のトークン消費効率を主指標に据え、permission UI 計測
 
 ## 参照
 
-- [ADR-023](../archive/adr/023-pr-token-efficiency-metrics.md)
-- [ADR-020](../archive/adr/020-add-token-usage-columns-to-transcript-stats.md)（Draft、ADR-023 で実現）
+- [ADR-023](../../docs/archive/adr/023-pr-token-efficiency-metrics.md)
+- [ADR-020](../../docs/archive/adr/020-add-token-usage-columns-to-transcript-stats.md)（Draft、ADR-023 で実現）

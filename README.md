@@ -70,8 +70,8 @@ repo 内の Markdown（reference 系）は引き続き以下:
 | [docs/spec.md](docs/spec.md) | 外部契約（CLI・hook 仕様・データモデル） |
 | [docs/metrics.md](docs/metrics.md) | 計測フレームワーク（観察軸・解釈・OpenMetrics カタログ） |
 | [docs/design.md](docs/design.md) | 実装方針と設計判断 |
-| [docs/history.md](docs/history.md) | 過去の経緯と廃止された設計 |
 | [docs/setup.md](docs/setup.md) | セットアップ手順 |
 | [docs/usage.md](docs/usage.md) | 日常運用とトラブルシューティング |
-| [docs/archive/adr/](docs/archive/adr/) | 過去の意思決定記録（旧 ADR 形式・参照のみ） |
+| [issues/closed/](issues/closed/) | 過去の意思決定記録（retro issue を含む正本） |
+| [docs/archive/adr/](docs/archive/adr/) | 旧 ADR 形式の意思決定記録（参照のみ） |
 | [site/](site/) | 仕組み解説 site の Hugo source（`make docs-serve` でローカル確認） |

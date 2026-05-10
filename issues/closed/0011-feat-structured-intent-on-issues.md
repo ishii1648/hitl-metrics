@@ -80,7 +80,7 @@ closed_at: YYYY-MM-DD
 - `issues/closed/*.md` (0001, 0002, 0010) に frontmatter を埋める
 - `issues/<id>-*.md` (0003, 0004, 0009) に open 用の最小 frontmatter を入れる（`closed_at` 省略）
 - `issues/pending/*.md` (0005-0008) にも同様
-- `docs/history.md` の 11 件は本 issue では触らない。retro 化（過去判断を遡って issue として起こすか、history.md に残置するか）は [0013](../pending/0013-design-history-md-retro-conversion.md) (pending) で扱う
+- `docs/history.md` の 11 件は本 issue では触らない。retro 化（過去判断を遡って issue として起こすか、history.md に残置するか）は [0013](0013-design-history-md-retro-conversion.md) で扱う
 
 ### 段階 3: path 逆引き script
 

@@ -15,7 +15,7 @@ Retro-converted: 2026-05-10 (from docs/history.md §7; date approximate, around 
 
 ## 概要
 
-PR URL の backfill は 3 段階の進化を経た。初期（[ADR-005](../archive/adr/005-session-index-pr-url-backfill-on-stop.md)）の Stop hook fire-and-forget → 中期（[ADR-006](../archive/adr/006-session-index-pr-url-backfill-cron-batch.md)）の launchd / cron バッチ → 現在（[ADR-019](../archive/adr/019-backfill-stop-hook-migration.md)）の Stop hook + cursor + Go CLI 集約。
+PR URL の backfill は 3 段階の進化を経た。初期（[ADR-005](../../docs/archive/adr/005-session-index-pr-url-backfill-on-stop.md)）の Stop hook fire-and-forget → 中期（[ADR-006](../../docs/archive/adr/006-session-index-pr-url-backfill-cron-batch.md)）の launchd / cron バッチ → 現在（[ADR-019](../../docs/archive/adr/019-backfill-stop-hook-migration.md)）の Stop hook + cursor + Go CLI 集約。
 
 ## 根拠
 
@@ -53,5 +53,5 @@ backfill ロジックを Go CLI (`internal/backfill/`) に集約し、cursor で
 
 ## 参照
 
-- [ADR-005](../archive/adr/005-session-index-pr-url-backfill-on-stop.md) → [ADR-006](../archive/adr/006-session-index-pr-url-backfill-cron-batch.md) → [ADR-019](../archive/adr/019-backfill-stop-hook-migration.md)
-- [ADR-010](../archive/adr/010-session-index-backfill-parallel-execution.md)（並列実行化、cron バッチ時代）
+- [ADR-005](../../docs/archive/adr/005-session-index-pr-url-backfill-on-stop.md) → [ADR-006](../../docs/archive/adr/006-session-index-pr-url-backfill-cron-batch.md) → [ADR-019](../../docs/archive/adr/019-backfill-stop-hook-migration.md)
+- [ADR-010](../../docs/archive/adr/010-session-index-backfill-parallel-execution.md)（並列実行化、cron バッチ時代）

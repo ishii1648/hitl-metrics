@@ -57,7 +57,7 @@ Created: 2026-05-10
 ### 参照更新（10 箇所）
 
 - **CLAUDE.md**
-  - L5: `docs/history.md` §8 への deep link → [0021](../issues/closed/0021-spec-rename-hitl-metrics-to-agent-telemetry.md) へリダイレクト
+  - L5: `docs/history.md` §8 への deep link → [0021](0021-spec-rename-hitl-metrics-to-agent-telemetry.md) へリダイレクト
   - L12: doc 構成リストから `docs/history.md` 行を削除
   - L19: 「大きな方針転換は `docs/history.md` にも追記する」→「大きな方針転換は `issues/closed/` に retro issue として記録する」
   - L28: 「大きな転換の場合は `docs/history.md` にも追記」→「大きな転換は `issues/closed/` に retro issue として記録」
@@ -66,7 +66,7 @@ Created: 2026-05-10
 - **docs/spec.md** L4: 「過去の経緯は `docs/history.md`」→「過去の経緯は `issues/closed/` の retro issue」
 - **docs/design.md**
   - L5: 同上
-  - L133: 「詳細は `docs/history.md` を参照」→ [0020](../issues/closed/0020-design-backfill-evolution-to-stop-hook.md) を参照
+  - L133: 「詳細は `docs/history.md` を参照」→ [0020](0020-design-backfill-evolution-to-stop-hook.md) を参照
 
 ### retro issue の forward reference 追記
 

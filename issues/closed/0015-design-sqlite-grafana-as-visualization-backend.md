@@ -51,4 +51,4 @@ Retro-converted: 2026-05-10 (from docs/history.md §2; date approximate, around 
 
 ## 参照
 
-- [ADR-015](../archive/adr/015-dashboard-visualization-backend-selection.md)
+- [ADR-015](../../docs/archive/adr/015-dashboard-visualization-backend-selection.md)

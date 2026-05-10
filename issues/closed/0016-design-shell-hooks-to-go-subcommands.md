@@ -47,4 +47,4 @@ Retro-converted: 2026-05-10 (from docs/history.md §3; date approximate, around 
 
 ## 参照
 
-- [ADR-021](../archive/adr/021-migrate-shell-hooks-to-go-subcommands.md)
+- [ADR-021](../../docs/archive/adr/021-migrate-shell-hooks-to-go-subcommands.md)
