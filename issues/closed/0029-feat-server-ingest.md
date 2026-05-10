@@ -5,7 +5,6 @@ affected_paths:
   - internal/serverpipe/
   - internal/syncdb/
   - Dockerfile.server
-  - contrib/systemd/
 tags: [server, ingest, http, k8s]
 closed_at: 2026-05-10
 ---
@@ -70,20 +69,20 @@ Completed: 2026-05-10
 - `internal/syncdb/schema/` 新規サブパッケージ。schema.sql / schema_hash.go / genhash を移動し、`schema.SQL` / `schema.Hash` として export
 - `internal/syncdb/syncdb.go` を新サブパッケージ参照に更新。挙動は不変
 - `Dockerfile.server` 新規（multi-stage build → distroless/static、CGO_ENABLED=0、nonroot で 8443 公開）
-- `contrib/systemd/agent-telemetry-server.service` 新規（VPS / bare-metal 用、systemd hardening 込み）
-- `.goreleaser.yaml` に `agent-telemetry-server` build / archive を追加（linux/amd64+arm64、systemd unit を archive に同梱）
+- `.goreleaser.yaml` に `agent-telemetry-server` build / archive を追加（linux/amd64+arm64）
 - `.gitignore` に `agent-telemetry-server` バイナリを追加
 
-### スコープ縮小: `deploy/k8s/` を本リポジトリに含めない方針へ転換
+### スコープ縮小: `deploy/k8s/` と `contrib/systemd/` を本リポジトリに含めない方針へ転換
 
-当初は `deploy/k8s/` 配下に Kustomize manifest（base + overlays/local + overlays/production）を提供する受け入れ条件だったが、実装後の議論で **削除** した。理由:
+当初は `deploy/k8s/` 配下に Kustomize manifest（base + overlays/local + overlays/production）を提供し、`contrib/systemd/agent-telemetry-server.service` で VPS / bare-metal の systemd 起動パスも canonical として用意する受け入れ条件だったが、実装後の議論で **どちらも削除** した。理由:
 
 - デプロイ方式（Helm / Argo CD / Flux / 素の kubectl）と cluster topology（StorageClass / IngressClass / cert-manager の有無）は運用者ごとに異なり、ひとつの canonical manifest を置くと fork or copy が必要になる
-- `letsencrypt-prod` cert-manager / `nginx` ingressClass / `standard` StorageClass などの defaults はクラスタ前提を強く埋め込んでおり、メンテナンスと陳腐化のコストが本リポのスコープに見合わない
+- 同じロジックが service manager にも当てはまる（systemd / OpenRC / rc.d / supervisord / nohup / docker run / k8s …）。systemd を canonical として置くと、それ以外の運用者は無視するか fork する
+- `letsencrypt-prod` cert-manager / `nginx` ingressClass / `standard` StorageClass、`MemoryDenyWriteExecute=yes` / `ProtectSystem=strict` のような defaults はクラスタ・ホスト前提を強く埋め込んでおり、メンテナンスと陳腐化のコストが本リポのスコープに見合わない
 - `REPLACE_ME` token / `local-dev-token` リテラル / サンプル Secret といった「うっかり deploy されると事故るもの」をリポに置くこと自体がアンチパターン
-- agent-telemetry のスコープは hook + CLI + dashboard JSON。インフラ配布物は別レイヤーの責務
+- agent-telemetry のスコープは hook + CLI + dashboard JSON + ingest server。インフラ・サービス管理配布物は別レイヤーの責務
 
-代替: image (`ghcr.io/ishii1648/agent-telemetry-server`) のみを公式提供物とし、デプロイは運用者の責務とする。docs (0030 の作業) で reference YAML スニペットを示す方針に切り替える。`docs/spec.md` / `docs/design.md` の k8s manifest 記述は merge 後に main で同期更新する（実装ブランチでは触れない CLAUDE.md ルール）。
+代替: 公式提供物は image (`ghcr.io/ishii1648/agent-telemetry-server`) と Go binary (goreleaser) のみとし、デプロイ・サービス管理は運用者の責務とする。docs (0030 の作業) で reference YAML スニペットを示す方針に切り替える。`docs/spec.md` / `docs/design.md` の k8s manifest / systemd unit 記述は merge 後に main で同期更新する（実装ブランチでは触れない CLAUDE.md ルール）。
 
 ### 確認した受け入れ条件
 

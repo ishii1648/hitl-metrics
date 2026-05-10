@@ -30,7 +30,6 @@ Created: 2026-05-10
 
 - `docs/setup.md` に「サーバ送信を有効化する」節を追加
   - **image の入手**: `docker pull ghcr.io/ishii1648/agent-telemetry-server:latest` の案内（tag pin の例も）
-  - **Go binary 起動**: VPS / bare metal で `contrib/systemd/agent-telemetry-server.service` を使うパターン
   - **k8s 参考デプロイ**: docs 内の annotated YAML スニペットとして以下を示す（ファイル化はしない、運用者が cluster に合わせて改変する前提）
     - 最小構成: `Deployment` (replicas=1, RollingUpdate→Recreate) + `Service` (ClusterIP) + `PersistentVolumeClaim` (operator が StorageClass を埋める前提) + `Secret` (token)
     - Grafana 同居版: 上記 + Grafana `Deployment` + ConfigMap mount で `grafana/provisioning/datasources/agent-telemetry-docker.yaml` と `grafana/dashboards/agent-telemetry.json` を参照
@@ -48,7 +47,6 @@ Created: 2026-05-10
 ## 受け入れ条件
 
 - [ ] `docs/setup.md` の k8s 参考スニペット通りに自分で `kubectl apply -f -` できる粒度で書かれている（最小構成 + Grafana 同居版の 2 パターン）
-- [ ] `docs/setup.md` の Go binary 手順通りに systemd unit 起動 + クライアント push まで通る
 - [ ] スニペット内で operator が埋める箇所（StorageClass / IngressClass / token / cert-manager 設定）が `# REPLACE_ME` で明示されている
 - [ ] Grafana を docs 通りに mount すれば `grafana/dashboards/agent-telemetry.json` がそのまま描画される（ローカル `make grafana-up` と同一の見た目）
 - [ ] `docs/usage.md` のローカル開発時手順で、サーバ DB ファイルを `AGENT_TELEMETRY_DB` で指して `make grafana-up` するとダッシュボードがそのまま動く

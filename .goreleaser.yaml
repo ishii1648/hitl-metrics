@@ -38,8 +38,6 @@ archives:
       - agent-telemetry-server
     format: tar.gz
     name_template: "agent-telemetry-server_{{ .Os }}_{{ .Arch }}"
-    files:
-      - contrib/systemd/agent-telemetry-server.service
 
 checksum:
   name_template: "checksums.txt"
