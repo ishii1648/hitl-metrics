@@ -3,7 +3,7 @@ title: hooks
 weight: 20
 ---
 
-agent-telemetry が登録する hook の一覧と、それぞれが**何のイベントを契機に・何のデータを集めるか**をまとめます。hook は agent プロセスから同期的に呼ばれるため、**永続化以外の重い処理を入れない**設計です（PR 集約は `sync-db` 側で行う）。
+agent-telemetry が登録する hook の一覧と、それぞれが**何のイベントを契機に・何のデータを集めるか**をまとめます。hook は agent プロセスから同期的に呼ばれ、**JSONL への追記から `backfill`・`sync-db` による SQLite 反映までを 1 回の hook 実行内で完結**させます（後続バッチが無いため、ここで sync しないと Grafana に反映されない）。応答時間への影響は [Stop hook の処理時間](#stop-hook-の処理時間) で説明する 3 つの抑制策で抑えています。
 
 ## hook がカバーする範囲
 
