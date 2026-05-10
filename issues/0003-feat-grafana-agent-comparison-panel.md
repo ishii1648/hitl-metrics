@@ -2,7 +2,7 @@
 decision_type: implementation
 affected_paths:
   - grafana/dashboards/agent-telemetry.json
-  - docs/images/
+  - docs/assets/
 tags: [grafana, dashboard, multi-agent]
 ---
 
@@ -25,9 +25,9 @@ Codex CLI 対応の一環として、Grafana ダッシュボード `grafana/dash
   - `avg_tokens_per_pr` を `coding_agent` で GROUP BY して並べて表示
   - `pr_per_million_tokens` を同様に並べて表示
 - パネル配置はヘッドラインセクション末尾（trend / pr 詳細セクションの前）
-- `make grafana-screenshot` を実行して `docs/images/dashboard-*.png` を更新する
+- `make grafana-screenshot` を実行して `docs/assets/dashboard-*.png` を更新する
 
 ## 受け入れ条件
 
 - [ ] agent 別比較 stat パネルが追加され、`make grafana-up-e2e` で表示確認できる
-- [ ] `make grafana-screenshot` で `docs/images/dashboard-*.png` を更新済み
+- [ ] `make grafana-screenshot` で `docs/assets/dashboard-*.png` を更新済み

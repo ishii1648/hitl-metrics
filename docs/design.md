@@ -357,7 +357,7 @@ ClickHouse / Loki も候補だが、個人利用規模では SQLite で十分。
 
 `make grafana-screenshot` が Docker Compose で Grafana + Image Renderer を起動し、Render API でパネルごとに PNG を取得する。Playwright 等のブラウザ自動操作は採用しない（Go プロジェクトに異質な依存を持ち込まないため、また Image Renderer で十分なため）。
 
-ダッシュボードを変更したら必ず `make grafana-screenshot` を実行し、`docs/images/dashboard-*.png` も合わせて更新する（CLAUDE.md の必須作業）。
+ダッシュボードを変更したら必ず `make grafana-screenshot` を実行し、`docs/assets/dashboard-*.png` も合わせて更新する（CLAUDE.md の必須作業）。
 
 ---
 

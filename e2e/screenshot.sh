@@ -45,7 +45,7 @@ curl -sf -o "$FULL" "${BASE}/render/d/agent-telemetry/agent-telemetry?from=${FRO
 echo "  → ${FULL}"
 
 # Also export key panels for README docs
-DOCDIR="docs/images"
+DOCDIR="docs/assets"
 mkdir -p "$DOCDIR"
 for pair in "2:pr-scorecard:dashboard-pr-scorecard"; do
   ID="${pair%%:*}"
