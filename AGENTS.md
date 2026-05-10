@@ -140,7 +140,7 @@ Created: YYYY-MM-DD
 - 番号が小さい open issue から順に対応する
 - issue を新規作成したら同コミットで `issues/SEQUENCE` も `+1` する（失念防止）
 - 1 issue の close ごとに 1 コミットを基本とする
-- 関連 PR の説明冒頭に `issues/<id>-...` へのリンクを貼る（参考: `docs/history.md` 9 番のリンク作法）
+- 関連 PR の説明冒頭に `issues/<id>-...` へのリンクを貼る（参考: `docs/history.md` 9 番のリンク作法）。`.github/pull_request_template.md` がそのフォームを enforce する — PR description は薄く保ち、「なぜ」「方針」「却下案」は issue 側 / commit body 側に書く
 
 #### バグ発見時のフロー
 
