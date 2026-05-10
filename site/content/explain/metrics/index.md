@@ -111,4 +111,4 @@ flowchart TB
 
 カテゴリの境界は **「どこから来るか」だけ見ると曖昧**になります（例: `pr_url` ラベルは Stop hook が即時 pin する経路と、backfill が gh CLI で後追いする経路の両方を持ち、A と C にまたがる）。**「どの層が値を確定させるか」** で分類するとブレません。session ↔ PR の紐づけ機構（pin / fallback / 優先順位）は [hooks ## PR と session の紐づけ]({{< relref "/explain/hooks" >}}#pr-と-session-の紐づけ) を参照してください。
 
-各カテゴリの実装詳細・代表例の追跡は [docs/metrics.md ## 収集パイプライン](https://github.com/ishii1648/agent-telemetry/blob/main/docs/metrics.md#収集パイプライン) を参照してください。データの実際の流れは [data-flow]({{< relref "/explain/data-flow" >}}) ページで時系列に追えます。
+各カテゴリの実装詳細・代表例の追跡は [docs/metrics.md ## 収集パイプライン](https://github.com/ishii1648/agent-telemetry/blob/main/docs/metrics.md#収集パイプライン) を参照してください。データの加工過程は [aggregation]({{< relref "/explain/aggregation" >}}) ページで追えます。
