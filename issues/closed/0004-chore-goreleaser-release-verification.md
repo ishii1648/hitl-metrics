@@ -9,6 +9,7 @@ tags: [release, ci, goreleaser]
 # GoReleaser tag push 動作確認 + リリース
 
 Created: 2026-05-08
+Completed: 2026-05-10
 Model: Opus 4.7
 
 ## 概要
@@ -28,6 +29,21 @@ Model: Opus 4.7
 
 ## 受け入れ条件
 
-- [ ] tag push で GoReleaser が完走
-- [ ] artifact 名が `agent-telemetry` プレフィックスで生成される
-- [ ] GitHub Releases ページに正しいリリースが表示される
+- [x] tag push で GoReleaser が完走
+- [x] artifact 名が `agent-telemetry` プレフィックスで生成される
+- [x] GitHub Releases ページに正しいリリースが表示される
+
+## 解決方法
+
+`v0.0.5` を `main` (ce7fde5) に対して push し、`.github/workflows/release.yml` 経由で GoReleaser を起動した。
+
+- workflow run: 25623849035 / 1m26s で success
+- 生成 artifact (`https://github.com/ishii1648/agent-telemetry/releases/tag/v0.0.5`):
+  - `agent-telemetry_darwin_amd64.tar.gz`
+  - `agent-telemetry_darwin_arm64.tar.gz`
+  - `agent-telemetry_linux_amd64.tar.gz`
+  - `agent-telemetry_linux_arm64.tar.gz`
+  - `checksums.txt`
+- `.goreleaser.yaml` は `binary: agent-telemetry` + `name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"` で、`ProjectName` がリポジトリ名（agent-telemetry）にデフォルト解決されることを確認。設定変更は不要だった。
+
+これでリネーム（hitl-metrics → agent-telemetry）の全フェーズが完了。次回以降のタグ push も同じ artifact 名で出力される。
