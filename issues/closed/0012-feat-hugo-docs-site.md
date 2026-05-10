@@ -130,3 +130,55 @@ site/                      # 新設。Hugo project root
 
 - **0011** — issues/ への structured intent store。本 issue (0012) と独立に進行可能
 - **将来 0013（仮）** — 0011 段階 4。0011 段階 1+2 と 0012 の両方完了後に着手し、`site/content/intent/` を frontmatter から生成する
+
+Completed: 2026-05-10
+
+## 解決方法
+
+### 採用した theme
+
+**Hugo Book** (`github.com/alex-shpak/hugo-book`) を Hugo modules で導入した。Geekdoc と比較して config の defaults が docs site 用に整っており、Mermaid shortcode・flexsearch ベースの全文検索・sidebar nav が標準で動く。Hugo modules 経由なので theme 更新は `make docs-mod-update` のみで完結する（git submodule 不使用）。
+
+### 構成
+
+- `site/` 直下に Hugo project root を作成（`hugo.toml` / `go.mod` / `.gitignore`）
+- `site/content/explain/` 以下に 4 ページを **page bundle**（`<topic>/index.md`）として執筆
+  - architecture / data-flow / hooks / dashboard
+  - 各ページに最低 1 つの Mermaid 図（flowchart / sequenceDiagram）
+- ランディング `_index.md` から GitHub 上の `docs/*.md`（reference 系）に直接リンクし、Hugo 内には取り込まない方針を踏襲
+- `Makefile` に `docs-serve` / `docs-build` / `docs-mod-update` の 3 target を追加（HUGO_PORT で port 上書き可能）
+
+### CI / deploy
+
+- `.github/workflows/docs-deploy.yml` — `peaceiris/actions-hugo` + `peaceiris/actions-gh-pages` で main push 時に gh-pages へ deploy。PR 時は build 検証のみ（artifact upload で構成チェック）。`concurrency` で同時 deploy のレースを回避
+- `.github/workflows/link-check.yml` — `lycheeverse/lychee-action` で markdown link rot を検出。PR / main push / 週次 schedule で発火。`.lycheeignore` に gh-pages 初回 deploy 前の自己 URL や localhost を登録
+- README に `https://ishii1648.github.io/agent-telemetry/` への誘導リンクを追加（reference 系は引き続き repo 内 markdown を正本）
+
+### CLAUDE.md / AGENTS.md 更新
+
+- 「ドキュメント構成」に `site/content/explain/` の役割を追記（reference vs 解説 docs の分離方針を明示）
+- 「実装セッション」ルールに「`site/` は実装ブランチで触ってよい」を追記
+- 「ダッシュボード変更時の必須作業」に「panel 構成変更時は `site/content/explain/dashboard/index.md` も同期更新」を追記
+- 「docs site（`site/`）」セクションを追加（Makefile target / theme 導入方式 / deploy workflow の参照）
+
+### 1 PR にまとめた判断
+
+issue では PR 1（scaffolding + 1 ページ）/ PR 2（残り 3 ページ + workflow）の分割を提案していたが、Hugo Book theme の導入が config 数行で済み theme 選定で時間を取られなかったため 1 PR にまとめた。レビュー単位としては「site の存在 / 構成」が一塊で見られた方が判断しやすい。
+
+### 受け入れ条件の充足
+
+- [x] `site/` ディレクトリ構成と `hugo.toml` を作成
+- [x] theme を選定（Hugo Book）し、Hugo modules で導入
+- [x] 初版 4 ページ（architecture / data-flow / hooks / dashboard）を page bundle として執筆
+- [x] Mermaid で各ページに最低 1 つは図を入れる
+- [x] `make docs-serve` で local 確認できる（Makefile に target 追加）
+- [x] `.github/workflows/docs-deploy.yml` を作成、main push で gh-pages へ自動 deploy
+- [x] gh-pages の URL を README に追加（初回 deploy 前から誘導リンクを設置）
+- [x] markdown link checker を CI に追加（`.github/workflows/link-check.yml`）
+- [x] CLAUDE.md / AGENTS.md を方針に沿って更新
+- [x] `docs/` 配下は本 issue では触らない
+
+### 残タスク（運用側）
+
+- 初回 main merge 後、GitHub Pages の source を `gh-pages` ブランチに手動設定
+- 初回 deploy で site が表示されたら `.lycheeignore` の `^https://ishii1648\.github\.io/agent-telemetry/?` 行を削除して link checker から除外を解除

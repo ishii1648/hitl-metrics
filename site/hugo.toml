@@ -1,0 +1,31 @@
+baseURL = "https://ishii1648.github.io/agent-telemetry/"
+title = "agent-telemetry"
+languageCode = "ja"
+defaultContentLanguage = "ja"
+
+# 末尾スラッシュ付きの URL に揃える（gh-pages 配下で扱いやすい）
+canonifyURLs = true
+
+# `{{< mermaid >}}` shortcode と raw HTML 経由の図解を許可
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+
+[module]
+  [[module.imports]]
+    path = "github.com/alex-shpak/hugo-book"
+
+[params]
+  # repo メタ情報（"Edit this page" リンク用）
+  BookRepo = "https://github.com/ishii1648/agent-telemetry"
+  BookEditPath = "edit/main/site/content"
+
+  # サイドバーで explain セクションを優先表示
+  BookSection = "explain"
+
+  # 検索（theme 内蔵 flexsearch）を有効化
+  BookSearch = true
+
+  # トップレベルの目次表示
+  BookToC = true
