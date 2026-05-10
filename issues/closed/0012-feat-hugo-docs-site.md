@@ -161,7 +161,7 @@ Hextra は次の点で要件を満たす:
 
 ### CI / deploy
 
-- `.github/workflows/docs-deploy.yml` — `peaceiris/actions-hugo` + `peaceiris/actions-gh-pages` で main push 時に gh-pages へ deploy。PR 時は build 検証のみ（artifact upload で構成チェック）。`concurrency` で同時 deploy のレースを回避
+- `.github/workflows/docs-deploy.yml` — main push 時に gh-pages へ deploy（`peaceiris/actions-gh-pages`、`keep_files: true` で pr-preview/ を保持）。PR 時は **`rossjrw/pr-preview-action` で `gh-pages/pr-preview/pr-<N>/` に preview 版を deploy** し、PR コメントに URL を自動投稿。PR close 時は preview を自動削除。`concurrency` group は `pr-<N>` / `main` で分離して同 branch の同一 path 競合を直列化
 - `.github/workflows/link-check.yml` — `lycheeverse/lychee-action` で markdown link rot を検出。PR / main push / 週次 schedule で発火。`.lycheeignore` に gh-pages 初回 deploy 前の自己 URL や localhost を登録
 - README に `https://ishii1648.github.io/agent-telemetry/` への誘導リンクを追加（reference 系は引き続き repo 内 markdown を正本）
 
@@ -191,5 +191,6 @@ issue では PR 1（scaffolding + 1 ページ）/ PR 2（残り 3 ページ + wo
 
 ### 残タスク（運用側）
 
-- 初回 main merge 後、GitHub Pages の source を `gh-pages` ブランチに手動設定
-- 初回 deploy で site が表示されたら `.lycheeignore` の `^https://ishii1648\.github\.io/agent-telemetry/?` 行を削除して link checker から除外を解除
+- 初回 main merge 後、GitHub Pages の source を `gh-pages` ブランチに手動設定（PR preview もここから serve される）
+- 初回 deploy で site が表示されたら `.lycheeignore` の `^https://ishii1648\.github\.io/agent-telemetry/?` 行を削除して link checker から除外を解除（PR preview URL も同パターンに含まれる）
+- fork からの PR では `GITHUB_TOKEN` が read-only になるため preview deploy は失敗する（in-repo PR でのみ機能する）。fork PR を受け入れる場合は `pull_request_target` + `workflow_run` の 2-stage 構成へ移行する必要がある
