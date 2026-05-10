@@ -3,7 +3,7 @@ module github.com/ishii1648/agent-telemetry
 go 1.26.3
 
 require (
-	github.com/klauspost/compress v1.17.11
+	github.com/klauspost/compress v1.18.6
 	modernc.org/sqlite v1.35.0
 )
 
