@@ -31,6 +31,7 @@ jobs:
         uses: lycheeverse/lychee-action@v2
         with:
           # Markdown 全般 + Hugo content をチェック対象にする
+          # docs/archive/ は過去の意思決定記録（凍結）で削除済みファイルへの link 切れを許容する
           args: >-
             --no-progress
             --max-retries 2
@@ -39,6 +40,7 @@ jobs:
             --exclude-path .git
             --exclude-path site/public
             --exclude-path site/resources
+            --exclude-path docs/archive
             './**/*.md'
           fail: true
           token: ${{ secrets.GITHUB_TOKEN }}
