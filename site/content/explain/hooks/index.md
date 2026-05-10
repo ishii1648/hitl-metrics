@@ -47,8 +47,7 @@ Codex は `SessionEnd` を持たないため、`Stop` hook で `ended_at` を毎
 `Stop` hook は応答完了ごとに `backfill` → `sync-db` をブロッキングで走らせます。応答が長引かないよう **3 つの抑制策**が入っています。
 
 ```mermaid
-%%{init: {'flowchart': {'useMaxWidth': false}}}%%
-flowchart LR
+flowchart TB
     A["Stop hook 発火"]
     B["1. cursor で<br/>未処理セッション抽出"]
     C["2. 時間条件で<br/>スキップ判定"]
