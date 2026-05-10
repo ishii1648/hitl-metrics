@@ -1,0 +1,46 @@
+name: Link check
+
+on:
+  pull_request:
+    paths:
+      - "**.md"
+      - "site/**"
+      - ".github/workflows/link-check.yml"
+      - ".lycheeignore"
+  push:
+    branches:
+      - main
+    paths:
+      - "**.md"
+      - "site/**"
+  schedule:
+    # 週次で外部リンクの rot を検知する（毎週月曜 09:00 JST = 00:00 UTC）
+    - cron: "0 0 * * 1"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  lychee:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run lychee
+        uses: lycheeverse/lychee-action@v2
+        with:
+          # Markdown 全般 + Hugo content をチェック対象にする
+          # docs/archive/ は過去の意思決定記録（凍結）で削除済みファイルへの link 切れを許容する
+          args: >-
+            --no-progress
+            --max-retries 2
+            --cache
+            --max-cache-age 1d
+            --exclude-path .git
+            --exclude-path site/public
+            --exclude-path site/resources
+            --exclude-path docs/archive
+            './**/*.md'
+          fail: true
+          token: ${{ secrets.GITHUB_TOKEN }}

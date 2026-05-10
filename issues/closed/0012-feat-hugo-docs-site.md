@@ -130,3 +130,67 @@ site/                      # 新設。Hugo project root
 
 - **0011** — issues/ への structured intent store。本 issue (0012) と独立に進行可能
 - **将来 0013（仮）** — 0011 段階 4。0011 段階 1+2 と 0012 の両方完了後に着手し、`site/content/intent/` を frontmatter から生成する
+
+Completed: 2026-05-10
+
+## 解決方法
+
+### 採用した theme
+
+**Hextra** (`github.com/imfing/hextra`) を Hugo modules で導入した。当初は Hugo Book を採用したが、ユーザから HashiCorp docs (`https://developer.hashicorp.com/terraform/docs`) のような洗練されたデザインを求められ、Hextra に切り替え。Hugo Book は機能要件は満たしたものの、デザインが地味でモダンな docs site の見た目に届かなかった。
+
+Hextra は次の点で要件を満たす:
+
+- 上部ナビ + 左 sidebar + 右 TOC の Next.js / Nextra ライクな layout
+- Tailwind ベースの洗練された視覚デザイン
+- ダーク / ライトモード（system 追従）標準
+- Mermaid / KaTeX / cards / callouts / tabs などの shortcode 内蔵
+- flexsearch ベースの全文検索
+- Hugo modules 対応 (`hugo mod get` のみで導入)
+
+なお Hextra は SCSS を使うため Hugo extended が必須。aqua.yaml では `gohugoio/hugo/hugo-extended` を pin して CI / ローカル両方で extended を使う。
+
+### 構成
+
+- `site/` 直下に Hugo project root を作成（`hugo.toml` / `go.mod` / `.gitignore`）
+- `site/content/explain/` 以下に 4 ページを **page bundle**（`<topic>/index.md`）として執筆
+  - architecture / data-flow / hooks / dashboard
+  - 各ページに最低 1 つの Mermaid 図（flowchart / sequenceDiagram）
+- ランディング `_index.md` から GitHub 上の `docs/*.md`（reference 系）に直接リンクし、Hugo 内には取り込まない方針を踏襲
+- `Makefile` に `docs-serve` / `docs-build` / `docs-mod-update` の 3 target を追加（HUGO_PORT で port 上書き可能）
+
+### CI / deploy
+
+- `.github/workflows/docs-deploy.yml` — main push 時に gh-pages へ deploy（`peaceiris/actions-gh-pages`、`keep_files: true` で pr-preview/ を保持）。PR 時は **`rossjrw/pr-preview-action` で `gh-pages/pr-preview/pr-<N>/` に preview 版を deploy** し、PR コメントに URL を自動投稿。PR close 時は preview を自動削除。`concurrency` group は `pr-<N>` / `main` で分離して同 branch の同一 path 競合を直列化
+- `.github/workflows/link-check.yml` — `lycheeverse/lychee-action` で markdown link rot を検出。PR / main push / 週次 schedule で発火。`.lycheeignore` に gh-pages 初回 deploy 前の自己 URL や localhost を登録
+- README に `https://ishii1648.github.io/agent-telemetry/` への誘導リンクを追加（reference 系は引き続き repo 内 markdown を正本）
+
+### CLAUDE.md / AGENTS.md 更新
+
+- 「ドキュメント構成」に `site/content/explain/` の役割を追記（reference vs 解説 docs の分離方針を明示）
+- 「実装セッション」ルールに「`site/` は実装ブランチで触ってよい」を追記
+- 「ダッシュボード変更時の必須作業」に「panel 構成変更時は `site/content/explain/dashboard/index.md` も同期更新」を追記
+- 「docs site（`site/`）」セクションを追加（Makefile target / theme 導入方式 / deploy workflow の参照）
+
+### 1 PR にまとめた判断
+
+issue では PR 1（scaffolding + 1 ページ）/ PR 2（残り 3 ページ + workflow）の分割を提案していたが、Hugo Book theme の導入が config 数行で済み theme 選定で時間を取られなかったため 1 PR にまとめた。後にデザイン要件（HashiCorp docs ライクの洗練さ）を満たすため Hextra に theme 移行したが、frontmatter 互換性が高く content 側の書き換えは relref と _index.md のみで済んだ。
+
+### 受け入れ条件の充足
+
+- [x] `site/` ディレクトリ構成と `hugo.toml` を作成
+- [x] theme を選定（Hextra）し、Hugo modules で導入
+- [x] 初版 4 ページ（architecture / data-flow / hooks / dashboard）を page bundle として執筆
+- [x] Mermaid で各ページに最低 1 つは図を入れる
+- [x] `make docs-serve` で local 確認できる（Makefile に target 追加）
+- [x] `.github/workflows/docs-deploy.yml` を作成、main push で gh-pages へ自動 deploy
+- [x] gh-pages の URL を README に追加（初回 deploy 前から誘導リンクを設置）
+- [x] markdown link checker を CI に追加（`.github/workflows/link-check.yml`）
+- [x] CLAUDE.md / AGENTS.md を方針に沿って更新
+- [x] `docs/` 配下は本 issue では触らない
+
+### 残タスク（運用側）
+
+- 初回 main merge 後、GitHub Pages の source を `gh-pages` ブランチに手動設定（PR preview もここから serve される）
+- 初回 deploy で site が表示されたら `.lycheeignore` の `^https://ishii1648\.github\.io/agent-telemetry/?` 行を削除して link checker から除外を解除（PR preview URL も同パターンに含まれる）
+- fork からの PR では `GITHUB_TOKEN` が read-only になるため preview deploy は失敗する（in-repo PR でのみ機能する）。fork PR を受け入れる場合は `pull_request_target` + `workflow_run` の 2-stage 構成へ移行する必要がある

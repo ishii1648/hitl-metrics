@@ -1,4 +1,4 @@
-.PHONY: build install uninstall grafana-fixtures grafana-up grafana-up-e2e grafana-down grafana-screenshot lint-dashboard intent intent-lint test-intent
+.PHONY: build install uninstall grafana-fixtures grafana-up grafana-up-e2e grafana-down grafana-screenshot lint-dashboard intent intent-lint test-intent docs-serve docs-build docs-mod-update
 
 PREFIX ?= $(HOME)/.local
 BIN_DIR := $(PREFIX)/bin
@@ -105,3 +105,20 @@ intent-lint:
 
 test-intent:
 	@python3 scripts/test_intent_lookup.py
+
+# Hugo docs site (site/) — ローカル確認とビルド
+# 既定の port 1313 を Grafana 等と衝突させたい場合は HUGO_PORT で上書き。
+HUGO_PORT ?= 1313
+
+docs-serve:
+	cd site && hugo mod get -u ./... || true
+	cd site && hugo server --buildDrafts --port $(HUGO_PORT)
+
+docs-build:
+	cd site && hugo mod get -u ./...
+	cd site && hugo --gc --minify
+
+# 依存 module（theme 等）を最新化して go.sum を refresh
+docs-mod-update:
+	cd site && hugo mod get -u ./...
+	cd site && hugo mod tidy

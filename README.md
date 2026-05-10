@@ -59,6 +59,12 @@ Codex CLI hooks   → ~/.codex/session-index.jsonl  + rollout JSONL    ┘
 
 ## ドキュメント
 
+仕組みの解説（アーキテクチャ・データフロー・dashboard の読み方）は専用 site で公開しています:
+
+**→ [仕組み解説 site](https://ishii1648.github.io/agent-telemetry/)**
+
+repo 内の Markdown（reference 系）は引き続き以下:
+
 | ファイル | 内容 |
 |---|---|
 | [docs/spec.md](docs/spec.md) | 外部契約（CLI・hook 仕様・データモデル） |
@@ -68,3 +74,4 @@ Codex CLI hooks   → ~/.codex/session-index.jsonl  + rollout JSONL    ┘
 | [docs/setup.md](docs/setup.md) | セットアップ手順 |
 | [docs/usage.md](docs/usage.md) | 日常運用とトラブルシューティング |
 | [docs/archive/adr/](docs/archive/adr/) | 過去の意思決定記録（旧 ADR 形式・参照のみ） |
+| [site/](site/) | 仕組み解説 site の Hugo source（`make docs-serve` でローカル確認） |

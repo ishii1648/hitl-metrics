@@ -1,0 +1,92 @@
+name: Deploy docs site
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "site/**"
+      - "aqua.yaml"
+      - ".github/workflows/docs-deploy.yml"
+  pull_request:
+    # closed も含める — rossjrw/pr-preview-action が自動で preview を削除する
+    types: [opened, reopened, synchronize, closed]
+    paths:
+      - "site/**"
+      - "aqua.yaml"
+      - ".github/workflows/docs-deploy.yml"
+  workflow_dispatch:
+
+# PR preview の deploy / 削除と main deploy を行うため write 権限が必要
+permissions:
+  contents: write
+  pull-requests: write
+
+# main deploy と PR preview deploy を同じ branch (gh-pages) に書き込むため、
+# 同一 PR / main は 1 つずつ直列化する。途中キャンセルすると preview の整合性が崩れるので false。
+concurrency:
+  group: deploy-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      # aqua.yaml で hugo (extended) と go のバージョンを単一の真実として管理する。
+      # v3.1.1 + aqua v2.58.1 の組み合わせでは bootstrap aqua の slsa-verifier が
+      # 新しい SLSA bundle 形式を解釈できず失敗するため v4.0.4 を使う。
+      - uses: aquaproj/aqua-installer@v4.0.4
+        if: github.event.action != 'closed'
+        with:
+          aqua_version: v2.58.1
+
+      - name: Resolve Hugo modules
+        if: github.event.action != 'closed'
+        working-directory: site
+        run: hugo mod get -u ./...
+
+      - name: Determine baseURL
+        id: baseurl
+        if: github.event.action != 'closed'
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "url=https://ishii1648.github.io/agent-telemetry/pr-preview/pr-${{ github.event.number }}/" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=https://ishii1648.github.io/agent-telemetry/" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build site
+        if: github.event.action != 'closed'
+        working-directory: site
+        run: hugo --gc --minify --baseURL "${{ steps.baseurl.outputs.url }}"
+
+      # main への push 時のみ gh-pages のルートに deploy する。
+      # keep_files: true で pr-preview/ 配下の PR preview を消さない。
+      - name: Deploy main site
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site/public
+          publish_branch: gh-pages
+          keep_files: true
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
+          commit_message: "docs: deploy main ${{ github.sha }}"
+
+      # PR の open / reopen / synchronize → pr-preview/pr-<N>/ に deploy。
+      # PR の closed → 同ディレクトリを削除。両方とも action: auto で自動判定。
+      # PR コメントに preview URL を書き込む（更新時は同 comment を upsert）。
+      - name: Deploy PR preview
+        if: github.event_name == 'pull_request'
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: ./site/public
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
+          action: auto

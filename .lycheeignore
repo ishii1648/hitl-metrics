@@ -1,0 +1,12 @@
+# lychee で無視する URL パターン（regex 1 行ずつ）
+
+# gh-pages 初回 deploy 前は 404 を返すので一時的に無視
+^https://ishii1648\.github\.io/agent-telemetry/?
+
+# localhost / private network 系
+^https?://localhost(:\d+)?/
+^https?://127\.0\.0\.1(:\d+)?/
+^https?://0\.0\.0\.0(:\d+)?/
+
+# 認証必須の GitHub edit URL
+^https://github\.com/.*/edit/
