@@ -26,9 +26,9 @@ Created: 2026-05-10
 
 - `internal/serverclient/` 新規パッケージ
   - `agent-telemetry.toml` の `[server]` セクション読み込み（既存 TOML パーサを拡張）
-  - `pushed_session_versions` の読み書き（`agent-telemetry-state.json` 拡張、欠落時は空マップ）
+  - `pushed_session_versions` の読み書き（`agent-telemetry-state.json` 拡張、欠落時は空マップ）。キーは `<coding_agent>:<session_id>` 形式の文字列（複合 PK `(session_id, coding_agent)` を反映、Claude / Codex 間の UUID 衝突で hash が上書きされないようにする）
   - クライアント DB から `sessions` / `transcript_stats` の差分行を抽出（進行中セッションは除外: `ended_at` または `end_reason` が空のものは対象外）
-  - 差分検知: 各セッションの `sessions` 行 + 対応する `transcript_stats` 行を JSON canonicalize → SHA-256 → `pushed_session_versions` と比較
+  - 差分検知: 各セッションの `sessions` 行 + 対応する `transcript_stats` 行を JSON canonicalize → SHA-256 → `pushed_session_versions[<coding_agent>:<session_id>]` と比較
   - HTTP POST `/v1/metrics`（gzip optional、Bearer 認証、`schema_hash` 添付、50 MB を超えるバッチは自動分割）
   - レスポンスの `schema_mismatch: true` を検出した場合はユーザに binary 更新を促す
 - `cmd/agent-telemetry/main.go` に `push` サブコマンドを追加

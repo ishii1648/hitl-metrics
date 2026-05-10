@@ -452,11 +452,12 @@ Content-Encoding: gzip   (optional)
   "last_backfill_offset": 123,
   "last_meta_check": "...",
   "pushed_session_versions": {
-    "<session_id>": "<sha256 of sessions row + transcript_stats row>"
+    "<coding_agent>:<session_id>": "<sha256 of sessions row + transcript_stats row>"
   }
 }
 ```
 
+- キーは `<coding_agent>:<session_id>` 形式の文字列（例: `"claude:abc-123"`）。`sessions` / `transcript_stats` の PRIMARY KEY が `(session_id, coding_agent)` の複合キーなので、session_id 単独だと Claude / Codex 間で UUID 衝突した際に hash が上書きされる。session_id 自身は外部出力（Grafana 表示等）で生 UUID のまま扱うが、`pushed_session_versions` は内部状態なので prefix 化する（外部出力には漏れない）
 - 各 push 時に対象セッションの `sessions` 行 + `transcript_stats` 行を JSON canonicalize → SHA-256 → `pushed_session_versions` と比較
 - hash 一致 → 既送信、スキップ
 - hash 不一致 → 後追い更新あり、再送信
