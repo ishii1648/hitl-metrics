@@ -74,12 +74,10 @@ hook の詳細は [hooks]({{< relref "/explain/hooks" >}}) ページを参照し
 
 ### 3. 変換層（`agent-telemetry` CLI）
 
-CLI は state を読んで SQLite に変換します。
+CLI は state を読んで SQLite に変換します。**通常は `Stop` hook が応答完了時に `backfill` → `sync-db` をブロッキングで連続実行する**ため、ユーザが明示的にコマンドを叩かなくても、エージェントの応答が返ってくるまでに DB が最新化されています（手動で再構築したい場合は [setup/local]({{< relref "/setup/local" >}}) 参照）。
 
 - **`backfill`** — `gh` CLI を呼んで PR URL / merged / レビューコメント数などを補完。cursor を進めて再 API 呼び出しを避ける
 - **`sync-db`** — JSONL と transcript を読んで `sessions` / `transcript_stats` を `INSERT OR REPLACE` で upsert（毎回フル再構築）
-
-`Stop` hook は応答完了時に `backfill` → `sync-db` を**ブロッキング**で実行します。応答が返ってくるまでに DB が最新化される設計です。
 
 ### 4. 可視化層
 
