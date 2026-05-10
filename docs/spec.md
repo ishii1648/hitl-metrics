@@ -253,6 +253,10 @@ GROUP BY は (`pr_url`, `coding_agent`, `user_id`)。同一 PR が複数 agent /
 
 実装方針・差分検知・配布形態の詳細は `docs/design.md ## サーバ側集約パイプライン` を参照する。本節はクライアント・サーバの外部契約のみ記述する。
 
+### 送信するデータ — 集計値のみ
+
+クライアントは `sync-db` 完了後の **集計値**（`sessions` 行 + `transcript_stats` 行）をサーバへ送る。`session-index.jsonl` の生行や transcript JSONL（会話本体）は **送らない**。理由と却下した代替は `docs/design.md ## サーバ側集約パイプライン` を参照。
+
 ### クライアント側設定
 
 `~/.claude/agent-telemetry.toml` に `[server]` セクションを追加:
@@ -268,14 +272,14 @@ token = "xxx"
 | `endpoint` | string | サーバの base URL（パスは含めない、例 `https://telemetry.example.com`） |
 | `token` | string | Bearer 認証用 API key。サーバ起動時の `AGENT_TELEMETRY_SERVER_TOKEN` と一致させる |
 
-`[server]` セクションが欠落 / `endpoint` または `token` が空の場合、`agent-telemetry push` は warning を stderr に出して何もせず終了する（hook を失敗させないため）。
+`[server]` セクションが欠落 / `endpoint` または `token` が空の場合、`agent-telemetry push` は warning を stderr に出して exit code 0 で終了する（cron で叩いて壊れないこと）。
 
 ### `agent-telemetry push` のフラグ
 
 | フラグ | 説明 |
 |---|---|
 | `--since-last`（既定） | `state.json` の `pushed_session_versions` を参照して差分のみ送信 |
-| `--full` | `pushed_session_versions` を無視してフルスキャン（再同期用） |
+| `--full` | `pushed_session_versions` を無視してフルスキャン（新メトリクス追加後の遡及送信などに使う） |
 | `--dry-run` | 送信せず対象件数とサイズだけ表示 |
 | `--agent <claude\|codex>` | agent を絞り込む。省略時は検出された全 agent |
 
@@ -293,29 +297,31 @@ token = "xxx"
 }
 ```
 
-- `pushed_session_versions` は session-index.jsonl の対応行 + transcript 内容の SHA-256 hash
-- backfill による後追い更新（`is_merged` / `pr_url` / `review_comments` / `pr_title` の変化）で行内容が変わると hash が一致しなくなり、再送信される
+- `pushed_session_versions` は集計値ペイロード（`sessions` 行 + 該当 `transcript_stats` 行）の SHA-256 hash
+- backfill による後追い更新（`is_merged` / `pr_url` / `review_comments` / `pr_title` の変化）で `sessions` 行が変わると hash が一致しなくなり、再送信される
 - 既存 state.json にこのフィールドが欠けていても扱える（欠落時は空マップ扱い）
 
 ### プロトコル
 
 ```
-POST /v1/ingest
+POST /v1/metrics
 Authorization: Bearer <api_key>
 Content-Type: application/json
-Content-Encoding: gzip
+Content-Encoding: gzip   (optional)
 
 {
   "client_version": "x.y.z",
-  "sessions": [<session-index.jsonl の差分行>, ...],
-  "transcripts": {
-    "<session_id>": {
-      "encoding": "raw" | "zstd",
-      "content": "<transcript JSONL 全文 (raw) または base64 zstd バイナリ>"
-    }
-  }
+  "schema_hash": "<sync-db スキーマ SHA-256>",
+  "sessions": [
+    { "session_id": "...", "coding_agent": "...", "agent_version": "...", "user_id": "...", ... }
+  ],
+  "transcript_stats": [
+    { "session_id": "...", "coding_agent": "...", "tool_use_total": 12, "input_tokens": 4000, ... }
+  ]
 }
 ```
+
+`sessions` / `transcript_stats` の各行はクライアント `~/.claude/agent-telemetry.db` の同名テーブルから抽出した値で、本文書「SQLite データモデル」のカラム定義と一致する。
 
 レスポンス:
 
@@ -323,13 +329,13 @@ Content-Encoding: gzip
 {
   "received_sessions": 12,
   "skipped_sessions": 0,
-  "collisions": 0
+  "schema_mismatch": false
 }
 ```
 
-- HTTP gzip 圧縮は **必須**
-- Codex の `.jsonl.zst` は再展開せずそのまま `encoding: "zstd"` で送る
-- 1 リクエストあたり最大 50 MB（圧縮後）。超える場合はクライアントが自動分割する
+- `schema_hash` がサーバの DB スキーマと一致しない場合、サーバは `schema_mismatch: true` を返し受信を拒否する。クライアント / サーバ binary のバージョンを揃える必要があることをユーザに通知する
+- HTTP gzip は **optional**。集計値だけなので 1 リクエスト数 KB〜数百 KB で済むケースが多く、無圧縮でも問題ない。クライアントは payload size を見て gzip 適用を判断する
+- 1 リクエストあたり最大 50 MB（保険）。集計値だけなので通常は超えない
 
 ### サーバ binary
 
@@ -341,7 +347,7 @@ agent-telemetry-server [--data-dir <path>] [--listen <addr>]
 
 | フラグ | 既定 | 説明 |
 |---|---|---|
-| `--data-dir` | `/var/lib/agent-telemetry` | サーバが受信データを保管する root |
+| `--data-dir` | `/var/lib/agent-telemetry` | サーバが集約 DB を保管する root |
 | `--listen` | `:8443` | HTTP listen アドレス |
 
 環境変数 `AGENT_TELEMETRY_SERVER_TOKEN` で API key を受け取る。未設定時は起動時にエラー終了する。
@@ -350,17 +356,27 @@ agent-telemetry-server [--data-dir <path>] [--listen <addr>]
 
 | ファイル | 形式 | 役割 |
 |---|---|---|
-| `<data_dir>/<user_id>/session-index.jsonl` | JSON Lines | クライアントから受信した行を append（user_id ごとに分離） |
-| `<data_dir>/<user_id>/transcripts/<session_id>.jsonl.zst` | zstd 圧縮 JSON Lines | クライアント送信の transcript を zstd 保管 |
-| `<data_dir>/agent-telemetry.db` | SQLite | 全 user 集約 DB（クライアントと同一スキーマ）。`internal/syncdb/` で受信のたびに upsert |
+| `<data_dir>/agent-telemetry.db` | SQLite | 全 user 集約 DB。`sessions` / `transcript_stats` テーブル + 派生 VIEW（`pr_metrics` 等）を本文書のスキーマで保持。受信のたびに `INSERT OR REPLACE` |
 | `<data_dir>/collisions.log` | テキスト | session_id 衝突検出ログ |
 
+サーバはクライアントから受信した値をそのまま upsert するだけで、集計や transcript 解釈は行わない。`internal/syncdb/` の集計ロジックはサーバ側では使わない（schema DDL だけ共通化する）。
+
 サーバの SQLite は Grafana datasource として読み込まれる。datasource の `uid: agent-telemetry` を踏襲し、ローカル Grafana のダッシュボード JSON をそのまま再利用する。
+
+### スキーマバージョン整合性と新メトリクス追加
+
+クライアントとサーバで `sync-db` のスキーマハッシュ（`internal/syncdb/schema_hash.go`）が一致している必要がある。新メトリクスを追加した場合の遡及反映手順:
+
+1. サーバ binary を新スキーマでデプロイ（DDL 自動再構築）
+2. 全クライアント binary を新バージョンに更新
+3. 各クライアントで `agent-telemetry sync-db --recheck && agent-telemetry push --full` を実行（過去全セッションを新スキーマで再集計し再送信）
+
+クライアントが古いまま push すると、サーバが `schema_mismatch: true` を返して受信拒否する。
 
 ### サーバ MVP の非目標
 
 - user 別の read/write 権限分離（RLS / OIDC）— 信頼境界 = チーム内を前提
-- 古い transcript の自動 GC — 手動運用で吸収。必要に応じて `agent-telemetry-server gc --transcript-before <date>` を後付け
+- transcript 本体のサーバ保管 — 集計値のみ送る方針なのでそもそも保管しない。会話ログを共有したいケースは別ツールで対応
 - write API 以外の提供（read API・専用 UI）— Grafana から直接 SQLite を読む構成
 
 ---

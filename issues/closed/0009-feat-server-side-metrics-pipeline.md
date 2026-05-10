@@ -53,36 +53,41 @@ Completed: 2026-05-10
 
 設計セッションで方針を確定し、`docs/spec.md` / `docs/design.md` に書き起こした。実装は子 issue 0028 / 0029 / 0030 に分解した。
 
+当初は raw JSONL 転送（`session-index.jsonl` 差分行 + transcript JSONL 全文）+ サーバ側 `internal/syncdb/` 再実行案で詰めたが、議論の中で **集計値転送**（`sessions` 行 + `transcript_stats` 行のみを送る）への切替を決定した。
+
 ### 確定した方針
 
-- **送信ペイロード**: `session-index.jsonl` 差分行 + transcript JSONL を **そのまま** raw 転送（集計済み値や OTLP は不採用）
-- **プロトコル**: 独自 HTTP JSON `POST /v1/ingest`、Bearer 認証、HTTP gzip 必須、1 リクエスト 50 MB 上限
+- **送信するもの**: クライアント `~/.claude/agent-telemetry.db` の `sessions` / `transcript_stats` から差分行を抽出した **集計値のみ**。`session-index.jsonl` の生行や transcript JSONL は送らない
+- **クライアント側で sync-db を完結**: 集計（transcript パース・PR 集計）はクライアントで行う。サーバは「dumb ingest layer」として受信値を `INSERT OR REPLACE` するだけ
+- **プロトコル**: 独自 HTTP JSON `POST /v1/metrics`、Bearer 認証、HTTP gzip は optional、1 リクエスト 50 MB 上限（保険）
+- **スキーマ整合性**: payload に `schema_hash` を含め、サーバの `schema_meta` と不一致なら受信拒否（`schema_mismatch: true` を返す）
 - **送信タイミング**: 独立コマンド `agent-telemetry push --since-last`。Stop hook hot path には載せない（ユーザは cron / launchd / systemd timer で起動）
-- **差分検知**: `state.json` の `pushed_session_versions: {session_id: sha256}`。backfill による後追い更新（`is_merged` 等）も hash 不一致で検知される
+- **差分検知**: `state.json` の `pushed_session_versions: {session_id: sha256(sessions row + transcript_stats row)}`。backfill による後追い更新（`is_merged` 等）で sessions 行 hash が変わると再送信される
 - **進行中セッションは除外**: `ended_at` または `end_reason` が空のセッションは送信対象外
-- **認証**: 単一 API key（`AGENT_TELEMETRY_SERVER_TOKEN`）。`user_id` は payload 内、認証境界とは責務分離
-- **サーバ側**: `cmd/agent-telemetry-server/` で別 binary を提供。クライアントと同一 SQLite スキーマ + 共通 `internal/syncdb/` で集計し、Grafana ダッシュボード JSON を再利用する
+- **認証**: 単一 API key（`AGENT_TELEMETRY_SERVER_TOKEN`）。`user_id` は `sessions` 行に含まれ、認証境界とは責務分離
+- **サーバ側**: `cmd/agent-telemetry-server/` で別 binary を提供。クライアントと **schema DDL のみ共通化**（`internal/syncdb/schema.sql`）。集計ロジックはサーバ側に持たない。Grafana ダッシュボード JSON はそのまま再利用
 - **配布形態**: Go binary + Docker image 両方（systemd unit と `docker-compose.server.yml` を同梱）
-
-### プライバシー観点の整理
-
-「transcript には secret が含まれる」懸念は精査の結果 **本質的に消えた**。transcript の中身は既に Anthropic API に context として送信済みであり、自前 telemetry サーバへ送ることに追加のプライバシー懸念はない。残るのは保存期間・閲覧範囲・組織ポリシーで、いずれもサーバ運用ポリシーで吸収可能。MVP では `send_transcripts` フラグもサニタイズフックも不要（YAGNI）。
+- **新メトリクス追加の遡及反映**: サーバを先にデプロイ → 全クライアント binary 更新 → 各クライアントで `sync-db --recheck && push --full` を実行する運用（クライアント手元の transcript が SoR として残るため成立する）
 
 ### 採用しなかった代替
 
-- OTLP / Prometheus remote write（後追い更新の表現が面倒、二重スタックの維持コスト）
-- 集計済み `transcript_stats` のみ送る（SoR が JSONL という方針と整合せず、サーバ側で指標追加の道が塞がれる）
-- Stop hook 同期 push（latency 侵食、failure mode の混入）
-- fire-and-forget での子プロセス push（失敗が静かに死ぬためデバッグ困難）
-- `send_transcripts = false` フラグ（プライバシー懸念が「Anthropic に既送信」で消えるため YAGNI）
+- **raw JSONL 転送 + サーバ側 `internal/syncdb/` 再実行**: 議論の最初の方針候補。サーバ側で過去 transcript から新メトリクスを再集計できる利点を持つが、(1) 送信サイズが 1 セッション数 MB〜数十 MB に膨らむ、(2) サーバが transcript を保管することになりプライバシー観点とストレージ運用の議論が必須になる、(3) サーバ側で transcript パース処理のメンテナンスが発生する、の 3 点を避けて軽量な集計値転送に切り替えた。指標追加の遡及反映は「クライアント binary 配布 + 遡及 sync-db」で代替可能であり、頻度の低い操作のためコストは見合う
+- **OTLP / Prometheus remote write**: 後追い更新（`is_merged` 等）の表現が面倒、ローカル + OTel collector の二重スタックの維持コストに見合わない
+- **Stop hook 同期 push（タイムアウト 3s）**: latency 侵食、failure mode の hook 出力混入
+- **fire-and-forget 子プロセス push**: 失敗が静かに死ぬためデバッグ困難
+- **`send_transcripts` フラグ + サニタイズフック**: 集計値だけ送る方針では transcript 自体がサーバに渡らないため、フラグ自体不要
+
+### プライバシー観点
+
+集計値のみ送る方針なので、transcript（会話本体）はサーバに一切渡らない。プライバシー観点の議論は不要になった（`tool_result` も user メッセージもサーバに到達しない）。
 
 ### 主な変更点
 
 - `docs/spec.md` に「サーバ送信」節、`agent-telemetry push` コマンド、`AGENT_TELEMETRY_SERVER_TOKEN` 環境変数を追加
-- `docs/design.md` に「サーバ側集約パイプライン」節を追加、「既知の制約」にサーバ送信由来の制約を追加
+- `docs/design.md` に「サーバ側集約パイプライン」節を追加、「既知の制約」にサーバ送信由来の制約を追加（スキーマ整合性が新たに登場）
 - 子 issue 3 件を新規発番:
-  - `0028-feat-server-push-client.md`（クライアント push 実装）
-  - `0029-feat-server-ingest.md`（サーバ ingest 実装）
+  - `0028-feat-server-push-client.md`（クライアント push 実装、集計値抽出 + 送信）
+  - `0029-feat-server-ingest.md`（サーバ ingest 実装、dumb upsert API）
   - `0030-doc-server-grafana-setup.md`（運用ドキュメント + Grafana 連携）
 
 ### 残課題

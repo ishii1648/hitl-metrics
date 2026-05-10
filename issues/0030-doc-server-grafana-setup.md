@@ -27,13 +27,14 @@ Created: 2026-05-10
   - `AGENT_TELEMETRY_SERVER_TOKEN` の生成と配布
   - `~/.claude/agent-telemetry.toml` の `[server]` セクション設定例
   - `agent-telemetry push --since-last` を cron / launchd plist / systemd timer で定期起動するサンプル
+  - 新メトリクス追加時の遡及反映手順: サーバを先にデプロイ → 全クライアント binary 更新 → `agent-telemetry sync-db --recheck && push --full`（`schema_mismatch` のエラーも含めてトラブルシュート例を載せる）
 - `docs/usage.md` に「サーバ Grafana の見方」を追加
   - datasource 設定例（`uid: agent-telemetry` を踏襲）
   - 既存ダッシュボード JSON が server SQLite でも動くことを明記
   - `agent-telemetry push --dry-run` での運用確認方法
 - `Makefile` に `grafana-up-server` ターゲットを追加（`docker-compose.server.yml` 経由で server + Grafana + Image Renderer を立ち上げ）
 - `make grafana-screenshot` をサーバモードでも実行可能にする（環境変数で切り替え、もしくは `grafana-screenshot-server` 別ターゲット）
-- `README.md` の機能一覧と図にサーバ送信経路を追加
+- `README.md` の機能一覧と図にサーバ送信経路を追加（送るのは集計値のみ、transcript はクライアント手元に残ることを明示）
 
 ## 受け入れ条件
 
