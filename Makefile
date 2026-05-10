@@ -1,4 +1,4 @@
-.PHONY: build install uninstall grafana-fixtures grafana-up grafana-up-e2e grafana-down grafana-screenshot lint-dashboard intent test-intent
+.PHONY: build install uninstall grafana-fixtures grafana-up grafana-up-e2e grafana-down grafana-screenshot lint-dashboard intent intent-lint test-intent
 
 PREFIX ?= $(HOME)/.local
 BIN_DIR := $(PREFIX)/bin
@@ -92,12 +92,16 @@ lint-dashboard: $(DASHBOARD_LINTER_BIN)
 # 変数名は P= を使う（PATH= は Make が実行時 PATH と解釈してしまうため）。
 intent:
 	@if [ -z "$(P)" ]; then \
-		echo "Usage: make intent P=<path> [FORMAT=markdown|json]"; \
+		echo "Usage: make intent P=<path> [FORMAT=markdown|json] [FULL=1]"; \
 		echo "  e.g. make intent P=internal/hook/stop.go"; \
 		echo "       make intent P=internal/syncdb/ FORMAT=json"; \
+		echo "       make intent P=internal/hook/stop.go FULL=1"; \
 		exit 2; \
 	fi
-	@scripts/intent-lookup $(P) $(if $(FORMAT),--format=$(FORMAT),)
+	@scripts/intent-lookup $(P) $(if $(FORMAT),--format=$(FORMAT),) $(if $(FULL),--full,)
+
+intent-lint:
+	@scripts/intent-lookup --lint $(if $(FORMAT),--format=$(FORMAT),) $(if $(STRICT),--strict,)
 
 test-intent:
-	@bash scripts/test-intent-lookup.sh
+	@python3 scripts/test_intent_lookup.py

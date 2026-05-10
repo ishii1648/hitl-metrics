@@ -1,0 +1,34 @@
+name: Intent
+
+on:
+  pull_request:
+    paths:
+      - "issues/**"
+      - "scripts/intent-lookup"
+      - "scripts/test_intent_lookup.py"
+      - "Makefile"
+      - ".github/workflows/intent.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Lint affected_paths
+        run: make intent-lint STRICT=1
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Test intent-lookup
+        run: make test-intent
