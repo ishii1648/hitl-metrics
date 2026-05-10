@@ -1,3 +1,17 @@
+---
+decision_type: design
+affected_paths:
+  - internal/sessionindex/
+  - internal/hook/stop.go
+  - internal/hook/posttooluse.go
+  - internal/backfill/backfill.go
+  - docs/spec.md
+  - docs/design.md
+  - docs/history.md
+tags: [pr-binding, hooks, sessionindex]
+closed_at: 2026-05-08
+---
+
 # PR ↔ session 紐づけが PostToolUse 正規表現で汚染される
 
 Created: 2026-05-07

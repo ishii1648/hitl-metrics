@@ -1,0 +1,741 @@
+#!/usr/bin/env python3
+"""intent-lookup — code path から構造化された意図記録を逆引きする索引。
+
+issues/<id>-*.md / issues/closed/*.md / issues/pending/*.md の frontmatter から
+affected_paths が overlap する issue を一覧し、issue 本文の「概要 / 根拠 / 問題 /
+対応方針 / 解決方法」セクションの先頭段落を抜粋し、併せて `git log --follow` の
+Contextual Commits 行（intent: / decision: / rejected: / constraint: / learned:）
+を抽出してマージ表示する。
+
+位置づけ: これは **逆引き索引** であって意図そのものではない。意図は issue 本文
+と commit body 側にある。本ツールはそこへの入口を提供して見落としを減らす。
+
+Modes:
+  lookup (default): scripts/intent-lookup <path> [--format=markdown|json] [--full]
+  lint:             scripts/intent-lookup --lint [--format=markdown|json] [--strict]
+
+Lint exit codes: 2 = errors present; 1 = warnings present (only when --strict);
+otherwise 0.
+
+外部依存: git のみ。Python 3.9+ 標準ライブラリで完結。
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Iterable
+
+
+# --------------------------------------------------------------------------
+# minimal YAML frontmatter parser
+# --------------------------------------------------------------------------
+# issue の frontmatter は固定的な小さなスキーマしか取らないため、PyYAML 等を
+# 入れずに stdlib のみで済ませる。サポートする形:
+#   key: scalar
+#   key: [a, b, c]                    # inline list (string or int)
+#   key:
+#     - item1
+#     - item2
+#   key:                              # block list が空なら value は []
+# scalar の type は: string / int / date(YYYY-MM-DD は string のまま) / null
+# - quoted string ('...' / "...") の quote は剥がす
+# - true/false/null は string 扱いしない（必要になったら拡張）
+
+_INT_RE = re.compile(r"^-?\d+$")
+
+
+def _strip_quotes(s: str) -> str:
+    s = s.strip()
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in ("'", '"'):
+        return s[1:-1]
+    return s
+
+
+def _parse_scalar(s: str):
+    s = s.strip()
+    if s == "" or s.lower() == "null" or s == "~":
+        return None
+    if _INT_RE.match(s):
+        return int(s)
+    return _strip_quotes(s)
+
+
+def _parse_inline_list(s: str) -> list:
+    # "[a, b, 0023]" → ["a", "b", 23]
+    s = s.strip()
+    if not (s.startswith("[") and s.endswith("]")):
+        raise ValueError(f"not an inline list: {s!r}")
+    inner = s[1:-1].strip()
+    if inner == "":
+        return []
+    out = []
+    # 単純な split。issue で使う値に , が入る想定は無い
+    for part in inner.split(","):
+        out.append(_parse_scalar(part))
+    return out
+
+
+def parse_frontmatter(text: str) -> dict:
+    """Parse a minimal YAML frontmatter into a dict.
+
+    Returns {} if text is empty.
+    Raises ValueError on malformed input — caller can choose to skip the file.
+    """
+    if not text.strip():
+        return {}
+    lines = text.splitlines()
+    out: dict = {}
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        # skip blank / comment lines at top level
+        if line.strip() == "" or line.lstrip().startswith("#"):
+            i += 1
+            continue
+        # top-level key requires zero indent
+        if line.startswith((" ", "\t")):
+            raise ValueError(f"unexpected indent at line {i}: {line!r}")
+        if ":" not in line:
+            raise ValueError(f"expected 'key:' at line {i}: {line!r}")
+        key, _, raw_value = line.partition(":")
+        key = key.strip()
+        raw_value = raw_value.strip()
+
+        if raw_value == "":
+            # block list が続くか、空 value かを次行で判定
+            j = i + 1
+            items: list = []
+            saw_item = False
+            while j < n:
+                nxt = lines[j]
+                if nxt.strip() == "" or nxt.lstrip().startswith("#"):
+                    j += 1
+                    continue
+                if not nxt.startswith((" ", "\t")):
+                    break
+                stripped = nxt.lstrip()
+                if not stripped.startswith("- "):
+                    break
+                item_text = stripped[2:].strip()
+                items.append(_parse_scalar(item_text))
+                saw_item = True
+                j += 1
+            out[key] = items if saw_item else None
+            i = j
+            continue
+
+        if raw_value.startswith("["):
+            out[key] = _parse_inline_list(raw_value)
+        else:
+            out[key] = _parse_scalar(raw_value)
+        i += 1
+    return out
+
+
+# --------------------------------------------------------------------------
+# issue file loading
+# --------------------------------------------------------------------------
+
+@dataclass
+class Issue:
+    id: str
+    status: str  # "open" | "closed" | "pending"
+    title: str
+    path: str  # repo-relative
+    frontmatter: dict
+    body: str = ""
+
+    def affected_paths(self) -> list[str]:
+        ap = self.frontmatter.get("affected_paths") or []
+        return [str(p) for p in ap if p is not None]
+
+
+_FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
+
+
+def split_frontmatter(text: str) -> tuple[str, str]:
+    """Return (frontmatter_text, body_text). frontmatter_text is '' when missing."""
+    m = _FRONTMATTER_RE.match(text)
+    if not m:
+        return "", text
+    return m.group(1), text[m.end():]
+
+
+def load_issue(path: Path, repo_root: Path) -> Issue | None:
+    """Load an issue file. Returns None if frontmatter is missing or invalid."""
+    text = path.read_text(encoding="utf-8")
+    fm_text, body = split_frontmatter(text)
+    if not fm_text.strip():
+        return None
+    try:
+        fm = parse_frontmatter(fm_text)
+    except ValueError:
+        return None
+
+    rel = path.relative_to(repo_root).as_posix()
+    parts = rel.split("/")
+    if "closed" in parts:
+        status = "closed"
+    elif "pending" in parts:
+        status = "pending"
+    else:
+        status = "open"
+    title = ""
+    for line in body.splitlines():
+        if line.startswith("# "):
+            title = line[2:].strip()
+            break
+    stem = path.stem  # e.g. "0011-feat-..."
+    issue_id = stem.split("-", 1)[0]
+    return Issue(id=issue_id, status=status, title=title, path=rel,
+                 frontmatter=fm, body=body)
+
+
+def collect_issues(repo_root: Path) -> list[Issue]:
+    """Walk issues/ and return all loadable issues, sorted by id."""
+    out: list[Issue] = []
+    for sub in ("issues", "issues/closed", "issues/pending"):
+        d = repo_root / sub
+        if not d.is_dir():
+            continue
+        for f in sorted(d.glob("*.md")):
+            issue = load_issue(f, repo_root)
+            if issue is not None:
+                out.append(issue)
+    out.sort(key=lambda x: x.id)
+    return out
+
+
+def list_issue_files(repo_root: Path) -> list[Path]:
+    """Walk issues/ regardless of frontmatter validity (used by lint)."""
+    out: list[Path] = []
+    for sub in ("issues", "issues/closed", "issues/pending"):
+        d = repo_root / sub
+        if not d.is_dir():
+            continue
+        out.extend(sorted(d.glob("*.md")))
+    return out
+
+
+# --------------------------------------------------------------------------
+# section extraction
+# --------------------------------------------------------------------------
+
+_SECTION_HEADER_RE = re.compile(r"^##\s+(?P<title>.+?)\s*$")
+
+
+def extract_section(body: str, heading: str, *, mode: str = "excerpt") -> str:
+    """Return the body of '## <heading>' section.
+
+    mode='excerpt' returns the first paragraph (until first blank line).
+    mode='full' returns the full section body (until the next '## ' heading).
+    Both strip leading/trailing blanks.
+    """
+    lines = body.splitlines()
+    found = False
+    captured: list[str] = []
+    for line in lines:
+        m = _SECTION_HEADER_RE.match(line)
+        if m:
+            if found:
+                break
+            if m.group("title").strip() == heading:
+                found = True
+                continue
+            continue
+        if found:
+            captured.append(line)
+    # trim leading blanks
+    while captured and captured[0].strip() == "":
+        captured.pop(0)
+    # trim trailing blanks
+    while captured and captured[-1].strip() == "":
+        captured.pop()
+    if not captured:
+        return ""
+    if mode == "full":
+        return "\n".join(captured)
+    # excerpt: take the first paragraph; if it is just a "### " sub-heading
+    # (which happens when a section is structured into 段階 1 / 段階 2), pull
+    # in the following paragraph too so the reader gets actual content.
+    out: list[str] = []
+    seen_content = False
+    for line in captured:
+        if line.strip() == "":
+            if seen_content:
+                break
+            continue
+        out.append(line)
+        if not line.lstrip().startswith("###"):
+            seen_content = True
+    return "\n".join(out)
+
+
+def collect_sections(issue: Issue, *, mode: str) -> dict[str, str]:
+    """Extract the canonical sections from an issue body."""
+    return {
+        "summary":    extract_section(issue.body, "概要",     mode=mode),
+        "rationale":  extract_section(issue.body, "根拠",     mode=mode),
+        "problem":    extract_section(issue.body, "問題",     mode=mode),
+        "approach":   extract_section(issue.body, "対応方針", mode=mode),
+        "resolution": extract_section(issue.body, "解決方法", mode=mode),
+    }
+
+
+# --------------------------------------------------------------------------
+# path matching
+# --------------------------------------------------------------------------
+
+def normalise(p: str) -> str:
+    """Strip leading './' and trailing '/' for prefix comparison."""
+    if p.startswith("./"):
+        p = p[2:]
+    return p.rstrip("/")
+
+
+def paths_overlap(entry: str, query: str) -> bool:
+    """bidirectional prefix overlap (entry ⊆ query OR query ⊆ entry)."""
+    e = normalise(entry)
+    q = normalise(query)
+    if e == q:
+        return True
+    if q.startswith(e + "/"):
+        return True
+    if e.startswith(q + "/"):
+        return True
+    return False
+
+
+def is_dir_query(raw: str) -> bool:
+    return raw.endswith("/")
+
+
+def is_broad_path(p: str, root: Path | None = None) -> bool:
+    """top-level dir 単独 (e.g. `docs/`, `internal/`) を broad とみなす。
+
+    top-level の単独ファイル (`AGENTS.md`, `Makefile` 等) は逆引きノイズが
+    限定的なので broad ではない。
+    """
+    s = normalise(p)
+    if s == "":
+        return False
+    if "/" in s:
+        return False
+    if p.endswith("/"):
+        return True
+    if root is not None:
+        return (root / s).is_dir()
+    return False
+
+
+# --------------------------------------------------------------------------
+# git integration
+# --------------------------------------------------------------------------
+
+def run_git(args: list[str], cwd: Path) -> str:
+    try:
+        res = subprocess.run(
+            ["git"] + args, cwd=str(cwd),
+            check=False, capture_output=True, text=True,
+        )
+    except FileNotFoundError:
+        sys.stderr.write("missing dependency: git\n")
+        sys.exit(1)
+    return res.stdout if res.returncode == 0 else ""
+
+
+def repo_root() -> Path:
+    out = run_git(["rev-parse", "--show-toplevel"], cwd=Path.cwd())
+    if not out.strip():
+        sys.stderr.write("not inside a git repository\n")
+        sys.exit(1)
+    return Path(out.strip())
+
+
+def resolve_query_paths(query: str, root: Path) -> list[str]:
+    """Resolve historical paths via git log --follow --name-only.
+
+    For directory queries, --follow doesn't apply (git tracks file rename).
+    Always returns the original query first, then any historical aliases (deduped, sorted).
+    """
+    primary = query if is_dir_query(query) else normalise(query)
+    out = [primary if is_dir_query(query) else normalise(query)]
+    if is_dir_query(query):
+        return out
+    # query a file; git log --follow only meaningful on files
+    raw = run_git(
+        ["log", "--follow", "--name-only", "--format=", "--", normalise(query)],
+        cwd=root,
+    )
+    seen = {out[0]}
+    extra: list[str] = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line or line in seen:
+            continue
+        seen.add(line)
+        extra.append(line)
+    extra.sort()
+    return out + extra
+
+
+@dataclass
+class Commit:
+    sha: str
+    short: str
+    date: str
+    subject: str
+    actions: list[str]
+
+
+_ACTION_RE = re.compile(r"^\s*(intent|decision|rejected|constraint|learned):")
+
+
+def collect_commits(query_paths: list[str], root: Path) -> list[Commit]:
+    """git log --follow on each query path, extract Contextual Commits action lines.
+
+    Dedupes by sha across all query paths. Sorted by date desc.
+    """
+    seen: set[str] = set()
+    commits: list[Commit] = []
+    for q in query_paths:
+        path = q.rstrip("/") if q.endswith("/") else q
+        # use --follow when targeting a file, plain log for dirs
+        log_args = ["log", "--format=%H", "--"] + [path]
+        if not q.endswith("/"):
+            log_args = ["log", "--follow", "--format=%H", "--", path]
+        raw = run_git(log_args, cwd=root)
+        if not raw:
+            continue
+        for sha in raw.splitlines():
+            sha = sha.strip()
+            if not sha or sha in seen:
+                continue
+            seen.add(sha)
+            meta = run_git(
+                ["log", "-1", "--format=%h\x1f%aI\x1f%s", sha], cwd=root,
+            )
+            if not meta.strip():
+                continue
+            short, date, subject = meta.rstrip("\n").split("\x1f", 2)
+            body = run_git(["log", "-1", "--format=%b", sha], cwd=root)
+            actions = [ln for ln in body.splitlines() if _ACTION_RE.match(ln)]
+            if not actions:
+                continue
+            commits.append(Commit(sha=sha, short=short, date=date,
+                                  subject=subject, actions=actions))
+    commits.sort(key=lambda c: c.date, reverse=True)
+    return commits
+
+
+# --------------------------------------------------------------------------
+# lint
+# --------------------------------------------------------------------------
+
+@dataclass
+class Finding:
+    level: str  # "warning" | "error"
+    code: str
+    path: str
+    message: str
+    id: str | None = None
+    target: str | None = None
+
+
+_VALID_DECISION_TYPES = {"spec", "design", "implementation", "process"}
+
+
+def lint_issues(root: Path) -> list[Finding]:
+    findings: list[Finding] = []
+    for f in list_issue_files(root):
+        rel = f.relative_to(root).as_posix()
+        text = f.read_text(encoding="utf-8")
+        fm_text, _body = split_frontmatter(text)
+        if not fm_text.strip():
+            findings.append(Finding(
+                level="warning", code="frontmatter_missing",
+                path=rel,
+                message="frontmatter (--- ... ---) が見つからない",
+            ))
+            continue
+        try:
+            fm = parse_frontmatter(fm_text)
+        except ValueError as e:
+            findings.append(Finding(
+                level="error", code="frontmatter_invalid",
+                path=rel,
+                message=f"frontmatter のパースに失敗: {e}",
+            ))
+            continue
+
+        issue_id = f.stem.split("-", 1)[0]
+        dt = fm.get("decision_type")
+        if dt is not None and dt not in _VALID_DECISION_TYPES:
+            findings.append(Finding(
+                level="error", code="decision_type_invalid",
+                path=rel, id=issue_id,
+                message=f"decision_type が enum 外: {dt} ({'|'.join(sorted(_VALID_DECISION_TYPES))})",
+            ))
+
+        ap = fm.get("affected_paths") or []
+        if not ap:
+            findings.append(Finding(
+                level="warning", code="affected_paths_empty",
+                path=rel, id=issue_id,
+                message="affected_paths が空（逆引きでヒットしない）",
+            ))
+            continue
+
+        # legitimate な broad / missing を明示的に suppress するための per-issue
+        # opt-out。frontmatter:
+        #   lint_ignore_broad: [issues/]      # legitimate-broad: meta issue
+        #   lint_ignore_missing: [site/]      # 0012 で生成予定
+        # 抑制理由は frontmatter の YAML コメントに書く（パース不要）。
+        broad_ignores = {str(x) for x in (fm.get("lint_ignore_broad") or [])}
+        missing_ignores = {str(x) for x in (fm.get("lint_ignore_missing") or [])}
+
+        for p in ap:
+            p_str = str(p)
+            check = p_str.rstrip("/")
+            target_path = root / check
+            tracked = False
+            ls = run_git(["ls-files", "--error-unmatch", "--", check], cwd=root)
+            ls_dir = run_git(["ls-files", "--error-unmatch", "--", check + "/"], cwd=root) if check else ""
+            if ls.strip() or ls_dir.strip():
+                tracked = True
+            if (not target_path.exists() and not tracked
+                    and p_str not in missing_ignores):
+                findings.append(Finding(
+                    level="warning", code="affected_path_missing",
+                    path=rel, id=issue_id, target=p_str,
+                    message=f"affected_paths の entry が repo に存在しない: {p_str}",
+                ))
+            if is_broad_path(p_str, root) and p_str not in broad_ignores:
+                findings.append(Finding(
+                    level="warning", code="affected_path_broad",
+                    path=rel, id=issue_id, target=p_str,
+                    message=f"affected_paths の entry が broad すぎる（top-level dir 単独）: {p_str}",
+                ))
+    return findings
+
+
+# --------------------------------------------------------------------------
+# rendering
+# --------------------------------------------------------------------------
+
+def issue_to_dict(issue: Issue, sections: dict[str, str]) -> dict:
+    return {
+        "id": issue.id,
+        "status": issue.status,
+        "title": issue.title,
+        "path": issue.path,
+        "frontmatter": issue.frontmatter,
+        "sections": sections,
+    }
+
+
+def commit_to_dict(c: Commit) -> dict:
+    return {
+        "sha": c.sha, "short": c.short, "date": c.date,
+        "subject": c.subject, "actions": c.actions,
+    }
+
+
+def render_lookup_json(query: str, resolved: list[str],
+                       issues: list[tuple[Issue, dict]],
+                       commits: list[Commit]) -> str:
+    payload = {
+        "path": normalise(query),
+        "resolved_paths": resolved,
+        "issues": [issue_to_dict(i, s) for i, s in issues],
+        "commits": [commit_to_dict(c) for c in commits],
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def render_lookup_markdown(query: str, resolved: list[str],
+                           issues: list[tuple[Issue, dict]],
+                           commits: list[Commit]) -> str:
+    lines: list[str] = []
+    lines.append(f"# Intent for `{normalise(query)}`")
+    lines.append("")
+    lines.append(f"_{len(issues)} issue(s), {len(commits)} commit(s) with action lines._")
+    if len(resolved) > 1:
+        lines.append(f"_Rename-aware: also matched against {len(resolved) - 1} historical path(s)._")
+        for p in resolved[1:]:
+            lines.append(f"- `{p}`")
+    lines.append("")
+    lines.append("> This is a **lookup index**, not the intent itself. Read linked issues and commit bodies for the full reasoning.")
+    lines.append("")
+
+    if issues:
+        lines.append("## Issues")
+        lines.append("")
+        for issue, sections in issues:
+            fm = issue.frontmatter
+            lines.append(f"### #{issue.id} [{issue.status}] — {issue.title}")
+            lines.append(f"- file: `{issue.path}`")
+            lines.append(f"- decision_type: `{fm.get('decision_type', '—')}`")
+            ap = fm.get("affected_paths") or []
+            if ap:
+                lines.append("- affected_paths:")
+                for p in ap:
+                    lines.append(f"    - `{p}`")
+            tags = fm.get("tags") or []
+            if tags:
+                lines.append("- tags: " + ", ".join(f"`{t}`" for t in tags))
+            sup = fm.get("supersedes") or []
+            if sup:
+                lines.append("- supersedes: " + ", ".join(f"#{s}" for s in sup))
+            closed_at = fm.get("closed_at")
+            if closed_at:
+                lines.append(f"- closed_at: {closed_at}")
+
+            for label, key in (("概要", "summary"),
+                               ("対応方針", "approach"),
+                               ("解決方法", "resolution")):
+                content = sections.get(key, "")
+                if content:
+                    lines.append("")
+                    lines.append(f"**{label} (excerpt):**")
+                    lines.append("")
+                    lines.append(content)
+            lines.append("")
+
+    if commits:
+        lines.append("## Commits (Contextual Commits action lines)")
+        lines.append("")
+        for c in commits:
+            lines.append(f"### {c.short} {c.date[:10]} — {c.subject}")
+            for a in c.actions:
+                lines.append(f"- {a}")
+            lines.append("")
+
+    if not issues and not commits:
+        lines.append("_No structured intent found for this path._")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def render_lint_json(findings: list[Finding]) -> str:
+    errs = sum(1 for f in findings if f.level == "error")
+    warns = sum(1 for f in findings if f.level == "warning")
+    payload = {
+        "errors": errs, "warnings": warns,
+        "findings": [
+            {k: v for k, v in {
+                "level": f.level, "code": f.code, "path": f.path,
+                "id": f.id, "target": f.target, "message": f.message,
+            }.items() if v is not None}
+            for f in findings
+        ],
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def render_lint_markdown(findings: list[Finding]) -> str:
+    errs = sum(1 for f in findings if f.level == "error")
+    warns = sum(1 for f in findings if f.level == "warning")
+    lines: list[str] = []
+    lines.append("# intent-lookup lint")
+    lines.append("")
+    lines.append(f"_{errs} error(s), {warns} warning(s)._")
+    lines.append("")
+    if not findings:
+        lines.append("_All issues clean._")
+        return "\n".join(lines) + "\n"
+
+    by_path: dict[str, list[Finding]] = {}
+    for f in findings:
+        by_path.setdefault(f.path, []).append(f)
+    for p in sorted(by_path):
+        lines.append(f"## `{p}`")
+        for f in by_path[p]:
+            tag = f" — `{f.target}`" if f.target else ""
+            lines.append(f"- [{f.level}] {f.code}{tag}: {f.message}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+# --------------------------------------------------------------------------
+# CLI
+# --------------------------------------------------------------------------
+
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        prog="intent-lookup",
+        description="Reverse-lookup index over issues/ frontmatter and Contextual Commits.",
+    )
+    ap.add_argument("path", nargs="?",
+                    help="path to look up (file or trailing-slash dir)")
+    ap.add_argument("--format", choices=("markdown", "json"),
+                    default="markdown")
+    ap.add_argument("--full", action="store_true",
+                    help="include full section bodies (default: first paragraph)")
+    ap.add_argument("--lint", action="store_true",
+                    help="lint mode: walk issues/ and report frontmatter issues")
+    ap.add_argument("--strict", action="store_true",
+                    help="(--lint only) treat warnings as gating: exit 1 when any "
+                         "warning is present. without --strict, lint exits 0 on "
+                         "warnings (errors still exit 2)")
+    return ap
+
+
+def cmd_lookup(args, root: Path) -> int:
+    query = args.path
+    resolved = resolve_query_paths(query, root)
+    issues = collect_issues(root)
+    matched: list[tuple[Issue, dict]] = []
+    section_mode = "full" if args.full else "excerpt"
+    for issue in issues:
+        for entry in issue.affected_paths():
+            if any(paths_overlap(entry, q) for q in resolved):
+                matched.append((issue, collect_sections(issue, mode=section_mode)))
+                break
+    commits = collect_commits(resolved, root)
+
+    if args.format == "json":
+        sys.stdout.write(render_lookup_json(query, resolved, matched, commits))
+        sys.stdout.write("\n")
+    else:
+        sys.stdout.write(render_lookup_markdown(query, resolved, matched, commits))
+    return 0
+
+
+def cmd_lint(args, root: Path) -> int:
+    findings = lint_issues(root)
+    if args.format == "json":
+        sys.stdout.write(render_lint_json(findings))
+        sys.stdout.write("\n")
+    else:
+        sys.stdout.write(render_lint_markdown(findings))
+    if any(f.level == "error" for f in findings):
+        return 2
+    if args.strict and any(f.level == "warning" for f in findings):
+        return 1
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    if args.lint:
+        if args.path is not None:
+            sys.stderr.write("--lint takes no path argument\n")
+            return 2
+        return cmd_lint(args, repo_root())
+    if not args.path:
+        build_parser().print_help(sys.stderr)
+        return 2
+    return cmd_lookup(args, repo_root())
+
+
+if __name__ == "__main__":
+    sys.exit(main())

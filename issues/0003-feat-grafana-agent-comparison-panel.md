@@ -1,3 +1,11 @@
+---
+decision_type: implementation
+affected_paths:
+  - grafana/dashboards/agent-telemetry.json
+  - docs/images/
+tags: [grafana, dashboard, multi-agent]
+---
+
 # Grafana ダッシュボードに agent 別比較 stat パネルを追加
 
 Created: 2026-05-08

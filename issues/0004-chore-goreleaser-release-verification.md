@@ -1,3 +1,11 @@
+---
+decision_type: process
+affected_paths:
+  - .goreleaser.yaml
+  - .github/workflows/
+tags: [release, ci, goreleaser]
+---
+
 # GoReleaser tag push 動作確認 + リリース
 
 Created: 2026-05-08

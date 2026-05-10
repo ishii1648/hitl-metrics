@@ -1,3 +1,17 @@
+---
+decision_type: design
+affected_paths:
+  - site/
+  - docs/
+  - .github/workflows/
+# Hugo site 全体が docs/ を生成元にし site/ を出力 dir にするため、両方とも
+# top-level dir 単独であること自体が legitimate。site/ は build 後に生成される
+# 予定の dir なので、現時点で repo に存在しないのも意図通り。
+lint_ignore_broad: [site/, docs/]
+lint_ignore_missing: [site/]
+tags: [docs, hugo, gh-pages, site]
+---
+
 # 仕組み解説 docs の Hugo 化と gh-pages 公開
 
 Created: 2026-05-09

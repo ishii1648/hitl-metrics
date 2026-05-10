@@ -1,3 +1,14 @@
+---
+decision_type: design
+affected_paths:
+  - internal/hook/
+  - cmd/agent-telemetry/setup.go
+# 候補 B (setup 時に hook コマンドの絶対パスを案内) で新設される予定の path。
+# pending 解消時に実体ができる。
+lint_ignore_missing: [cmd/agent-telemetry/setup.go]
+tags: [hooks, path-resolution, packaging]
+---
+
 # Stop hook の agent-telemetry PATH 依存をなくす
 
 Created: 2026-05-08

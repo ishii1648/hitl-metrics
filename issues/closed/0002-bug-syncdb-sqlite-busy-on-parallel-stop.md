@@ -1,3 +1,11 @@
+---
+decision_type: implementation
+affected_paths:
+  - internal/syncdb/syncdb.go
+tags: [sqlite, concurrency, sync-db]
+closed_at: 2026-05-08
+---
+
 # Stop hook 多重発火時の sync-db が SQLITE_BUSY で失敗する
 
 Created: 2026-05-08

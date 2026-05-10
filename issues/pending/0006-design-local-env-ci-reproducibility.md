@@ -1,3 +1,10 @@
+---
+decision_type: process
+affected_paths:
+  - docs/setup.md
+tags: [testing, ci, sqlite, reproducibility]
+---
+
 # ローカル検証環境と CI の再現性
 
 Created: 2026-05-08

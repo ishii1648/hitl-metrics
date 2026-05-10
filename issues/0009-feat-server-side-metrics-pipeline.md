@@ -1,3 +1,12 @@
+---
+decision_type: design
+affected_paths:
+  - docs/spec.md
+  - docs/design.md
+  - docs/metrics.md
+tags: [server, transport, otlp, multi-user]
+---
+
 # 収集した metrics をサーバ側に転送・加工・表示できるようにする
 
 Created: 2026-05-08

@@ -1,3 +1,12 @@
+---
+decision_type: design
+affected_paths:
+  - internal/hook/posttooluse.go
+  - internal/syncdb/
+  - grafana/dashboards/agent-telemetry.json
+tags: [hooks, observability, context, posttooluse]
+---
+
 # Bash コマンドのコンテキスト消費監視
 
 Created: 2026-05-08
