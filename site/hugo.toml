@@ -10,21 +10,52 @@ canonifyURLs = true
   [markup.goldmark]
     [markup.goldmark.renderer]
       unsafe = true
+  [markup.highlight]
+    noClasses = false
+  [markup.tableOfContents]
+    startLevel = 2
+    endLevel = 4
 
+# Hextra theme — top nav + left sidebar + 右 TOC + dark mode の docs レイアウト
 [module]
   [[module.imports]]
-    path = "github.com/alex-shpak/hugo-book"
+    path = "github.com/imfing/hextra"
+
+# 上部ナビゲーションメニュー
+[[menu.main]]
+  name = "Docs"
+  pageRef = "/explain"
+  weight = 1
+
+[[menu.main]]
+  name = "GitHub"
+  url = "https://github.com/ishii1648/agent-telemetry"
+  weight = 2
+  [menu.main.params]
+    icon = "github"
 
 [params]
-  # repo メタ情報（"Edit this page" リンク用）
-  BookRepo = "https://github.com/ishii1648/agent-telemetry"
-  BookEditPath = "edit/main/site/content"
+  # 上部ナビバー
+  [params.navbar]
+    displayTitle = true
+    displayLogo = false
 
-  # サイドバーで explain セクションを優先表示
-  BookSection = "explain"
+  # ダーク / ライトモード切り替え（system 追従）
+  [params.theme]
+    default = "system"
+    displayToggle = true
 
-  # 検索（theme 内蔵 flexsearch）を有効化
-  BookSearch = true
+  # フッター
+  [params.footer]
+    enable = true
+    displayCopyright = true
+    displayPoweredBy = true
 
-  # トップレベルの目次表示
-  BookToC = true
+  # 各ページ "Edit this page" リンク
+  [params.editURL]
+    enable = true
+    base = "https://github.com/ishii1648/agent-telemetry/edit/main/site/content"
+
+  # 各セクションのページに次/前ナビ
+  [params.page]
+    width = "wide"

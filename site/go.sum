@@ -1,2 +1,4 @@
 github.com/alex-shpak/hugo-book v0.0.0-20260423151019-ae912cc38d3f h1:iKJOpBm0P4YRth1lvhfuleb4mYWD5gNUVLLy9yDMbjk=
 github.com/alex-shpak/hugo-book v0.0.0-20260423151019-ae912cc38d3f/go.mod h1:3N2fYXAJzb31L13moUOXmPo2DC58VvQYJkGr9VniXfQ=
+github.com/imfing/hextra v0.12.3 h1:DZHY2rUWYteyzjlHi9r4n7Bb5e2Q+6LXe4C1Dqn0ZjM=
+github.com/imfing/hextra v0.12.3/go.mod h1:vi+yhpq8YPp/aghvJlNKVnJKcPJ/VyAEcfC1BSV9ARo=

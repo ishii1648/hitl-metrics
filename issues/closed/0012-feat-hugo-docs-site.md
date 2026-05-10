@@ -137,7 +137,18 @@ Completed: 2026-05-10
 
 ### 採用した theme
 
-**Hugo Book** (`github.com/alex-shpak/hugo-book`) を Hugo modules で導入した。Geekdoc と比較して config の defaults が docs site 用に整っており、Mermaid shortcode・flexsearch ベースの全文検索・sidebar nav が標準で動く。Hugo modules 経由なので theme 更新は `make docs-mod-update` のみで完結する（git submodule 不使用）。
+**Hextra** (`github.com/imfing/hextra`) を Hugo modules で導入した。当初は Hugo Book を採用したが、ユーザから HashiCorp docs (`https://developer.hashicorp.com/terraform/docs`) のような洗練されたデザインを求められ、Hextra に切り替え。Hugo Book は機能要件は満たしたものの、デザインが地味でモダンな docs site の見た目に届かなかった。
+
+Hextra は次の点で要件を満たす:
+
+- 上部ナビ + 左 sidebar + 右 TOC の Next.js / Nextra ライクな layout
+- Tailwind ベースの洗練された視覚デザイン
+- ダーク / ライトモード（system 追従）標準
+- Mermaid / KaTeX / cards / callouts / tabs などの shortcode 内蔵
+- flexsearch ベースの全文検索
+- Hugo modules 対応 (`hugo mod get` のみで導入)
+
+なお Hextra は SCSS を使うため Hugo extended が必須。aqua.yaml では `gohugoio/hugo/hugo-extended` を pin して CI / ローカル両方で extended を使う。
 
 ### 構成
 
@@ -163,12 +174,12 @@ Completed: 2026-05-10
 
 ### 1 PR にまとめた判断
 
-issue では PR 1（scaffolding + 1 ページ）/ PR 2（残り 3 ページ + workflow）の分割を提案していたが、Hugo Book theme の導入が config 数行で済み theme 選定で時間を取られなかったため 1 PR にまとめた。レビュー単位としては「site の存在 / 構成」が一塊で見られた方が判断しやすい。
+issue では PR 1（scaffolding + 1 ページ）/ PR 2（残り 3 ページ + workflow）の分割を提案していたが、Hugo Book theme の導入が config 数行で済み theme 選定で時間を取られなかったため 1 PR にまとめた。後にデザイン要件（HashiCorp docs ライクの洗練さ）を満たすため Hextra に theme 移行したが、frontmatter 互換性が高く content 側の書き換えは relref と _index.md のみで済んだ。
 
 ### 受け入れ条件の充足
 
 - [x] `site/` ディレクトリ構成と `hugo.toml` を作成
-- [x] theme を選定（Hugo Book）し、Hugo modules で導入
+- [x] theme を選定（Hextra）し、Hugo modules で導入
 - [x] 初版 4 ページ（architecture / data-flow / hooks / dashboard）を page bundle として執筆
 - [x] Mermaid で各ページに最低 1 つは図を入れる
 - [x] `make docs-serve` で local 確認できる（Makefile に target 追加）
