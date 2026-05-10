@@ -91,7 +91,7 @@ agent ごとに収集元を分離し、SQLite DB は単一に集約する。
 |---|---|---|
 | `~/.claude/session-index.jsonl` | JSON Lines | Claude Code セッション単位のメタデータ |
 | `~/.claude/agent-telemetry-state.json` | JSON | Claude Code 用 backfill の cursor |
-| `~/.claude/agent-telemetry.toml` | TOML | user 識別子などのユーザ設定。両 agent で共通（後述「ユーザ設定ファイル」） |
+| `~/.config/agent-telemetry/config.toml` | TOML | user 識別子などのユーザ設定。両 agent で共通（後述「ユーザ設定ファイル」）。`XDG_CONFIG_HOME` が設定されていれば `$XDG_CONFIG_HOME/agent-telemetry/config.toml`。旧パス `~/.claude/agent-telemetry.toml` は fallback として読まれる（将来削除予定、stderr に migration warning を出す） |
 | `~/.claude/projects/**/<session-id>.jsonl` | JSON Lines | Claude Code transcript |
 | `~/.codex/session-index.jsonl` | JSON Lines | Codex CLI セッション単位のメタデータ |
 | `~/.codex/agent-telemetry-state.json` | JSON | Codex CLI 用 backfill の cursor |
@@ -137,9 +137,11 @@ agent ごとに収集元を分離し、SQLite DB は単一に集約する。
 - Codex の場合: `end_reason` は Stop hook の最終発火を記録するため `stop` 固定。`transcript` は `~/.codex/sessions/.../rollout-*.jsonl[.zst]` のフルパス。
 - 後方互換: 古いレコードに新フィールドが欠けていても扱える（欠落値は 0 / false / 空文字列、`user_id` のみ `unknown`）。
 
-### `agent-telemetry.toml`（ユーザ設定ファイル）
+### `config.toml`（ユーザ設定ファイル）
 
-`~/.claude/agent-telemetry.toml` に以下のキーを置ける。両 agent から共通参照される。
+`~/.config/agent-telemetry/config.toml`（`XDG_CONFIG_HOME` が設定されていれば `$XDG_CONFIG_HOME/agent-telemetry/config.toml`）に以下のキーを置ける。両 agent から共通参照される。
+
+旧バージョンが書き出した `~/.claude/agent-telemetry.toml` も fallback として読まれる（新パスが存在しないときに限る）。fallback ヒット時は同一プロセスで 1 回だけ stderr に migration warning を出す。旧パスのサポートは将来のリリースで削除予定。
 
 ```toml
 user = "ishii1492@gmail.com"
@@ -247,7 +249,7 @@ GROUP BY は (`pr_url`, `coding_agent`, `user_id`)。同一 PR が複数 agent /
 
 ## サーバ送信
 
-サーバ送信は **オプトイン** 機能。`~/.claude/agent-telemetry.toml` の `[server]` セクションが設定された場合のみ有効になる。設定なしのローカル単独利用は従来通り動作する。
+サーバ送信は **オプトイン** 機能。`~/.config/agent-telemetry/config.toml` の `[server]` セクションが設定された場合のみ有効になる。設定なしのローカル単独利用は従来通り動作する（旧パス `~/.claude/agent-telemetry.toml` も fallback として読まれる）。
 
 実装方針・差分検知・配布形態の詳細は `docs/design.md ## サーバ側集約パイプライン` を参照する。本節はクライアント・サーバの外部契約のみ記述する。
 
@@ -257,7 +259,7 @@ GROUP BY は (`pr_url`, `coding_agent`, `user_id`)。同一 PR が複数 agent /
 
 ### クライアント側設定
 
-`~/.claude/agent-telemetry.toml` に `[server]` セクションを追加:
+`~/.config/agent-telemetry/config.toml`（旧パス: `~/.claude/agent-telemetry.toml`）に `[server]` セクションを追加:
 
 ```toml
 [server]
@@ -385,8 +387,9 @@ agent-telemetry-server [--data-dir <path>] [--listen <addr>]
 | 変数 | 説明 |
 |---|---|
 | `AGENT_TELEMETRY_AGENT` | hook / CLI のデフォルト agent（`claude` / `codex`）。`--agent` が省略され、かつ自動検出を行わない経路で参照する |
-| `AGENT_TELEMETRY_USER` | `session-index.jsonl` の `user_id` を上書きする。CI / コンテナで決定的に設定したい場合に使う。最優先のソース（`agent-telemetry.toml` や git config より優先される） |
-| `AGENT_TELEMETRY_SERVER_TOKEN` | サーバ binary `agent-telemetry-server` 起動時の Bearer 認証用 API key。クライアント側 `~/.claude/agent-telemetry.toml` の `[server] token` と一致させる。サーバ側で必須、クライアント側では参照しない |
+| `AGENT_TELEMETRY_USER` | `session-index.jsonl` の `user_id` を上書きする。CI / コンテナで決定的に設定したい場合に使う。最優先のソース（`config.toml` の `user` キーや git config より優先される） |
+| `AGENT_TELEMETRY_SERVER_TOKEN` | サーバ binary `agent-telemetry-server` 起動時の Bearer 認証用 API key。クライアント側 `config.toml` の `[server] token` と一致させる。サーバ側で必須、クライアント側では参照しない |
+| `XDG_CONFIG_HOME` | クライアント側で `config.toml` の置き場所を上書きする。設定されている場合は `$XDG_CONFIG_HOME/agent-telemetry/config.toml` を読み、無ければ `~/.config/agent-telemetry/config.toml` を読む |
 | `CODEX_HOME` | Codex CLI のホームディレクトリ。未指定なら `~/.codex`。Codex 標準と同じ |
 
 ---

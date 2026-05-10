@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/ishii1648/agent-telemetry/internal/agent"
+	"github.com/ishii1648/agent-telemetry/internal/configpath"
 	"github.com/ishii1648/agent-telemetry/internal/legacy"
 	"github.com/ishii1648/agent-telemetry/internal/setup"
 	"github.com/ishii1648/agent-telemetry/internal/userid"
@@ -32,6 +33,9 @@ func RunWith(w io.Writer, env Env) (Result, error) {
 
 	r.User = checkUser(env)
 	writeUser(w, r.User)
+
+	r.ConfigPath = checkConfigPath(env)
+	writeConfigPath(w, r.ConfigPath)
 
 	for _, a := range env.Agents {
 		ar := AgentReport{Agent: a}
@@ -72,6 +76,10 @@ type Env struct {
 	// UserResolver returns the resolved user_id and the source tier that
 	// produced it. When nil, defaults to userid.Resolve.
 	UserResolver func() (string, userid.Source)
+
+	// ConfigPathStatus returns the migration state of the TOML config
+	// path. When nil, defaults to configpath.Status.
+	ConfigPathStatus func() configpath.MigrationStatus
 }
 
 func defaultEnv() Env {
@@ -90,8 +98,23 @@ func defaultEnv() Env {
 type Result struct {
 	Binary       CheckResult
 	User         UserCheck
+	ConfigPath   ConfigPathCheck
 	AgentReports []AgentReport
 	Legacy       LegacyReport
+}
+
+// ConfigPathCheck reports which TOML config path agent-telemetry is using
+// and whether the user is on the legacy path that needs to be migrated.
+type ConfigPathCheck struct {
+	Preferred       string
+	Legacy          string
+	PreferredExists bool
+	LegacyExists    bool
+}
+
+// NeedsMigration is true when only the legacy path exists.
+func (c ConfigPathCheck) NeedsMigration() bool {
+	return !c.PreferredExists && c.LegacyExists
 }
 
 // UserCheck reports the resolved user_id and which precedence tier produced it.
@@ -163,6 +186,19 @@ func checkUser(env Env) UserCheck {
 	}
 	id, src := resolver()
 	return UserCheck{UserID: id, Source: src}
+}
+
+func checkConfigPath(env Env) ConfigPathCheck {
+	status := configpath.Status()
+	if env.ConfigPathStatus != nil {
+		status = env.ConfigPathStatus()
+	}
+	return ConfigPathCheck{
+		Preferred:       status.Preferred,
+		Legacy:          status.Legacy,
+		PreferredExists: status.PreferredExists,
+		LegacyExists:    status.LegacyExists,
+	}
 }
 
 func checkBinary(env Env) CheckResult {
@@ -298,11 +334,26 @@ const (
 
 func writeUser(w io.Writer, c UserCheck) {
 	if c.Source == userid.SourceUnknown {
-		fmt.Fprintf(w, "%s user_id: %s (no source — set %s, ~/.claude/agent-telemetry.toml, or `git config --global user.email`)\n",
-			markWarn, c.UserID, userid.EnvVar)
+		fmt.Fprintf(w, "%s user_id: %s (no source — set %s, %s, or `git config --global user.email`)\n",
+			markWarn, c.UserID, userid.EnvVar, configpath.Preferred())
 		return
 	}
 	fmt.Fprintf(w, "%s user_id: %s (source: %s)\n", markPass, c.UserID, c.Source)
+}
+
+func writeConfigPath(w io.Writer, c ConfigPathCheck) {
+	switch {
+	case c.PreferredExists:
+		fmt.Fprintf(w, "%s config: %s\n", markPass, c.Preferred)
+		if c.LegacyExists {
+			fmt.Fprintf(w, "  ⚠ legacy file still present at %s — safe to delete (preferred path takes precedence)\n", c.Legacy)
+		}
+	case c.LegacyExists:
+		fmt.Fprintf(w, "%s config: reading legacy %s — migrate to %s (the legacy path will be removed in a future release)\n",
+			markWarn, c.Legacy, c.Preferred)
+	default:
+		fmt.Fprintf(w, "%s config: not found (expected at %s)\n", markWarn, c.Preferred)
+	}
 }
 
 func writeBinary(w io.Writer, c CheckResult) {
