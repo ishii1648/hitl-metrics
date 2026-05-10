@@ -44,4 +44,4 @@ Created: 2026-05-10
 - [ ] `make grafana-screenshot` の E2E 経路は変更せず動き続ける（fixture 使用なのでサーバ/ローカル区別不要）
 - [ ] `README.md` の図と機能一覧が更新されている
 
-依存: [0028](closed/0028-feat-server-push-client.md) と [0029](closed/0029-feat-server-ingest.md)（実装と manifest が無いと文書化が成立しない）、[0031](0031-feat-server-image-ghcr-publish.md)（image が ghcr に上がっていないと k8s manifest が pull できない）
+依存: [0028](closed/0028-feat-server-push-client.md) と [0029](closed/0029-feat-server-ingest.md)（実装と manifest が無いと文書化が成立しない）、[0031](closed/0031-feat-server-image-ghcr-publish.md)（image が ghcr に上がっていないと k8s manifest が pull できない）
