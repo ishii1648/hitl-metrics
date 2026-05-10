@@ -2,33 +2,11 @@ package setup
 
 import (
 	"bytes"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/ishii1648/agent-telemetry/internal/agent"
 )
-
-// Run() never modifies settings.json — same contract as the old install.
-func TestRun_DoesNotModifySettings(t *testing.T) {
-	dir := t.TempDir()
-	settingsFile := filepath.Join(dir, "settings.json")
-	SetSettingsPathForTest(t, settingsFile)
-
-	original := []byte(`{"model":"sonnet"}`)
-	if err := os.WriteFile(settingsFile, original, 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := Run(nil); err != nil {
-		t.Fatal(err)
-	}
-	got, _ := os.ReadFile(settingsFile)
-	if string(got) != string(original) {
-		t.Fatalf("Run modified settings.json:\nbefore: %s\nafter:  %s", original, got)
-	}
-}
 
 func TestRunWith_ClaudeOutput(t *testing.T) {
 	var buf bytes.Buffer

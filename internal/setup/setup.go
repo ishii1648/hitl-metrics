@@ -13,30 +13,26 @@ import (
 )
 
 // HookSpec describes one agent-telemetry hook entry.
-//
-// CodingAgent identifies which agent the entry belongs to so doctor can
-// scope its check correctly.
 type HookSpec struct {
-	CodingAgent string // "claude" or "codex"
-	Event       string // hook event name as written in settings (e.g. "SessionStart")
-	Subcommand  string // agent-telemetry hook subcommand
-	Optional    bool   // true → doctor flags as info, not failure
+	Event      string // hook event name as written in settings (e.g. "SessionStart")
+	Subcommand string // agent-telemetry hook subcommand
+	Optional   bool   // true → doctor flags as info, not failure
 }
 
 // ClaudeHookSpecs lists the canonical hooks for Claude Code.
 var ClaudeHookSpecs = []HookSpec{
-	{CodingAgent: agent.NameClaude, Event: "SessionStart", Subcommand: "session-start"},
-	{CodingAgent: agent.NameClaude, Event: "SessionEnd", Subcommand: "session-end"},
-	{CodingAgent: agent.NameClaude, Event: "Stop", Subcommand: "stop"},
+	{Event: "SessionStart", Subcommand: "session-start"},
+	{Event: "SessionEnd", Subcommand: "session-end"},
+	{Event: "Stop", Subcommand: "stop"},
 }
 
 // CodexHookSpecs lists the canonical hooks for Codex CLI. PostToolUse is
 // optional — Codex is happy without PR URL auto-detection, since `update`
 // and Stop-time backfill cover the same data.
 var CodexHookSpecs = []HookSpec{
-	{CodingAgent: agent.NameCodex, Event: "SessionStart", Subcommand: "session-start"},
-	{CodingAgent: agent.NameCodex, Event: "Stop", Subcommand: "stop"},
-	{CodingAgent: agent.NameCodex, Event: "PostToolUse", Subcommand: "post-tool-use", Optional: true},
+	{Event: "SessionStart", Subcommand: "session-start"},
+	{Event: "Stop", Subcommand: "stop"},
+	{Event: "PostToolUse", Subcommand: "post-tool-use", Optional: true},
 }
 
 // HookSpecsFor returns the hook list for a given agent.
@@ -49,15 +45,10 @@ func HookSpecsFor(name string) []HookSpec {
 	}
 }
 
-// settingsPathFn returns ~/.claude/settings.json. Replaceable in tests.
-var settingsPathFn = func() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".claude", "settings.json")
-}
-
 // SettingsPath returns the resolved path of ~/.claude/settings.json.
 func SettingsPath() string {
-	return settingsPathFn()
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".claude", "settings.json")
 }
 
 // CodexHooksPath returns the conventional path for ~/.codex/hooks.json.

@@ -181,9 +181,7 @@ rm ~/.local/bin/hitl-metrics
 
 ### 5.3 hook 設定の更新
 
-`~/.claude/settings.json` / `~/.codex/hooks.json` の hook command を `hitl-metrics hook ...` から `agent-telemetry hook ...` に書き換えます。`agent-telemetry doctor` は旧名のまま登録された hook を warning として一覧表示します。
-
-旧 `hitl-metrics install` / `agent-telemetry install` で自動登録された単一エントリは、上記 warning を参照しながら手動で削除してください。
+`~/.claude/settings.json` / `~/.codex/hooks.json` の hook command を `hitl-metrics hook ...` から `agent-telemetry hook ...` に書き換えます。`agent-telemetry doctor` は旧名のまま登録された hook を warning として一覧表示するので、それを参照しながら旧 `install` 系統で自動登録された単一エントリも併せて手動削除します（手順は §2「検証」の囲み参照）。
 
 ### 5.4 Grafana
 
