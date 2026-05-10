@@ -3,8 +3,6 @@ title: metrics
 weight: 5
 ---
 
-# Metrics
-
 agent-telemetry が **何を観察しているか・なぜそれを選んだか** を整理します。個別メトリクスの型・ラベル・SQL カラムとの対応はすべて [docs/metrics.md](https://github.com/ishii1648/agent-telemetry/blob/main/docs/metrics.md) を正本とし、本ページは「観察軸の見取り図」と「読み誤りやすい落とし穴」に絞ります。
 
 ## 観察軸の見取り図

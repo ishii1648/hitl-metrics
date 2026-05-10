@@ -3,8 +3,6 @@ title: dashboard
 weight: 40
 ---
 
-# Dashboard
-
 リポジトリ同梱の Grafana dashboard（`grafana/dashboards/agent-telemetry.json`）の panel ごとの読み方をまとめます。**dashboard はあくまで参考実装**です。`pr_metrics` VIEW を読める SQL クライアントなら同じ指標を任意の方法で可視化できます。
 
 ## dashboard の構造

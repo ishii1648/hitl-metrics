@@ -3,8 +3,6 @@ title: architecture
 weight: 10
 ---
 
-# Architecture
-
 agent-telemetry は 3 つの層で構成されます。各層の責務を分離してあるので、収集元の追加（新しい coding agent）や可視化先の差し替え（Grafana 以外）は、層をまたいだ変更を最小化できます。
 
 ## 全体図

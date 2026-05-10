@@ -5,8 +5,6 @@ sidebar:
   open: true
 ---
 
-# 仕組み解説
-
 agent-telemetry の動作原理を visualize 込みで解説します。読み順は次を推奨します。
 
 1. [metrics](metrics/) — 何を観察しているか・なぜそれを選んだか（観察軸と落とし穴）

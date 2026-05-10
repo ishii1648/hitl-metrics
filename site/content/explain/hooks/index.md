@@ -3,8 +3,6 @@ title: hooks
 weight: 20
 ---
 
-# Hooks
-
 agent-telemetry が登録する hook の一覧と、それぞれが**何のイベントを契機に・何のデータを集めるか**をまとめます。hook は agent プロセスから同期的に呼ばれるため、**永続化以外の重い処理を入れない**設計です（PR 集約は `sync-db` 側で行う）。
 
 ## hook がカバーする範囲

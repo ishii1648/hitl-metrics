@@ -5,8 +5,6 @@ cascade:
   type: docs
 ---
 
-# agent-telemetry
-
 Claude Code および Codex CLI を使った開発で、**PR 単位のトークン消費効率**を追跡・可視化する計測ツールの仕組み解説 site です。
 
 このサイトはツールの **how it works**（hook 構成・データフロー・dashboard の読み方）に絞った解説 docs を提供します。CLI 仕様 / 設計判断 / セットアップ手順といった reference 系ドキュメントは引き続き [GitHub repo の `docs/`](https://github.com/ishii1648/agent-telemetry/tree/main/docs) を正とします。
