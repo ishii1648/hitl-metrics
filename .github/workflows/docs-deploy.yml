@@ -6,10 +6,12 @@ on:
       - main
     paths:
       - "site/**"
+      - "aqua.yaml"
       - ".github/workflows/docs-deploy.yml"
   pull_request:
     paths:
       - "site/**"
+      - "aqua.yaml"
       - ".github/workflows/docs-deploy.yml"
   workflow_dispatch:
 
@@ -33,16 +35,10 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      # Hugo modules は内部で go コマンドを呼ぶため Go の setup が必要
-      - uses: actions/setup-go@v5
+      # aqua.yaml で hugo (extended) と go のバージョンを単一の真実として管理する
+      - uses: aquaproj/aqua-installer@v3.1.1
         with:
-          go-version: "1.22"
-
-      - name: Setup Hugo
-        uses: peaceiris/actions-hugo@v3
-        with:
-          hugo-version: "0.140.0"
-          extended: true
+          aqua_version: v2.58.1
 
       - name: Resolve Hugo modules
         run: hugo mod get -u ./...

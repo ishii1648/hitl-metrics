@@ -103,6 +103,6 @@ make grafana-screenshot
 
 ## panel と DB スキーマの対応
 
-dashboard が読んでいるのは `pr_metrics` / `session_concurrency_weekly` / `session_concurrency_daily` の 3 VIEW です。生テーブル（`sessions` / `transcript_stats`）は直接参照しません。VIEW のフィルタ・集約軸の詳細は [data-flow]({{< relref "../data-flow" >}}) ページを参照してください。
+dashboard が読んでいるのは `pr_metrics` / `session_concurrency_weekly` / `session_concurrency_daily` の 3 VIEW です。生テーブル（`sessions` / `transcript_stats`）は直接参照しません。VIEW のフィルタ・集約軸の詳細は [data-flow]({{< relref "/explain/data-flow" >}}) ページを参照してください。
 
 スキーマ DDL の最新は [docs/spec.md](https://github.com/ishii1648/agent-telemetry/blob/main/docs/spec.md) を正とします。

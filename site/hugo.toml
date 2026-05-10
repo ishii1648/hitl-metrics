@@ -1,6 +1,5 @@
 baseURL = "https://ishii1648.github.io/agent-telemetry/"
 title = "agent-telemetry"
-languageCode = "ja"
 defaultContentLanguage = "ja"
 
 # 末尾スラッシュ付きの URL に揃える（gh-pages 配下で扱いやすい）
