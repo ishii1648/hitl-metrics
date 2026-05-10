@@ -1,7 +1,7 @@
 ---
 decision_type: spec
 affected_paths:
-  - internal/syncdb/schema.sql
+  - internal/syncdb/schema/schema.sql
   - internal/syncdb/syncdb.go
   - grafana/dashboards/agent-telemetry.json
   - internal/transcript/

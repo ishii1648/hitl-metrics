@@ -2,7 +2,7 @@
 decision_type: design
 affected_paths:
   - internal/syncdb/
-  - internal/syncdb/schema.sql
+  - internal/syncdb/schema/schema.sql
   - grafana/dashboards/agent-telemetry.json
   - grafana/provisioning/dashboards/
   - grafana/provisioning/datasources/

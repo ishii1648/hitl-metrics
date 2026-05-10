@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1.7
+
+# Build the agent-telemetry-server binary. CGO_ENABLED=0 keeps the image
+# fully static — modernc.org/sqlite is a pure-Go reimplementation, so no
+# libsqlite3 link is needed.
+FROM golang:1.22-alpine AS build
+ARG VERSION=dev
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build \
+    -ldflags="-s -w -X main.version=${VERSION}" \
+    -o /out/agent-telemetry-server \
+    ./cmd/agent-telemetry-server
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/agent-telemetry-server /usr/local/bin/agent-telemetry-server
+# /var/lib/agent-telemetry holds the SQLite DB and collisions.log. Mount
+# a PVC (k8s) or named volume (docker) here in production.
+VOLUME ["/var/lib/agent-telemetry"]
+EXPOSE 8443
+USER nonroot:nonroot
+ENTRYPOINT ["/usr/local/bin/agent-telemetry-server"]
+CMD ["--data-dir", "/var/lib/agent-telemetry", "--listen", ":8443"]

@@ -1,0 +1,100 @@
+// agent-telemetry-server is the dumb ingest layer for agent-telemetry.
+// It receives aggregated sessions / transcript_stats rows from clients
+// and upserts them into a shared SQLite DB for Grafana to read.
+// Aggregation lives entirely on the client; the server only shares the
+// schema DDL.
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"syscall"
+	"time"
+
+	_ "modernc.org/sqlite"
+
+	"github.com/ishii1648/agent-telemetry/internal/serverpipe"
+)
+
+// version is overwritten at build time via -ldflags "-X main.version=<tag>".
+var version = "dev"
+
+func main() {
+	if err := run(os.Args[1:]); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(args []string) error {
+	fs := flag.NewFlagSet("agent-telemetry-server", flag.ContinueOnError)
+	dataDir := fs.String("data-dir", "/var/lib/agent-telemetry", "directory holding agent-telemetry.db and collisions.log")
+	listen := fs.String("listen", ":8443", "HTTP listen address")
+	showVersion := fs.Bool("version", false, "print version and exit")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *showVersion {
+		fmt.Printf("agent-telemetry-server %s\n", version)
+		return nil
+	}
+
+	token := os.Getenv("AGENT_TELEMETRY_SERVER_TOKEN")
+	if token == "" {
+		return errors.New("AGENT_TELEMETRY_SERVER_TOKEN must be set")
+	}
+
+	if err := os.MkdirAll(*dataDir, 0o755); err != nil {
+		return fmt.Errorf("create data dir: %w", err)
+	}
+
+	dbPath := filepath.Join(*dataDir, "agent-telemetry.db")
+	db, err := serverpipe.OpenDB(dbPath)
+	if err != nil {
+		return fmt.Errorf("open db: %w", err)
+	}
+	defer db.Close()
+
+	handler := serverpipe.NewHandler(db, token, *dataDir)
+	defer handler.Close()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "ok")
+	})
+	handler.Routes(mux)
+
+	srv := &http.Server{
+		Addr:              *listen,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		log.Printf("agent-telemetry-server %s listening on %s (db=%s)", version, *listen, dbPath)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+		}
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		log.Printf("shutting down")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return srv.Shutdown(shutdownCtx)
+	}
+}

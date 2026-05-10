@@ -1,0 +1,50 @@
+// Package serverpipe implements the dumb ingest layer for
+// agent-telemetry-server: receive aggregated rows from clients and
+// upsert them into a shared SQLite DB. The aggregation logic
+// (transcript parsing, PR rollup) lives entirely on the client side —
+// the server only shares the schema DDL via internal/syncdb/schema.
+package serverpipe
+
+import (
+	"database/sql"
+	"fmt"
+
+	"github.com/ishii1648/agent-telemetry/internal/syncdb/schema"
+)
+
+// OpenDB opens the server SQLite DB with the same WAL + busy_timeout
+// settings the client uses, then ensures the schema matches the
+// embedded DDL hash.
+func OpenDB(path string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(30000)")
+	if err != nil {
+		return nil, fmt.Errorf("open db: %w", err)
+	}
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("pragma: %w", err)
+	}
+	if err := EnsureSchema(db); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return db, nil
+}
+
+// EnsureSchema applies schema.SQL when the DB's recorded hash differs
+// from the embedded one. Mirrors the client's sync-db logic so a fresh
+// server DB and a stale one both rebuild cleanly.
+func EnsureSchema(db *sql.DB) error {
+	var current string
+	err := db.QueryRow("SELECT value FROM schema_meta WHERE key = 'schema_hash'").Scan(&current)
+	if err == nil && current == schema.Hash {
+		return nil
+	}
+	if _, err := db.Exec(schema.SQL); err != nil {
+		return fmt.Errorf("apply schema: %w", err)
+	}
+	if _, err := db.Exec("INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_hash', ?)", schema.Hash); err != nil {
+		return fmt.Errorf("write schema hash: %w", err)
+	}
+	return nil
+}

@@ -17,7 +17,7 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/ishii1648/agent-telemetry/internal/backfill"
-	"github.com/ishii1648/agent-telemetry/internal/syncdb"
+	"github.com/ishii1648/agent-telemetry/internal/syncdb/schema"
 )
 
 // pushTestEnv wires up a temp ~/.claude (and ~/.codex) layout, a fresh DB
@@ -104,7 +104,7 @@ func (e *pushTestEnv) seedSession(sessionID, codingAgent string, mut func(*Sessi
 	if _, err := db.Exec(schemaSQLForTest()); err != nil {
 		e.t.Fatal(err)
 	}
-	if _, err := db.Exec("INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_hash', ?)", syncdb.SchemaHash()); err != nil {
+	if _, err := db.Exec("INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_hash', ?)", schema.Hash); err != nil {
 		e.t.Fatal(err)
 	}
 
@@ -332,12 +332,5 @@ func TestRun_FullResendsSkippedSessions(t *testing.T) {
 // schemaSQLForTest exposes the embedded schema to tests so they can spin up
 // production-shaped DBs without round-tripping through sync-db's full pipeline.
 func schemaSQLForTest() string {
-	// We can't reference syncdb.schemaSQL (unexported), so call ensureSchema
-	// indirectly by re-reading the file. Tests run from this package's dir
-	// at $REPO/internal/serverclient, so resolve by relative path.
-	data, err := os.ReadFile(filepath.Join("..", "syncdb", "schema.sql"))
-	if err != nil {
-		panic(err)
-	}
-	return string(data)
+	return schema.SQL
 }

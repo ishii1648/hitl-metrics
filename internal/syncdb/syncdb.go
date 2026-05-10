@@ -11,6 +11,7 @@ import (
 
 	"github.com/ishii1648/agent-telemetry/internal/agent"
 	"github.com/ishii1648/agent-telemetry/internal/sessionindex"
+	"github.com/ishii1648/agent-telemetry/internal/syncdb/schema"
 	"github.com/ishii1648/agent-telemetry/internal/transcript"
 	"github.com/ishii1648/agent-telemetry/internal/userid"
 )
@@ -72,13 +73,13 @@ type agentSource struct {
 func ensureSchema(db *sql.DB) error {
 	var current string
 	err := db.QueryRow("SELECT value FROM schema_meta WHERE key = 'schema_hash'").Scan(&current)
-	if err == nil && current == schemaHash {
+	if err == nil && current == schema.Hash {
 		return nil
 	}
-	if _, err := db.Exec(schemaSQL); err != nil {
+	if _, err := db.Exec(schema.SQL); err != nil {
 		return fmt.Errorf("apply schema: %w", err)
 	}
-	if _, err := db.Exec("INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_hash', ?)", schemaHash); err != nil {
+	if _, err := db.Exec("INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('schema_hash', ?)", schema.Hash); err != nil {
 		return fmt.Errorf("write schema hash: %w", err)
 	}
 	return nil

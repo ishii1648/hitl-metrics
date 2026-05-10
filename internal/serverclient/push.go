@@ -20,6 +20,7 @@ import (
 	"github.com/ishii1648/agent-telemetry/internal/agent"
 	"github.com/ishii1648/agent-telemetry/internal/backfill"
 	"github.com/ishii1648/agent-telemetry/internal/syncdb"
+	"github.com/ishii1648/agent-telemetry/internal/syncdb/schema"
 )
 
 // MaxBatchBytes is the per-request hard cap from docs/spec.md. Kept as a var
@@ -269,10 +270,10 @@ func postBatch(ctx context.Context, client *http.Client, endpoint, token string,
 	return r, wireSize, nil
 }
 
-// schemaHash exposes internal/syncdb's embedded schema hash. Wrapped in a
-// function so tests can stub if needed (currently they don't).
+// schemaHash exposes the embedded schema hash. Wrapped in a function so
+// tests can stub if needed (currently they don't).
 func schemaHash() string {
-	return syncdb.SchemaHash()
+	return schema.Hash
 }
 
 // Summarize renders a result for stderr / dry-run output. The shape is meant

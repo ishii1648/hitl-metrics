@@ -1,7 +1,8 @@
 version: 2
 
 builds:
-  - main: ./cmd/agent-telemetry/
+  - id: agent-telemetry
+    main: ./cmd/agent-telemetry/
     binary: agent-telemetry
     env:
       - CGO_ENABLED=0
@@ -13,10 +14,30 @@ builds:
     goarch:
       - amd64
       - arm64
+  - id: agent-telemetry-server
+    main: ./cmd/agent-telemetry-server/
+    binary: agent-telemetry-server
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main.version=v{{.Version}}
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
 
 archives:
-  - format: tar.gz
+  - id: agent-telemetry
+    builds:
+      - agent-telemetry
+    format: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+  - id: agent-telemetry-server
+    builds:
+      - agent-telemetry-server
+    format: tar.gz
+    name_template: "agent-telemetry-server_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: "checksums.txt"

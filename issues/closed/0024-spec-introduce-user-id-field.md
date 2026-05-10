@@ -3,7 +3,7 @@ decision_type: spec
 affected_paths:
   - internal/userid/
   - internal/sessionindex/
-  - internal/syncdb/schema.sql
+  - internal/syncdb/schema/schema.sql
   - internal/syncdb/syncdb.go
   - internal/agent/
 tags: [retro, multi-user, schema, server-aggregation]
@@ -55,7 +55,7 @@ Retro-converted: 2026-05-10 (from docs/history.md §11)
 
 - `internal/userid/` で取得順序ロジックを集約
 - `internal/sessionindex/` で JSONL に書き出し
-- `internal/syncdb/schema.sql` で `sessions.user_id` カラム追加、`pr_metrics` VIEW の GROUP BY 拡張
+- `internal/syncdb/schema/schema.sql` で `sessions.user_id` カラム追加、`pr_metrics` VIEW の GROUP BY 拡張
 - `internal/syncdb/syncdb.go` の sync ループで埋め戻し
 
 ## 採用しなかった代替

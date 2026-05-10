@@ -18,7 +18,7 @@ Created: 2026-05-10
 
 ## 根拠
 
-[0009](0009-feat-server-side-metrics-pipeline.md) でサーバ送信の方針が確定した。クライアント側で必要な要素は (1) `[server]` 設定読み込み、(2) ローカル DB から差分行を抽出、(3) `pushed_session_versions` による差分検知、(4) HTTP 送信、(5) `state.json` の更新 の 5 つに整理できる。サーバ側の ingest 実装（[../0029-feat-server-ingest.md](../0029-feat-server-ingest.md)）と並列で進められるよう、独立 issue として分離する。
+[0009](0009-feat-server-side-metrics-pipeline.md) でサーバ送信の方針が確定した。クライアント側で必要な要素は (1) `[server]` 設定読み込み、(2) ローカル DB から差分行を抽出、(3) `pushed_session_versions` による差分検知、(4) HTTP 送信、(5) `state.json` の更新 の 5 つに整理できる。サーバ側の ingest 実装（[0029-feat-server-ingest.md](0029-feat-server-ingest.md)）と並列で進められるよう、独立 issue として分離する。
 
 ## 対応方針
 
@@ -45,7 +45,7 @@ Created: 2026-05-10
 - [x] サーバが古いスキーマで `schema_mismatch: true` を返した場合、クライアントは exit code 非ゼロで終了し原因をログに記録する
 - [x] `go test ./...` が通る
 
-依存: [../0029-feat-server-ingest.md](../0029-feat-server-ingest.md)（サーバ側 ingest 実装、本番環境での E2E 検証に必要）
+依存: [0029-feat-server-ingest.md](0029-feat-server-ingest.md)（サーバ側 ingest 実装、本番環境での E2E 検証に必要）
 
 Completed: 2026-05-10
 
