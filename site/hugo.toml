@@ -23,14 +23,19 @@ canonifyURLs = true
 
 # 上部ナビゲーションメニュー
 [[menu.main]]
-  name = "Docs"
+  name = "仕組み解説"
   pageRef = "/explain"
   weight = 1
 
 [[menu.main]]
+  name = "セットアップ"
+  pageRef = "/setup"
+  weight = 2
+
+[[menu.main]]
   name = "GitHub"
   url = "https://github.com/ishii1648/agent-telemetry"
-  weight = 2
+  weight = 3
   [menu.main.params]
     icon = "github"
 

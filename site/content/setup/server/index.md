@@ -1,8 +1,11 @@
-# サーバ送信のセットアップ（オプトイン）
+---
+title: server
+weight: 20
+---
 
-複数マシンやチームメンバーで集計値を集約したい場合、`agent-telemetry-server` を立てて `agent-telemetry push` で送信する経路を有効化できます。サーバ送信は **オプトイン** で、設定しなければローカル単独利用は従来どおり動きます。基本のローカルセットアップは [setup.md](setup.md) を、日常運用は [usage.md](usage.md) を参照してください。
+複数マシンやチームメンバーで集計値を集約したい場合、`agent-telemetry-server` を立てて `agent-telemetry push` で送信する経路を有効化できます。サーバ送信は **オプトイン** で、設定しなければローカル単独利用は従来どおり動きます。基本のローカルセットアップは [local]({{< relref "/setup/local" >}}) を参照してください。
 
-仕様の外部契約は [docs/spec.md ## サーバ送信](spec.md#サーバ送信)、設計判断は [docs/design.md ## サーバ側集約パイプライン](design.md#サーバ側集約パイプライン) を参照。
+仕様の外部契約は [docs/spec.md ## サーバ送信](https://github.com/ishii1648/agent-telemetry/blob/main/docs/spec.md#サーバ送信)、設計判断は [docs/design.md ## サーバ側集約パイプライン](https://github.com/ishii1648/agent-telemetry/blob/main/docs/design.md#サーバ側集約パイプライン) を参照。
 
 agent-telemetry が公式に配布するのは **container image** と **Go binary** のみです:
 
@@ -252,9 +255,39 @@ spec:
     - {port: 3000, targetPort: http,   name: grafana}
 ```
 
-Grafana にブラウザでアクセスする手順は [usage.md ## サーバ DB を Grafana で見る](usage.md#サーバ-db-を-grafana-で見る) を参照してください。
+Grafana にブラウザでアクセスする手順は次節 § 5 を参照してください。
 
-## 5. クライアント設定
+## 5. サーバ DB を Grafana で見る
+
+datasource の `uid: agent-telemetry` を踏襲しているため、ローカル `make grafana-up` と **同じダッシュボード JSON** がそのまま動きます。
+
+### 5.1 同居版 Grafana を Port-forward（§ 4 を deploy 済みの場合）
+
+§ 4 の Grafana 同居版を deploy 済みなら、Service を Port-forward するだけで開けます:
+
+```fish
+kubectl port-forward -n agent-telemetry svc/agent-telemetry 3000:3000
+# → http://localhost:3000 で Grafana にアクセス
+```
+
+NodePort / Ingress / LoadBalancer で外部公開する場合は cluster の慣習に合わせて `Service.spec.type` を変更してください。
+
+### 5.2 サーバ DB ファイルを手元にコピーして見る
+
+サーバ側に Grafana を同居させていない場合や、個人検証 / 比較目的でスナップショットを手元で見たい場合。`AGENT_TELEMETRY_DB` を server data dir 内のファイルに向ければ `make grafana-up` がそのまま動きます:
+
+```fish
+# サーバから DB をコピー（k8s の場合の例。VPS / docker 環境ならその慣習で）
+kubectl cp -n agent-telemetry agent-telemetry-0:/var/lib/agent-telemetry/agent-telemetry.db /tmp/server-snapshot.db
+
+# ローカル Grafana で開く
+make grafana-up AGENT_TELEMETRY_DB=/tmp/server-snapshot.db
+# → http://localhost:13000
+```
+
+サーバ DB スキーマはクライアント DB と同一なので、ダッシュボードは無調整で描画されます。
+
+## 6. クライアント設定
 
 `~/.config/agent-telemetry/config.toml`（`XDG_CONFIG_HOME` が設定されていれば `$XDG_CONFIG_HOME/agent-telemetry/config.toml`）に `[server]` セクションを追加します。旧バージョンが書き出した `~/.claude/agent-telemetry.toml` も fallback として読まれますが、stderr に migration warning が出るので、可能なら `~/.config/` 側に移動してください:
 
@@ -275,7 +308,7 @@ agent-telemetry push --since-last     # 実送信。差分のみ
 
 `[server]` が欠落 / 値が空のときは warning を stderr に出して exit code 0 で終了するため、cron に設定したまま config を取り除いても CI / cron が壊れません。
 
-## 6. push の定期起動
+## 7. push の定期起動
 
 `agent-telemetry push --since-last` は Stop hook の hot path に乗せず、別途定期起動します（hook が遅延すると agent UX が劣化するため）。exit code は **0 = ok / 1 = error / 2 = schema_mismatch** です。
 
@@ -317,7 +350,7 @@ agent-telemetry push --since-last     # 実送信。差分のみ
 launchctl load ~/Library/LaunchAgents/dev.agent-telemetry.push.plist
 ```
 
-## 7. 新メトリクス追加時の遡及反映
+## 8. 新メトリクス追加時の遡及反映
 
 サーバ・クライアント間で `internal/syncdb/schema.sql` のハッシュ（`schema_meta`）が一致している必要があります。新メトリクスを追加する場合は **サーバを先に新スキーマへ更新** します（クライアント先行で push されると古いスキーマで永続化されるため）。
 
