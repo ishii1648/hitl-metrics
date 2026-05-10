@@ -29,7 +29,11 @@ jobs:
   promote:
     name: promote ${{ github.event.release.tag_name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # docker-image.yml の job timeout は 20 分。main merge 直後に release を
+    # 切ると、release-tag-image.yml は docker-image.yml の build 完了を待つ
+    # 必要があるため、source image polling (最大 25 分) + その他の step に
+    # 余裕を持たせて 30 分にする。
+    timeout-minutes: 30
     steps:
       # Actions are pinned to commit SHAs (with the corresponding tag in a
       # comment) — version tags are mutable. Same policy as docker-image.yml.
@@ -78,26 +82,48 @@ jobs:
             type=semver,pattern={{major}}
             type=raw,value=latest,enable=${{ !github.event.release.prerelease }}
 
-      # Sanity-check that the source image actually exists in the registry
-      # before we try to re-tag it. If GHCR retention or a manual delete has
-      # removed it, we want a clear error rather than a confusing
-      # `imagetools create` failure.
+      # Wait for the source image to exist in the registry, then capture its
+      # digest. Polling is needed because release.yml (goreleaser) finishes in
+      # seconds while docker-image.yml's multi-arch build for the same main
+      # commit takes ~5–10 minutes — so a release cut right after merge will
+      # arrive here before :sha-<short> has been pushed. We poll instead of
+      # forcing humans to manually order the merge → release sequence.
+      #
+      # The cheap main-reachability gate above runs first, so feature-branch
+      # releases never enter this loop. If polling times out we fail with a
+      # clear error: either docker-image.yml failed for this commit, or its
+      # paths filter skipped the build — both need human attention.
       - id: source
-        name: Verify source image
+        name: Wait for source image
         run: |
           set -euo pipefail
           src="${REGISTRY}/${IMAGE_NAME}:sha-${SHORT_SHA}"
-          if ! docker buildx imagetools inspect "$src" >/dev/null 2>&1; then
-            echo "::error::Source image $src not found in registry. The main-build workflow must have published :sha-<short> for this commit." >&2
-            exit 1
-          fi
-          digest=$(docker buildx imagetools inspect --format '{{ json .Manifest }}' "$src" | jq -r '.digest')
-          echo "src=$src"       >> "$GITHUB_OUTPUT"
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          deadline=$(( $(date +%s) + WAIT_TIMEOUT_SECONDS ))
+          while :; do
+            if digest_json=$(docker buildx imagetools inspect --format '{{ json .Manifest }}' "$src" 2>/dev/null); then
+              digest=$(printf '%s' "$digest_json" | jq -r '.digest')
+              echo "Source image found: $src @ $digest"
+              echo "src=$src"       >> "$GITHUB_OUTPUT"
+              echo "digest=$digest" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            now=$(date +%s)
+            if [ "$now" -ge "$deadline" ]; then
+              echo "::error::Source image $src not found within ${WAIT_TIMEOUT_SECONDS}s. Check docker-image.yml: did it succeed for this commit, or did its paths filter skip the build?" >&2
+              exit 1
+            fi
+            remaining=$(( deadline - now ))
+            echo "Source image $src not yet in registry; retrying in ${POLL_INTERVAL_SECONDS}s (${remaining}s remaining)."
+            sleep "$POLL_INTERVAL_SECONDS"
+          done
         env:
           REGISTRY: ${{ env.REGISTRY }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           SHORT_SHA: ${{ steps.target.outputs.short_sha }}
+          # 25-minute ceiling: docker-image.yml's job timeout is 20 min, plus
+          # buffer for the release publish to land before this workflow starts.
+          WAIT_TIMEOUT_SECONDS: "1500"
+          POLL_INTERVAL_SECONDS: "30"
 
       # Re-tag the multi-arch manifest list onto each destination tag.
       # `imagetools create -t <new> <src>` copies the manifest list (not
