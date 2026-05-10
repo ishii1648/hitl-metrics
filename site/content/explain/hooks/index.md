@@ -1,6 +1,6 @@
 ---
 title: hooks
-weight: 30
+weight: 20
 ---
 
 # Hooks
