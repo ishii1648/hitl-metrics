@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +12,7 @@ import (
 	"github.com/ishii1648/agent-telemetry/internal/doctor"
 	"github.com/ishii1648/agent-telemetry/internal/hook"
 	"github.com/ishii1648/agent-telemetry/internal/legacy"
+	"github.com/ishii1648/agent-telemetry/internal/serverclient"
 	"github.com/ishii1648/agent-telemetry/internal/sessionindex"
 	"github.com/ishii1648/agent-telemetry/internal/setup"
 	"github.com/ishii1648/agent-telemetry/internal/syncdb"
@@ -33,6 +36,8 @@ func main() {
 		runBackfill(os.Args[2:])
 	case "sync-db":
 		runSyncDB(os.Args[2:])
+	case "push":
+		runPush(os.Args[2:])
 	case "setup":
 		runSetup(os.Args[2:])
 	case "uninstall-hooks":
@@ -65,6 +70,8 @@ Commands:
   doctor                                 検出された agent ごとに binary / data dir / hook 登録を検証（自動修復はしない）
   backfill [--recheck] [--agent <a>]     検出された agent すべての pr_urls / is_merged / review_comments を補完
   sync-db [--agent <a>]                  検出された agent すべての JSONL/transcript → SQLite 変換（毎回フル再構築）
+  push [--since-last|--full] [--dry-run] [--agent <a>]
+                                         sync-db の集計値（sessions / transcript_stats）を [server] へ送信（オプトイン）
   update <session_id> <url>...           session-index.jsonl に PR URL を追加（重複排除）
   update --mark-checked <session_id>...  backfill_checked フラグをセット
   update --by-branch <repo> <branch> <url>  同一 repo+branch の全セッションに URL を追加
@@ -189,6 +196,54 @@ func runSyncDB(args []string) {
 	}
 	if err := syncdb.RunForAgents(agents, syncdb.DBPath()); err != nil {
 		fmt.Fprintf(os.Stderr, "sync-db error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+// runPush dispatches `push` to serverclient. Missing [server] config is
+// surfaced via stderr but exits 0 — cron should not page on an opt-out.
+// schema_mismatch is the one server-side condition we exit non-zero on, so
+// users notice they need to upgrade either client or server binary.
+func runPush(args []string) {
+	migrateLegacy()
+	agentName, args := extractAgentFlag(args)
+	opts := serverclient.Options{
+		ClientVersion: version,
+	}
+	for _, a := range args {
+		switch a {
+		case "--since-last":
+			opts.SinceLast = true
+		case "--full":
+			opts.Full = true
+		case "--dry-run":
+			opts.DryRun = true
+		default:
+			fmt.Fprintf(os.Stderr, "push: unknown flag %q\n", a)
+			os.Exit(1)
+		}
+	}
+	if !opts.Full && !opts.SinceLast {
+		opts.SinceLast = true
+	}
+	opts.AgentName = agentName
+
+	res, err := serverclient.Run(context.Background(), opts)
+	if res != nil {
+		res.Summarize(os.Stderr)
+		for _, ar := range res.PerAgent {
+			if ar.NoConfig {
+				fmt.Fprintln(os.Stderr, "push: [server] セクションが ~/.claude/agent-telemetry.toml に未設定です。docs/spec.md ## サーバ送信 を参照してください。")
+				break
+			}
+		}
+	}
+	if err != nil {
+		if errors.Is(err, serverclient.ErrSchemaMismatch) {
+			fmt.Fprintln(os.Stderr, "push: server reported schema_mismatch — クライアント / サーバ binary のスキーマハッシュが一致していません。両側を同じ version に揃えてください。")
+			os.Exit(2)
+		}
+		fmt.Fprintf(os.Stderr, "push error: %v\n", err)
 		os.Exit(1)
 	}
 }
